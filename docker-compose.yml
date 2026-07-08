@@ -1,0 +1,15 @@
+services:
+  mealdeal:
+    image: ghcr.io/marchah/mealdeal:latest
+    # To build from source instead of pulling the published image, comment `image:`
+    # above and uncomment:
+    # build: .
+    env_file: .env
+    ports:
+      - "3000:3000" # host:container — change the left side to expose a different host port
+    volumes:
+      - mealdeal-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  mealdeal-data:
