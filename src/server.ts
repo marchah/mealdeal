@@ -21,6 +21,11 @@ export function createServer(cfg: Config, db: Db): Express {
     res.json(db.listActiveDeals());
   });
 
+  // Ingest + deal count summary for observability.
+  app.get('/api/stats', (_req: Request, res: Response) => {
+    res.json(db.getStats());
+  });
+
   // Tracking prefs: mute ("stop tracking") / watchlist ("alert me").
   app.get('/api/prefs', (_req: Request, res: Response) => {
     res.json(db.listPrefs());

@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { readFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Deal, TrackingPref, PrefKind, PrefScope, ExtractedDeal } from '../types.ts';
+import type { Deal, TrackingPref, PrefKind, PrefScope, ExtractedDeal, IngestRunSummary } from '../types.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -99,5 +99,23 @@ export class Db {
         `UPDATE ingest_runs SET finished_at = datetime('now'), messages_seen = ?, deals_added = ?, error = ? WHERE id = ?`,
       )
       .run(messagesSeen, dealsAdded, error, id);
+  }
+
+  /** Snapshot of ingest health + deal counts for observability. */
+  getStats(): { totalDeals: number; activeDeals: number; lastIngest: IngestRunSummary | null } {
+    const totalDeals = this.db.prepare('SELECT COUNT(*) AS count FROM deals').get() as { count: number };
+
+    // Reuse the existing active-deal filter via listActiveDeals — same not-expired / not-muted logic.
+    const activeDeals = this.listActiveDeals().length;
+
+    const last = this.db
+      .prepare(
+        `SELECT id, started_at AS startedAt, finished_at AS finishedAt, messages_seen AS messagesSeen,
+                deals_added AS dealsAdded, error
+           FROM ingest_runs ORDER BY id DESC LIMIT 1`,
+      )
+      .get() as IngestRunSummary | undefined;
+
+    return { totalDeals: totalDeals.count, activeDeals, lastIngest: last ?? null };
   }
 }

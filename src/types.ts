@@ -54,3 +54,20 @@ export interface FetchedEmail {
   date: string; // ISO
   text: string; // best-effort plain text body (HTML stripped/converted)
 }
+
+/** Summary of a single ingest run. */
+export interface IngestRunSummary {
+  id: number;
+  startedAt: string;
+  finishedAt: string | null;
+  messagesSeen: number;
+  dealsAdded: number;
+  error: string | null;
+}
+
+/** Snapshot of ingest health + deal counts for observability. */
+export interface Stats {
+  totalDeals: number;
+  activeDeals: number;
+  lastIngest: IngestRunSummary | null;
+}
