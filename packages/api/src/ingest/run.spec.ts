@@ -31,7 +31,6 @@ function makeServices(): Services {
 
 describe('ingestOnce', () => {
   it('acknowledges only messages whose deals were stored; failed ones stay unseen for retry', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const markSeen = vi.fn((_uids: readonly number[]): Promise<void> => Promise.resolve());
     const imap: ImapClient = {
       fetchUnseen: () => Promise.resolve([email(1, 'good@shop.com'), email(2, 'bad@shop.com')]),

@@ -31,6 +31,7 @@
     "node-cron": "^4.6.0",
     "openai": "^6.47.0",
     "sirv": "^3.0.2",
+    "winston": "^3.19.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

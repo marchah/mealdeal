@@ -1,3 +1,4 @@
+import { logException, logInfo } from './common/logger';
 import { runMigrations } from './db/migrate';
 import { scheduleIngest } from './ingest/run';
 
@@ -6,10 +7,10 @@ import { scheduleIngest } from './ingest/run';
 async function main(): Promise<void> {
   await runMigrations();
   scheduleIngest();
-  console.log('[worker] ingest scheduler running');
+  logInfo('ingest scheduler running', { tag: 'WORKER' });
 }
 
 void main().catch((error: unknown) => {
-  console.error('[worker] fatal', error);
+  logException(error, { tag: 'WORKER' });
   process.exit(1);
 });

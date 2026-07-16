@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import cron from 'node-cron';
 import { ServerError } from '../common/errors';
+import { logException, logInfo, logWarning } from '../common/logger';
 import { settings } from '../common/settings';
 import { getServices, type Services } from '../services';
 import type { NewDeal } from '../modules/deal/types';
@@ -83,10 +84,7 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
         processedUids.push(email.uid);
       } catch (messageError) {
         messagesFailed += 1;
-        console.error(
-          `[ingest] message ${String(email.uid)} failed; leaving unseen for retry`,
-          messageError,
-        );
+        logException(messageError, { tag: 'INGEST', extra: { uid: email.uid } });
       }
     }
     // Acknowledge ONLY the messages we durably processed.
@@ -119,19 +117,20 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
 export function scheduleIngest(): void {
   const expr = settings.INGEST_CRON;
   if (!cron.validate(expr)) {
-    console.warn(`[ingest] invalid INGEST_CRON "${expr}"; not scheduling`);
+    logWarning(`invalid INGEST_CRON "${expr}"; not scheduling`, { tag: 'INGEST' });
     return;
   }
   cron.schedule(expr, () => {
     void ingestOnce()
       .then((result) => {
-        console.log(
-          `[ingest] pass complete: ${String(result.messagesSeen)} seen, ${String(result.dealsAdded)} added`,
+        logInfo(
+          `pass complete: ${String(result.messagesSeen)} seen, ${String(result.dealsAdded)} added`,
+          { tag: 'INGEST' },
         );
       })
       .catch((error: unknown) => {
-        console.error('[ingest] pass failed', error);
+        logException(error, { tag: 'INGEST' });
       });
   });
-  console.log(`[ingest] scheduled (${expr})`);
+  logInfo(`scheduled (${expr})`, { tag: 'INGEST' });
 }

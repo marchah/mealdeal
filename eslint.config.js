@@ -14,7 +14,7 @@ export default tseslint.config(
       'packages/contract/**',
       'packages/api/drizzle/**',
       '**/*.config.{js,ts,mjs}',
-      'scripts/**',
+      '**/scripts/**',
       'eslint.config.js',
     ],
   },
@@ -52,6 +52,8 @@ export default tseslint.config(
           message: 'Read environment variables only in common/settings.ts.',
         },
       ],
+      // Use the logger (common/logger.ts), never console.*.
+      'no-console': 'error',
     },
   },
 

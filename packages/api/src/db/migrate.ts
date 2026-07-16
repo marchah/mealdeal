@@ -1,4 +1,5 @@
 import { migrate } from 'drizzle-orm/libsql/migrator';
+import { logException, logInfo } from '../common/logger';
 import { settings } from '../common/settings';
 import { createDb } from './client';
 
@@ -18,10 +19,10 @@ export async function runMigrations(): Promise<void> {
 if (import.meta.url === `file://${process.argv[1]}`) {
   runMigrations()
     .then(() => {
-      console.log('[migrate] migrations applied');
+      logInfo('migrations applied', { tag: 'DB' });
     })
     .catch((err: unknown) => {
-      console.error('[migrate] failed', err);
+      logException(err, { tag: 'DB' });
       process.exit(1);
     });
 }

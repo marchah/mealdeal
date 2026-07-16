@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { createYoga } from 'graphql-yoga';
 import sirv from 'sirv';
 import { ServerError } from './common/errors';
+import { logException, logInfo } from './common/logger';
 import { settings } from './common/settings';
 import { createContext } from './context';
 import { runMigrations } from './db/migrate';
@@ -51,13 +52,15 @@ async function main(): Promise<void> {
   });
 
   server.listen(settings.PORT, () => {
-    console.log(`[server] http://localhost:${String(settings.PORT)} (GraphQL at /graphql)`);
+    logInfo(`listening on http://localhost:${String(settings.PORT)} (GraphQL at /graphql)`, {
+      tag: 'SERVER',
+    });
   });
 
   if (settings.INGEST_INLINE) scheduleIngest();
 }
 
 void main().catch((error: unknown) => {
-  console.error('[server] fatal', error);
+  logException(error, { tag: 'SERVER' });
   process.exit(1);
 });

@@ -7,6 +7,8 @@ import { z } from 'zod';
 // so a misconfigured deploy fails fast with a clear message.
 
 const EnvSchema = z.object({
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
   PORT: z.coerce.number().int().positive().default(4000),
   WEB_DIR: z.string().optional(),
   DATABASE_URL: z.string().default('file:./data/mealdeal.db'),
@@ -63,6 +65,8 @@ const IMAP: ImapSettings | null =
     : null;
 
 export const settings = {
+  NODE_ENV: ENV.NODE_ENV,
+  LOG_LEVEL: ENV.LOG_LEVEL,
   PORT: ENV.PORT,
   WEB_DIR: ENV.WEB_DIR,
   DATABASE_URL: ENV.DATABASE_URL,
