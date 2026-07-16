@@ -1,0 +1,90 @@
+type ConflictError {
+  message: String!
+  status: Int!
+}
+
+"""
+A date-time string at UTC, such as 2007-12-03T10:15:30Z, compliant with the `date-time` format outlined in section 5.6 of the RFC 3339 profile of the ISO 8601 standard for representation of dates and times using the Gregorian calendar.
+"""
+scalar DateTime
+
+type Deal {
+  category: String
+  code: String
+  createdAt: DateTime!
+  currency: String
+  discountPct: Float
+  discountText: String
+  expiresAt: DateTime
+  id: ID!
+  item: String
+  merchant: Merchant!
+  price: Float
+  startsAt: DateTime
+  title: String!
+  url: String
+}
+
+type Merchant {
+  createdAt: DateTime!
+  id: ID!
+  name: String!
+}
+
+type Mutation {
+  addPref(kind: PrefKind!, scope: PrefScope!, value: String!): TrackingPref!
+  removePref(id: ID!): Boolean!
+}
+
+type NotFoundError {
+  message: String!
+  status: Int!
+}
+
+enum PrefKind {
+  mute
+  watchlist
+}
+
+enum PrefScope {
+  category
+  item
+}
+
+type Query {
+  deal(id: ID!): QueryDealResult!
+  deals(activeOnly: Boolean = true, category: String): [Deal!]!
+  prefs: [TrackingPref!]!
+  stats: Stats!
+}
+
+union QueryDealResult = NotFoundError | QueryDealSuccess | ServerError
+
+type QueryDealSuccess {
+  data: Deal!
+}
+
+type ServerError {
+  message: String!
+  status: Int!
+}
+
+type Stats {
+  activeDeals: Int!
+  lastIngestAt: DateTime
+  merchants: Int!
+  totalDeals: Int!
+}
+
+type TrackingPref {
+  createdAt: DateTime!
+  id: ID!
+  kind: PrefKind!
+  scope: PrefScope!
+  value: String!
+}
+
+type ValidationError {
+  message: String!
+  status: Int!
+}

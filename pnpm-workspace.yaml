@@ -1,0 +1,10 @@
+packages:
+  - packages/*
+
+# Native-binary deps whose install scripts we explicitly trust (pnpm 10+ blocks them by default).
+allowBuilds:
+  esbuild: true
+  '@tailwindcss/oxide': true
+  '@libsql/client': true
+  libsql: true
+  unrs-resolver: true

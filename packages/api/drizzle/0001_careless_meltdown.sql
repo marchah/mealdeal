@@ -1,0 +1,1 @@
+ALTER TABLE `ingest_runs` ADD `messages_failed` integer DEFAULT 0 NOT NULL;
