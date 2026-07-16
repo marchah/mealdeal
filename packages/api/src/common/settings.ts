@@ -2,8 +2,9 @@ import 'dotenv/config';
 import { z } from 'zod';
 
 // The SINGLE place environment variables are read. Everything else imports `settings`;
-// nothing else touches process.env (enforced by ESLint). Values are validated once at
-// startup so a misconfigured deploy fails fast with a clear message.
+// nothing else touches process.env (enforced by ESLint). Field names are SCREAMING_SNAKE_CASE
+// so they visibly mirror the environment variables they come from. Validated once at startup
+// so a misconfigured deploy fails fast with a clear message.
 
 const EnvSchema = z.object({
   PORT: z.coerce.number().int().positive().default(4000),
@@ -29,61 +30,54 @@ const EnvSchema = z.object({
 });
 
 // eslint-disable-next-line no-restricted-properties -- the one allowed read of process.env
-const env = EnvSchema.parse(process.env);
+const ENV = EnvSchema.parse(process.env);
 
+/** IMAP connection settings (grouped so it can be null when unconfigured). */
 export interface ImapSettings {
-  host: string;
-  port: number;
-  secure: boolean;
-  user: string;
-  pass: string;
-  mailbox: string;
+  IMAP_HOST: string;
+  IMAP_PORT: number;
+  IMAP_SECURE: boolean;
+  IMAP_USER: string;
+  IMAP_PASSWORD: string;
+  IMAP_MAILBOX: string;
 }
 
+/** OpenAI-compatible LLM settings. */
 export interface LlmSettings {
-  baseUrl: string;
-  apiKey: string;
-  model: string;
+  OPENAI_BASE_URL: string;
+  OPENAI_API_KEY: string;
+  OPENAI_MODEL: string;
 }
 
-export interface Settings {
-  port: number;
-  webDir: string | undefined;
-  databaseUrl: string;
-  migrationsDir: string;
-  ingest: { inline: boolean; cron: string; batch: number; token: string | undefined };
-  /** null when IMAP is not configured (host/user/password absent) — ingest is then disabled. */
-  imap: ImapSettings | null;
-  llm: LlmSettings;
-}
-
-const imap: ImapSettings | null =
-  env.IMAP_HOST && env.IMAP_USER && env.IMAP_PASSWORD
+// null when IMAP is not configured (host/user/password absent) — ingest is then disabled.
+const IMAP: ImapSettings | null =
+  ENV.IMAP_HOST && ENV.IMAP_USER && ENV.IMAP_PASSWORD
     ? {
-        host: env.IMAP_HOST,
-        port: env.IMAP_PORT,
-        secure: env.IMAP_SECURE !== 'false',
-        user: env.IMAP_USER,
-        pass: env.IMAP_PASSWORD,
-        mailbox: env.IMAP_MAILBOX,
+        IMAP_HOST: ENV.IMAP_HOST,
+        IMAP_PORT: ENV.IMAP_PORT,
+        IMAP_SECURE: ENV.IMAP_SECURE !== 'false',
+        IMAP_USER: ENV.IMAP_USER,
+        IMAP_PASSWORD: ENV.IMAP_PASSWORD,
+        IMAP_MAILBOX: ENV.IMAP_MAILBOX,
       }
     : null;
 
-export const settings: Settings = {
-  port: env.PORT,
-  webDir: env.WEB_DIR,
-  databaseUrl: env.DATABASE_URL,
-  migrationsDir: env.MIGRATIONS_DIR,
-  ingest: {
-    inline: env.INGEST_INLINE !== '0',
-    cron: env.INGEST_CRON,
-    batch: env.INGEST_BATCH,
-    token: env.INGEST_TOKEN,
-  },
-  imap,
-  llm: {
-    baseUrl: env.OPENAI_BASE_URL,
-    apiKey: env.OPENAI_API_KEY,
-    model: env.OPENAI_MODEL,
-  },
+export const settings = {
+  PORT: ENV.PORT,
+  WEB_DIR: ENV.WEB_DIR,
+  DATABASE_URL: ENV.DATABASE_URL,
+  MIGRATIONS_DIR: ENV.MIGRATIONS_DIR,
+
+  INGEST_INLINE: ENV.INGEST_INLINE !== '0',
+  INGEST_CRON: ENV.INGEST_CRON,
+  INGEST_BATCH: ENV.INGEST_BATCH,
+  INGEST_TOKEN: ENV.INGEST_TOKEN,
+
+  IMAP,
+
+  OPENAI_BASE_URL: ENV.OPENAI_BASE_URL,
+  OPENAI_API_KEY: ENV.OPENAI_API_KEY,
+  OPENAI_MODEL: ENV.OPENAI_MODEL,
 };
+
+export type Settings = typeof settings;

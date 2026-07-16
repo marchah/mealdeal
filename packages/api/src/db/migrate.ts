@@ -11,7 +11,7 @@ import { createDb } from './client';
 // in the container, and `drizzle/` sits at the root of both.
 export async function runMigrations(): Promise<void> {
   const db = createDb();
-  await migrate(db, { migrationsFolder: settings.migrationsDir });
+  await migrate(db, { migrationsFolder: settings.MIGRATIONS_DIR });
 }
 
 // Executed directly as a script (pnpm db:migrate / node dist/db/migrate.js).

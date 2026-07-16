@@ -36,8 +36,8 @@ function toDate(iso: string | null | undefined): Date | null {
  */
 export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<IngestResult> {
   const services = deps.services ?? getServices();
-  const imap = deps.imap ?? (settings.imap ? imapClientFactory({ config: settings.imap }) : null);
-  const extractor = deps.extractor ?? llmExtractorFactory({ config: settings.llm });
+  const imap = deps.imap ?? (settings.IMAP ? imapClientFactory({ config: settings.IMAP }) : null);
+  const extractor = deps.extractor ?? llmExtractorFactory({ config: settings });
 
   const runId = await services.ingestRunService.start();
   let messagesSeen = 0;
@@ -47,7 +47,7 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
     if (!imap) {
       throw new Error('IMAP is not configured (set IMAP_HOST / IMAP_USER / IMAP_PASSWORD)');
     }
-    const emails = await imap.fetchUnseen(settings.ingest.batch);
+    const emails = await imap.fetchUnseen(settings.INGEST_BATCH);
     messagesSeen = emails.length;
 
     // Process each message independently; collect only those whose deals were durably
@@ -116,7 +116,7 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
 
 /** Schedule recurring passes (node-cron). No-ops on an invalid cron expression. */
 export function scheduleIngest(): void {
-  const expr = settings.ingest.cron;
+  const expr = settings.INGEST_CRON;
   if (!cron.validate(expr)) {
     console.warn(`[ingest] invalid INGEST_CRON "${expr}"; not scheduling`);
     return;

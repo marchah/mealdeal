@@ -14,7 +14,7 @@ export type Db = ReturnType<typeof createDb>;
  * is a change here + in schema.ts only.
  */
 export function createDb(
-  url: string = settings.databaseUrl,
+  url: string = settings.DATABASE_URL,
 ): ReturnType<typeof drizzle<typeof schema>> {
   if (url.startsWith('file:')) {
     const path = url.slice('file:'.length);

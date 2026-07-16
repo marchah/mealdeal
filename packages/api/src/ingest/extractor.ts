@@ -59,11 +59,11 @@ export function parseExtractionResponse(content: string | null | undefined): Ext
 }
 
 export function llmExtractorFactory({ config }: { config: LlmSettings }): DealExtractor {
-  const client = new OpenAI({ baseURL: config.baseUrl, apiKey: config.apiKey });
+  const client = new OpenAI({ baseURL: config.OPENAI_BASE_URL, apiKey: config.OPENAI_API_KEY });
   return {
     async extract(email) {
       const completion = await client.chat.completions.create({
-        model: config.model,
+        model: config.OPENAI_MODEL,
         temperature: 0,
         response_format: { type: 'json_object' },
         messages: [

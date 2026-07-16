@@ -8,13 +8,13 @@ import { ingestOnce, scheduleIngest } from './ingest/run';
 import { schema } from './schema';
 
 // The built SPA. In Docker this is overridden to the copied build dir via WEB_DIR.
-const WEB_DIR = settings.webDir ?? new URL('../../web/dist', import.meta.url).pathname;
+const WEB_DIR = settings.WEB_DIR ?? new URL('../../web/dist', import.meta.url).pathname;
 
 const yoga = createYoga({ schema, context: createContext, graphqlEndpoint: '/graphql' });
 const serveStatic = sirv(WEB_DIR, { single: true, dev: false });
 
 async function handleInternalIngest(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const token = settings.ingest.token;
+  const token = settings.INGEST_TOKEN;
   if (req.method !== 'POST' || !token || req.headers['x-ingest-token'] !== token) {
     res.statusCode = 401;
     res.end(JSON.stringify({ error: 'unauthorized' }));
@@ -49,11 +49,11 @@ async function main(): Promise<void> {
     });
   });
 
-  server.listen(settings.port, () => {
-    console.log(`[server] http://localhost:${String(settings.port)} (GraphQL at /graphql)`);
+  server.listen(settings.PORT, () => {
+    console.log(`[server] http://localhost:${String(settings.PORT)} (GraphQL at /graphql)`);
   });
 
-  if (settings.ingest.inline) scheduleIngest();
+  if (settings.INGEST_INLINE) scheduleIngest();
 }
 
 void main().catch((error: unknown) => {

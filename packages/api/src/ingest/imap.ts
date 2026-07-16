@@ -21,15 +21,15 @@ export function imapClientFactory({ config }: { config: ImapSettings }): ImapCli
   // Connect, lock the mailbox, run fn, then always release + logout.
   async function withMailbox<T>(fn: (client: ImapFlow) => Promise<T>): Promise<T> {
     const client = new ImapFlow({
-      host: config.host,
-      port: config.port,
-      secure: config.secure,
-      auth: { user: config.user, pass: config.pass },
+      host: config.IMAP_HOST,
+      port: config.IMAP_PORT,
+      secure: config.IMAP_SECURE,
+      auth: { user: config.IMAP_USER, pass: config.IMAP_PASSWORD },
       logger: false,
     });
     await client.connect();
     try {
-      const lock = await client.getMailboxLock(config.mailbox);
+      const lock = await client.getMailboxLock(config.IMAP_MAILBOX);
       try {
         return await fn(client);
       } finally {
