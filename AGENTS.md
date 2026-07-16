@@ -125,6 +125,8 @@ pnpm db:generate   # generate a Drizzle migration from db/schema.ts
 - **TypeScript strict** (`noUncheckedIndexedAccess`, `verbatimModuleSyntax`, …). Prefix intentionally
   unused params with `_`. Use `import type` for type-only imports.
 - **Latest stable versions** of dependencies; commit the lockfile; bump deliberately.
+- **Config:** every environment variable is read + validated (Zod) in `common/settings.ts` — the single
+  source of truth. Import `settings`; **never read `process.env` elsewhere** (ESLint enforces this).
 - **Errors:** throw the typed classes in `common/errors.ts`; list them in a field's `errors` to expose
   as union members.
 - **No new runtime dependency** without a clear reason.

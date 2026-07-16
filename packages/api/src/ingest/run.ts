@@ -1,14 +1,10 @@
 import { createHash } from 'node:crypto';
 import cron from 'node-cron';
+import { settings } from '../common/settings';
 import { getServices, type Services } from '../services';
 import type { NewDeal } from '../modules/deal/types';
-import {
-  extractorConfigFromEnv,
-  llmExtractorFactory,
-  type DealExtractor,
-  type ExtractedDeal,
-} from './extractor';
-import { imapClientFactory, imapConfigFromEnv, type ImapClient } from './imap';
+import { llmExtractorFactory, type DealExtractor, type ExtractedDeal } from './extractor';
+import { imapClientFactory, type ImapClient } from './imap';
 
 export interface IngestDeps {
   imap: ImapClient;
@@ -40,9 +36,8 @@ function toDate(iso: string | null | undefined): Date | null {
  */
 export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<IngestResult> {
   const services = deps.services ?? getServices();
-  const imapConfig = imapConfigFromEnv();
-  const imap = deps.imap ?? (imapConfig ? imapClientFactory({ config: imapConfig }) : null);
-  const extractor = deps.extractor ?? llmExtractorFactory({ config: extractorConfigFromEnv() });
+  const imap = deps.imap ?? (settings.imap ? imapClientFactory({ config: settings.imap }) : null);
+  const extractor = deps.extractor ?? llmExtractorFactory({ config: settings.llm });
 
   const runId = await services.ingestRunService.start();
   let messagesSeen = 0;
@@ -52,8 +47,7 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
     if (!imap) {
       throw new Error('IMAP is not configured (set IMAP_HOST / IMAP_USER / IMAP_PASSWORD)');
     }
-    const limit = Number(process.env.INGEST_BATCH ?? 25);
-    const emails = await imap.fetchUnseen(limit);
+    const emails = await imap.fetchUnseen(settings.ingest.batch);
     messagesSeen = emails.length;
 
     // Process each message independently; collect only those whose deals were durably
@@ -122,7 +116,7 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
 
 /** Schedule recurring passes (node-cron). No-ops on an invalid cron expression. */
 export function scheduleIngest(): void {
-  const expr = process.env.INGEST_CRON ?? '*/30 * * * *';
+  const expr = settings.ingest.cron;
   if (!cron.validate(expr)) {
     console.warn(`[ingest] invalid INGEST_CRON "${expr}"; not scheduling`);
     return;

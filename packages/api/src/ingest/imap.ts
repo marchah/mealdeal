@@ -1,5 +1,6 @@
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
+import type { ImapSettings } from '../common/settings';
 
 export interface FetchedEmail {
   uid: number;
@@ -9,15 +10,6 @@ export interface FetchedEmail {
   text: string;
 }
 
-export interface ImapConfig {
-  host: string;
-  port: number;
-  secure: boolean;
-  user: string;
-  pass: string;
-  mailbox: string;
-}
-
 export interface ImapClient {
   fetchUnseen(limit: number): Promise<FetchedEmail[]>;
   /** Acknowledge messages (\Seen). Call ONLY after their deals are durably stored, so a
@@ -25,21 +17,7 @@ export interface ImapClient {
   markSeen(uids: readonly number[]): Promise<void>;
 }
 
-/** Build IMAP config from env, or null if the required vars are absent. */
-export function imapConfigFromEnv(): ImapConfig | null {
-  const { IMAP_HOST, IMAP_PORT, IMAP_USER, IMAP_PASSWORD, IMAP_MAILBOX, IMAP_SECURE } = process.env;
-  if (!IMAP_HOST || !IMAP_USER || !IMAP_PASSWORD) return null;
-  return {
-    host: IMAP_HOST,
-    port: Number(IMAP_PORT ?? 993),
-    secure: IMAP_SECURE !== 'false',
-    user: IMAP_USER,
-    pass: IMAP_PASSWORD,
-    mailbox: IMAP_MAILBOX ?? 'INBOX',
-  };
-}
-
-export function imapClientFactory({ config }: { config: ImapConfig }): ImapClient {
+export function imapClientFactory({ config }: { config: ImapSettings }): ImapClient {
   // Connect, lock the mailbox, run fn, then always release + logout.
   async function withMailbox<T>(fn: (client: ImapFlow) => Promise<T>): Promise<T> {
     const client = new ImapFlow({

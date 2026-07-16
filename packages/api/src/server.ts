@@ -1,20 +1,20 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { createYoga } from 'graphql-yoga';
 import sirv from 'sirv';
+import { settings } from './common/settings';
 import { createContext } from './context';
 import { runMigrations } from './db/migrate';
 import { ingestOnce, scheduleIngest } from './ingest/run';
 import { schema } from './schema';
 
-const PORT = Number(process.env.PORT ?? 4000);
 // The built SPA. In Docker this is overridden to the copied build dir via WEB_DIR.
-const WEB_DIR = process.env.WEB_DIR ?? new URL('../../web/dist', import.meta.url).pathname;
+const WEB_DIR = settings.webDir ?? new URL('../../web/dist', import.meta.url).pathname;
 
 const yoga = createYoga({ schema, context: createContext, graphqlEndpoint: '/graphql' });
 const serveStatic = sirv(WEB_DIR, { single: true, dev: false });
 
 async function handleInternalIngest(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const token = process.env.INGEST_TOKEN;
+  const token = settings.ingest.token;
   if (req.method !== 'POST' || !token || req.headers['x-ingest-token'] !== token) {
     res.statusCode = 401;
     res.end(JSON.stringify({ error: 'unauthorized' }));
@@ -49,11 +49,11 @@ async function main(): Promise<void> {
     });
   });
 
-  server.listen(PORT, () => {
-    console.log(`[server] http://localhost:${String(PORT)} (GraphQL at /graphql)`);
+  server.listen(settings.port, () => {
+    console.log(`[server] http://localhost:${String(settings.port)} (GraphQL at /graphql)`);
   });
 
-  if (process.env.INGEST_INLINE !== '0') scheduleIngest();
+  if (settings.ingest.inline) scheduleIngest();
 }
 
 void main().catch((error: unknown) => {

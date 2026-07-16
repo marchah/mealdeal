@@ -2,12 +2,11 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { createClient } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
+import { settings } from '../common/settings';
 import * as schema from './schema';
 
 // The database handle type. Repositories depend on this; nothing else does.
 export type Db = ReturnType<typeof createDb>;
-
-const DEFAULT_URL = 'file:./data/mealdeal.db';
 
 /**
  * Build a Drizzle client bound to libsql (SQLite by default).
@@ -15,7 +14,7 @@ const DEFAULT_URL = 'file:./data/mealdeal.db';
  * is a change here + in schema.ts only.
  */
 export function createDb(
-  url: string = process.env.DATABASE_URL ?? DEFAULT_URL,
+  url: string = settings.databaseUrl,
 ): ReturnType<typeof drizzle<typeof schema>> {
   if (url.startsWith('file:')) {
     const path = url.slice('file:'.length);

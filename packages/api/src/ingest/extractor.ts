@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { z } from 'zod';
+import type { LlmSettings } from '../common/settings';
 
 // The LLM returns free-form JSON; we NEVER trust its shape — every field is validated by
 // this Zod schema before it reaches the domain. Extra/malformed fields are dropped.
@@ -24,20 +25,6 @@ const ResponseSchema = z.object({ deals: z.array(ExtractedDealSchema) });
 
 export interface DealExtractor {
   extract(email: { subject: string; from: string; text: string }): Promise<ExtractedDeal[]>;
-}
-
-export interface ExtractorConfig {
-  baseURL: string;
-  apiKey: string;
-  model: string;
-}
-
-export function extractorConfigFromEnv(): ExtractorConfig {
-  return {
-    baseURL: process.env.OPENAI_BASE_URL ?? 'http://localhost:1234/v1',
-    apiKey: process.env.OPENAI_API_KEY ?? 'not-needed',
-    model: process.env.OPENAI_MODEL ?? 'qwen3.6-35b-a3b',
-  };
 }
 
 const SYSTEM_PROMPT = [
@@ -71,8 +58,8 @@ export function parseExtractionResponse(content: string | null | undefined): Ext
   return parsed.data.deals;
 }
 
-export function llmExtractorFactory({ config }: { config: ExtractorConfig }): DealExtractor {
-  const client = new OpenAI({ baseURL: config.baseURL, apiKey: config.apiKey });
+export function llmExtractorFactory({ config }: { config: LlmSettings }): DealExtractor {
+  const client = new OpenAI({ baseURL: config.baseUrl, apiKey: config.apiKey });
   return {
     async extract(email) {
       const completion = await client.chat.completions.create({

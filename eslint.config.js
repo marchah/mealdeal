@@ -43,6 +43,15 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-return': 'off',
       '@typescript-eslint/no-unsafe-argument': 'off',
       '@typescript-eslint/no-explicit-any': 'warn',
+      // Environment variables are read ONLY in common/settings.ts (single source of truth).
+      'no-restricted-properties': [
+        'error',
+        {
+          object: 'process',
+          property: 'env',
+          message: 'Read environment variables only in common/settings.ts.',
+        },
+      ],
     },
   },
 
