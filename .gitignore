@@ -7,6 +7,9 @@ dist/
 # git worktrees — the autonomous coding loop creates per-task feature worktrees here
 .worktrees/
 
+# planner scratch (scope-and-plan writes PLAN.md + backlog.json here; not committed)
+.plan/
+
 # runtime data (SQLite lives here by default)
 *.db
 *.db-*
