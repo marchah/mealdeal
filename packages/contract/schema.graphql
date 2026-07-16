@@ -1,5 +1,6 @@
 type ConflictError {
   message: String!
+  status: Int!
 }
 
 """
@@ -37,6 +38,7 @@ type Mutation {
 
 type NotFoundError {
   message: String!
+  status: Int!
 }
 
 enum PrefKind {
@@ -56,10 +58,15 @@ type Query {
   stats: Stats!
 }
 
-union QueryDealResult = NotFoundError | QueryDealSuccess
+union QueryDealResult = NotFoundError | QueryDealSuccess | ServerError
 
 type QueryDealSuccess {
   data: Deal!
+}
+
+type ServerError {
+  message: String!
+  status: Int!
 }
 
 type Stats {
@@ -79,4 +86,5 @@ type TrackingPref {
 
 type ValidationError {
   message: String!
+  status: Int!
 }

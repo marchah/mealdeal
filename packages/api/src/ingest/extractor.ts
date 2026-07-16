@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { z } from 'zod';
+import { ServerError } from '../common/errors';
 import type { LlmSettings } from '../common/settings';
 
 // The LLM returns free-form JSON; we NEVER trust its shape — every field is validated by
@@ -43,17 +44,17 @@ const SYSTEM_PROMPT = [
  */
 export function parseExtractionResponse(content: string | null | undefined): ExtractedDeal[] {
   if (!content || content.trim() === '') {
-    throw new Error('LLM returned an empty response');
+    throw new ServerError('LLM returned an empty response');
   }
   let json: unknown;
   try {
     json = JSON.parse(content);
   } catch {
-    throw new Error('LLM returned non-JSON output');
+    throw new ServerError('LLM returned non-JSON output');
   }
   const parsed = ResponseSchema.safeParse(json);
   if (!parsed.success) {
-    throw new Error(`LLM output failed validation: ${parsed.error.message}`);
+    throw new ServerError(`LLM output failed validation: ${parsed.error.message}`);
   }
   return parsed.data.deals;
 }

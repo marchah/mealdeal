@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import cron from 'node-cron';
+import { ServerError } from '../common/errors';
 import { settings } from '../common/settings';
 import { getServices, type Services } from '../services';
 import type { NewDeal } from '../modules/deal/types';
@@ -45,7 +46,7 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
   let messagesFailed = 0;
   try {
     if (!imap) {
-      throw new Error('IMAP is not configured (set IMAP_HOST / IMAP_USER / IMAP_PASSWORD)');
+      throw new ServerError('IMAP is not configured (set IMAP_HOST / IMAP_USER / IMAP_PASSWORD)');
     }
     const emails = await imap.fetchUnseen(settings.INGEST_BATCH);
     messagesSeen = emails.length;

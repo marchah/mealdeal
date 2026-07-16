@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { createYoga } from 'graphql-yoga';
 import sirv from 'sirv';
+import { ServerError } from './common/errors';
 import { settings } from './common/settings';
 import { createContext } from './context';
 import { runMigrations } from './db/migrate';
@@ -25,7 +26,7 @@ async function handleInternalIngest(req: IncomingMessage, res: ServerResponse): 
     res.setHeader('content-type', 'application/json');
     res.end(JSON.stringify(result));
   } catch (error) {
-    res.statusCode = 500;
+    res.statusCode = error instanceof ServerError ? error.status : 500;
     res.end(JSON.stringify({ error: error instanceof Error ? error.message : 'ingest failed' }));
   }
 }
