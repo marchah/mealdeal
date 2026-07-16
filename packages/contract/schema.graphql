@@ -54,6 +54,7 @@ enum PrefScope {
 type Query {
   deal(id: ID!): QueryDealResult!
   deals(activeOnly: Boolean = true, category: String): [Deal!]!
+  dealsByMerchant(merchantId: ID!): [Deal!]!
   prefs: [TrackingPref!]!
   stats: Stats!
 }

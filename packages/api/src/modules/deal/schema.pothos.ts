@@ -61,6 +61,11 @@ builder.queryFields((t) => ({
     args: { id: t.arg.id({ required: true }) },
     resolve: (_root, args, ctx) => ctx.services.dealService.getById(args.id),
   }),
+  dealsByMerchant: t.field({
+    type: [DealRef],
+    args: { merchantId: t.arg.id({ required: true }) },
+    resolve: (_root, args, ctx) => ctx.services.dealService.dealsByMerchant(args.merchantId),
+  }),
   stats: t.field({
     type: StatsRef,
     resolve: (_root, _args, ctx) => ctx.services.dealService.getStats(),

@@ -39,6 +39,8 @@ function makeService(
     listAll: () => Promise.resolve(rows),
     findByIds: () => Promise.resolve(rows),
     findById: (id) => Promise.resolve(rows.find((d) => d.id === id) ?? null),
+    listByMerchant: (merchantId) =>
+      Promise.resolve(rows.filter((d) => d.merchantId === merchantId)),
     insertIfNew: () => Promise.resolve(true),
     count: () => Promise.resolve(rows.length),
   };
@@ -94,5 +96,25 @@ describe('dealService', () => {
   it('throws NotFoundError for a missing id', async () => {
     const service = makeService({ deals: [] });
     await expect(service.getById('nope')).rejects.toThrow('No deal with id nope');
+  });
+
+  it('returns deals for a given merchant, most recent first', async () => {
+    const service = makeService({
+      deals: [
+        makeDeal({ id: 'a', merchantId: 'm2', createdAt: new Date('2026-01-03T00:00:00Z') }),
+        makeDeal({ id: 'b', merchantId: 'm1', createdAt: new Date('2026-01-02T00:00:00Z') }),
+        makeDeal({ id: 'c', merchantId: 'm2', createdAt: new Date('2026-01-01T00:00:00Z') }),
+      ],
+    });
+    const result = await service.dealsByMerchant('m2');
+    expect(result.map((d) => d.id)).toEqual(['a', 'c']);
+  });
+
+  it('returns an empty array for a merchant with no deals', async () => {
+    const service = makeService({
+      deals: [makeDeal({ id: 'a', merchantId: 'm1' })],
+    });
+    const result = await service.dealsByMerchant('nope');
+    expect(result).toEqual([]);
   });
 });

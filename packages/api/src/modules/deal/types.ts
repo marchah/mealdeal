@@ -59,6 +59,7 @@ export interface DealRepository {
   listAll(input: ListDealsInput): Promise<Deal[]>;
   findByIds(ids: readonly string[]): Promise<Deal[]>;
   findById(id: string): Promise<Maybe<Deal>>;
+  listByMerchant(merchantId: string): Promise<Deal[]>;
   insertIfNew(deal: NewDeal): Promise<boolean>;
   count(): Promise<number>;
 }
@@ -66,6 +67,7 @@ export interface DealRepository {
 export interface DealService {
   listDeals(input: ListDealsInput): Promise<Deal[]>;
   getById(id: string): Promise<Deal>;
+  dealsByMerchant(merchantId: string): Promise<Deal[]>;
   getStats(): Promise<Stats>;
   /** Persist a deal produced by ingest; returns false if it was a dedup no-op. */
   add(deal: NewDeal): Promise<boolean>;

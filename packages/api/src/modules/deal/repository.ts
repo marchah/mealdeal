@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, count, eq, gt, inArray, isNull, or } from 'drizzle-orm';
+import { and, count, desc, eq, gt, inArray, isNull, or } from 'drizzle-orm';
 import { deals } from '../../db/schema';
 import type { Db } from '../../db/client';
 import type { DealRepository, ListDealsInput, NewDeal } from './types';
@@ -31,6 +31,13 @@ export function dealRepositoryFactory({ db }: { db: Db }): DealRepository {
     async findById(id) {
       const rows = await db.select().from(deals).where(eq(deals.id, id)).limit(1);
       return rows[0] ?? null;
+    },
+    async listByMerchant(merchantId) {
+      return db
+        .select()
+        .from(deals)
+        .where(eq(deals.merchantId, merchantId))
+        .orderBy(desc(deals.createdAt));
     },
     async insertIfNew(deal: NewDeal) {
       const result = await db

@@ -2,7 +2,7 @@ import { NotFoundError } from '../../common/errors';
 import type { IngestRunService } from '../ingestRun/types';
 import type { MerchantService } from '../merchant/types';
 import type { TrackingPrefService } from '../trackingPref/types';
-import type { DealRepository, DealService, ListDealsInput, Stats } from './types';
+import type { DealRepository, DealService, Deal, ListDealsInput, Stats } from './types';
 
 // Business logic. Depends on repository + collaborator service PORT types — never the db.
 export function dealServiceFactory({
@@ -30,8 +30,13 @@ export function dealServiceFactory({
     });
   }
 
+  async function dealsByMerchant(merchantId: string): Promise<Deal[]> {
+    return dealRepository.listByMerchant(merchantId);
+  }
+
   return {
     listDeals,
+    dealsByMerchant,
     async getById(id) {
       const deal = await dealRepository.findById(id);
       if (!deal) throw new NotFoundError(`No deal with id ${id}`);
