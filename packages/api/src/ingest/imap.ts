@@ -20,6 +20,9 @@ export interface ImapConfig {
 
 export interface ImapClient {
   fetchUnseen(limit: number): Promise<FetchedEmail[]>;
+  /** Acknowledge messages (\Seen). Call ONLY after their deals are durably stored, so a
+   *  failed pass leaves them unseen for the next retry (at-least-once ingest). */
+  markSeen(uids: readonly number[]): Promise<void>;
 }
 
 /** Build IMAP config from env, or null if the required vars are absent. */
@@ -37,52 +40,58 @@ export function imapConfigFromEnv(): ImapConfig | null {
 }
 
 export function imapClientFactory({ config }: { config: ImapConfig }): ImapClient {
-  return {
-    async fetchUnseen(limit) {
-      const client = new ImapFlow({
-        host: config.host,
-        port: config.port,
-        secure: config.secure,
-        auth: { user: config.user, pass: config.pass },
-        logger: false,
-      });
-      const emails: FetchedEmail[] = [];
-      await client.connect();
+  // Connect, lock the mailbox, run fn, then always release + logout.
+  async function withMailbox<T>(fn: (client: ImapFlow) => Promise<T>): Promise<T> {
+    const client = new ImapFlow({
+      host: config.host,
+      port: config.port,
+      secure: config.secure,
+      auth: { user: config.user, pass: config.pass },
+      logger: false,
+    });
+    await client.connect();
+    try {
+      const lock = await client.getMailboxLock(config.mailbox);
       try {
-        const lock = await client.getMailboxLock(config.mailbox);
-        try {
-          const uids = await client.search({ seen: false }, { uid: true });
-          const chosen = (uids === false ? [] : uids).slice(0, limit);
-          if (chosen.length === 0) return [];
-          const seenUids: number[] = [];
-          for await (const message of client.fetch(
-            chosen,
-            { uid: true, source: true },
-            { uid: true },
-          )) {
-            if (!message.source) continue;
-            const parsed = await simpleParser(message.source);
-            emails.push({
-              uid: message.uid,
-              from: parsed.from?.text ?? '',
-              subject: parsed.subject ?? '',
-              date: parsed.date ?? new Date(),
-              text: parsed.text ?? '',
-            });
-            seenUids.push(message.uid);
-          }
-          // Mark fetched messages \Seen so the next cron pass doesn't re-extract them
-          // (repeated LLM cost). This is the boundary's "consume" step.
-          if (seenUids.length > 0) {
-            await client.messageFlagsAdd(seenUids, ['\\Seen'], { uid: true });
-          }
-        } finally {
-          lock.release();
-        }
+        return await fn(client);
       } finally {
-        await client.logout();
+        lock.release();
       }
-      return emails;
+    } finally {
+      await client.logout();
+    }
+  }
+
+  return {
+    fetchUnseen(limit) {
+      return withMailbox(async (client) => {
+        const emails: FetchedEmail[] = [];
+        const uids = await client.search({ seen: false }, { uid: true });
+        const chosen = (uids === false ? [] : uids).slice(0, limit);
+        if (chosen.length === 0) return emails;
+        for await (const message of client.fetch(
+          chosen,
+          { uid: true, source: true },
+          { uid: true },
+        )) {
+          if (!message.source) continue;
+          const parsed = await simpleParser(message.source);
+          emails.push({
+            uid: message.uid,
+            from: parsed.from?.text ?? '',
+            subject: parsed.subject ?? '',
+            date: parsed.date ?? new Date(),
+            text: parsed.text ?? '',
+          });
+        }
+        return emails;
+      });
+    },
+    markSeen(uids) {
+      if (uids.length === 0) return Promise.resolve();
+      return withMailbox(async (client) => {
+        await client.messageFlagsAdd([...uids], ['\\Seen'], { uid: true });
+      });
     },
   };
 }
