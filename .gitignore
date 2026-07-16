@@ -4,6 +4,9 @@ dist/
 .turbo/
 *.tsbuildinfo
 
+# git worktrees — the autonomous coding loop creates per-task feature worktrees here
+.worktrees/
+
 # runtime data (SQLite lives here by default)
 *.db
 *.db-*
