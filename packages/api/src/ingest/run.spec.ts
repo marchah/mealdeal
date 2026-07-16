@@ -47,7 +47,7 @@ describe('ingestOnce', () => {
 
     const result = await ingestOnce({ imap, extractor, services: makeServices() });
 
-    expect(result).toEqual({ messagesSeen: 2, dealsAdded: 1 });
+    expect(result).toEqual({ messagesSeen: 2, dealsAdded: 1, messagesFailed: 1 });
     expect(markSeen).toHaveBeenCalledTimes(1);
     expect(markSeen).toHaveBeenCalledWith([1]);
   });

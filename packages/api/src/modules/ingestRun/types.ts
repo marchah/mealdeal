@@ -4,12 +4,14 @@ export interface IngestRun {
   finishedAt: Date | null;
   messagesSeen: number;
   dealsAdded: number;
+  messagesFailed: number;
   error: string | null;
 }
 
 export interface FinishIngestInput {
   messagesSeen: number;
   dealsAdded: number;
+  messagesFailed: number;
   error?: string | null;
 }
 

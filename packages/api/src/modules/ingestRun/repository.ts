@@ -13,6 +13,7 @@ export function ingestRunRepositoryFactory({ db }: { db: Db }): IngestRunReposit
         finishedAt: null,
         messagesSeen: 0,
         dealsAdded: 0,
+        messagesFailed: 0,
         error: null,
       };
       await db.insert(ingestRuns).values(row);
@@ -25,6 +26,7 @@ export function ingestRunRepositoryFactory({ db }: { db: Db }): IngestRunReposit
           finishedAt: new Date(),
           messagesSeen: input.messagesSeen,
           dealsAdded: input.dealsAdded,
+          messagesFailed: input.messagesFailed,
           error: input.error ?? null,
         })
         .where(eq(ingestRuns.id, id));

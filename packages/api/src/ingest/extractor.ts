@@ -48,6 +48,29 @@ const SYSTEM_PROMPT = [
   'Include only real, current offers. Use null for unknown fields. Empty array if none.',
 ].join(' ');
 
+/**
+ * Parse + validate a model response. THROWS on unusable output (empty, non-JSON, or a shape
+ * that fails validation) so the caller leaves the email unacknowledged and retries it — a
+ * truncated/garbled response for an email that had deals must not be silently dropped.
+ * A valid `{"deals":[]}` is a legitimate "no deals" result and returns `[]` (success).
+ */
+export function parseExtractionResponse(content: string | null | undefined): ExtractedDeal[] {
+  if (!content || content.trim() === '') {
+    throw new Error('LLM returned an empty response');
+  }
+  let json: unknown;
+  try {
+    json = JSON.parse(content);
+  } catch {
+    throw new Error('LLM returned non-JSON output');
+  }
+  const parsed = ResponseSchema.safeParse(json);
+  if (!parsed.success) {
+    throw new Error(`LLM output failed validation: ${parsed.error.message}`);
+  }
+  return parsed.data.deals;
+}
+
 export function llmExtractorFactory({ config }: { config: ExtractorConfig }): DealExtractor {
   const client = new OpenAI({ baseURL: config.baseURL, apiKey: config.apiKey });
   return {
@@ -64,15 +87,7 @@ export function llmExtractorFactory({ config }: { config: ExtractorConfig }): De
           },
         ],
       });
-      const content = completion.choices[0]?.message.content ?? '{"deals":[]}';
-      let json: unknown;
-      try {
-        json = JSON.parse(content);
-      } catch {
-        return [];
-      }
-      const parsed = ResponseSchema.safeParse(json);
-      return parsed.success ? parsed.data.deals : [];
+      return parseExtractionResponse(completion.choices[0]?.message.content);
     },
   };
 }

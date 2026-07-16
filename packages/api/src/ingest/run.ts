@@ -19,6 +19,7 @@ export interface IngestDeps {
 export interface IngestResult {
   messagesSeen: number;
   dealsAdded: number;
+  messagesFailed: number;
 }
 
 // Stable dedup key so re-ingesting the same offer is a no-op (see deals.dedup_hash).
@@ -46,6 +47,7 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
   const runId = await services.ingestRunService.start();
   let messagesSeen = 0;
   let dealsAdded = 0;
+  let messagesFailed = 0;
   try {
     if (!imap) {
       throw new Error('IMAP is not configured (set IMAP_HOST / IMAP_USER / IMAP_PASSWORD)');
@@ -85,6 +87,7 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
         }
         processedUids.push(email.uid);
       } catch (messageError) {
+        messagesFailed += 1;
         console.error(
           `[ingest] message ${String(email.uid)} failed; leaving unseen for retry`,
           messageError,
@@ -94,11 +97,25 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
     // Acknowledge ONLY the messages we durably processed.
     await imap.markSeen(processedUids);
 
-    await services.ingestRunService.finish(runId, { messagesSeen, dealsAdded, error: null });
-    return { messagesSeen, dealsAdded };
+    // Partial failures are recorded (not fatal) so operators can see a pass needs attention.
+    await services.ingestRunService.finish(runId, {
+      messagesSeen,
+      dealsAdded,
+      messagesFailed,
+      error:
+        messagesFailed > 0
+          ? `${String(messagesFailed)} of ${String(messagesSeen)} messages failed`
+          : null,
+    });
+    return { messagesSeen, dealsAdded, messagesFailed };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    await services.ingestRunService.finish(runId, { messagesSeen, dealsAdded, error: message });
+    await services.ingestRunService.finish(runId, {
+      messagesSeen,
+      dealsAdded,
+      messagesFailed,
+      error: message,
+    });
     throw error;
   }
 }

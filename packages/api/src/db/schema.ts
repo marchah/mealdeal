@@ -57,5 +57,7 @@ export const ingestRuns = sqliteTable('ingest_runs', {
   finishedAt: timestamp('finished_at'),
   messagesSeen: integer('messages_seen').notNull().default(0),
   dealsAdded: integer('deals_added').notNull().default(0),
+  // Per-message processing failures in the pass (left unseen for retry). >0 = needs attention.
+  messagesFailed: integer('messages_failed').notNull().default(0),
   error: text('error'),
 });
