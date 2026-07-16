@@ -65,4 +65,8 @@ builder.queryFields((t) => ({
     type: StatsRef,
     resolve: (_root, _args, ctx) => ctx.services.dealService.getStats(),
   }),
+  merchantCount: t.field({
+    type: 'Int',
+    resolve: (_root, _args, ctx) => ctx.services.merchantService.count(),
+  }),
 }));
