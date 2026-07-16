@@ -54,6 +54,7 @@ export function imapClientFactory({ config }: { config: ImapConfig }): ImapClien
           const uids = await client.search({ seen: false }, { uid: true });
           const chosen = (uids === false ? [] : uids).slice(0, limit);
           if (chosen.length === 0) return [];
+          const seenUids: number[] = [];
           for await (const message of client.fetch(
             chosen,
             { uid: true, source: true },
@@ -68,6 +69,12 @@ export function imapClientFactory({ config }: { config: ImapConfig }): ImapClien
               date: parsed.date ?? new Date(),
               text: parsed.text ?? '',
             });
+            seenUids.push(message.uid);
+          }
+          // Mark fetched messages \Seen so the next cron pass doesn't re-extract them
+          // (repeated LLM cost). This is the boundary's "consume" step.
+          if (seenUids.length > 0) {
+            await client.messageFlagsAdd(seenUids, ['\\Seen'], { uid: true });
           }
         } finally {
           lock.release();

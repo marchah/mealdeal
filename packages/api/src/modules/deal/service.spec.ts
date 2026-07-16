@@ -40,7 +40,6 @@ function makeService(
     findByIds: () => Promise.resolve(rows),
     findById: (id) => Promise.resolve(rows.find((d) => d.id === id) ?? null),
     insertIfNew: () => Promise.resolve(true),
-    countActive: () => Promise.resolve(rows.length),
     count: () => Promise.resolve(rows.length),
   };
   const merchantService = { count: () => Promise.resolve(3) } as unknown as MerchantService;
@@ -78,6 +77,18 @@ describe('dealService', () => {
     });
     const result = await service.listDeals({ activeOnly: true, category: null });
     expect(result.map((d) => d.id)).toEqual(['b']);
+  });
+
+  it('stats.activeDeals excludes muted deals and matches the rendered list', async () => {
+    const service = makeService({
+      deals: [makeDeal({ id: 'a', category: 'dairy' }), makeDeal({ id: 'b', category: 'produce' })],
+      muted: { items: new Set(), categories: new Set(['dairy']) },
+    });
+    const stats = await service.getStats();
+    const active = await service.listDeals({ activeOnly: true, category: null });
+    expect(stats.totalDeals).toBe(2);
+    expect(stats.activeDeals).toBe(1);
+    expect(stats.activeDeals).toBe(active.length);
   });
 
   it('throws NotFoundError for a missing id', async () => {

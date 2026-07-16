@@ -16,33 +16,37 @@ export function dealServiceFactory({
   ingestRunService: IngestRunService;
   trackingPrefService: TrackingPrefService;
 }): DealService {
+  async function listDeals(input: ListDealsInput) {
+    const rows = await dealRepository.listAll(input);
+    if (!input.activeOnly) return rows;
+    // Hide muted items/categories from the active list.
+    const { items, categories } = await trackingPrefService.mutedValues();
+    return rows.filter((deal) => {
+      const item = deal.item?.toLowerCase();
+      const category = deal.category?.toLowerCase();
+      if (item && items.has(item)) return false;
+      if (category && categories.has(category)) return false;
+      return true;
+    });
+  }
+
   return {
-    async listDeals(input: ListDealsInput) {
-      const rows = await dealRepository.listAll(input);
-      if (!input.activeOnly) return rows;
-      // Hide muted items/categories from the active list.
-      const { items, categories } = await trackingPrefService.mutedValues();
-      return rows.filter((deal) => {
-        const item = deal.item?.toLowerCase();
-        const category = deal.category?.toLowerCase();
-        if (item && items.has(item)) return false;
-        if (category && categories.has(category)) return false;
-        return true;
-      });
-    },
+    listDeals,
     async getById(id) {
       const deal = await dealRepository.findById(id);
       if (!deal) throw new NotFoundError(`No deal with id ${id}`);
       return deal;
     },
     async getStats(): Promise<Stats> {
-      const [activeDeals, totalDeals, merchants, lastIngestAt] = await Promise.all([
-        dealRepository.countActive(),
+      // activeDeals reuses listDeals so it stays consistent with the rendered list
+      // (both exclude muted items/categories).
+      const [active, totalDeals, merchants, lastIngestAt] = await Promise.all([
+        listDeals({ activeOnly: true, category: null }),
         dealRepository.count(),
         merchantService.count(),
         ingestRunService.lastCompletedAt(),
       ]);
-      return { activeDeals, totalDeals, merchants, lastIngestAt };
+      return { activeDeals: active.length, totalDeals, merchants, lastIngestAt };
     },
     add: (deal) => dealRepository.insertIfNew(deal),
   };

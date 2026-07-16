@@ -39,10 +39,6 @@ export function dealRepositoryFactory({ db }: { db: Db }): DealRepository {
         .onConflictDoNothing({ target: deals.dedupHash });
       return (result.rowsAffected ?? 0) > 0;
     },
-    async countActive() {
-      const rows = await db.select({ value: count() }).from(deals).where(notExpired());
-      return rows[0]?.value ?? 0;
-    },
     async count() {
       const rows = await db.select({ value: count() }).from(deals);
       return rows[0]?.value ?? 0;

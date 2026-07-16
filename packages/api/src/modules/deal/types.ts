@@ -60,7 +60,6 @@ export interface DealRepository {
   findByIds(ids: readonly string[]): Promise<Deal[]>;
   findById(id: string): Promise<Maybe<Deal>>;
   insertIfNew(deal: NewDeal): Promise<boolean>;
-  countActive(): Promise<number>;
   count(): Promise<number>;
 }
 
