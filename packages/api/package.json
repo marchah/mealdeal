@@ -1,0 +1,42 @@
+{
+  "name": "@mealdeal/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsup",
+    "start": "node dist/server.js",
+    "worker": "node dist/worker.js",
+    "build-schema": "tsx scripts/build-schema.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/db/migrate.ts"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.17.4",
+    "@pothos/core": "^4.13.1",
+    "@pothos/plugin-errors": "^4.9.1",
+    "@pothos/plugin-zod": "^4.3.1",
+    "dataloader": "^2.2.3",
+    "dotenv": "^17.4.2",
+    "drizzle-orm": "^0.45.2",
+    "graphql": "^16.14.2",
+    "graphql-scalars": "^1.25.0",
+    "graphql-yoga": "^5.21.2",
+    "imapflow": "^1.4.7",
+    "mailparser": "^3.9.14",
+    "node-cron": "^4.6.0",
+    "openai": "^6.47.0",
+    "sirv": "^3.0.2",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/mailparser": "^3.4.6",
+    "drizzle-kit": "^0.31.10",
+    "tsup": "^8.5.1",
+    "vitest": "^4.1.10"
+  }
+}
