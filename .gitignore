@@ -10,6 +10,9 @@ dist/
 # planner scratch (scope-and-plan writes PLAN.md + backlog.json here; not committed)
 .plan/
 
+# reviewer PR-description scratch (open-pr reads + deletes it; not committed)
+.pr-body.md
+
 # runtime data (SQLite lives here by default)
 *.db
 *.db-*
