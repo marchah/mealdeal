@@ -6,6 +6,8 @@ import { logException, logInfo } from './common/logger';
 import { settings } from './common/settings';
 import { createContext } from './context';
 import { runMigrations } from './db/migrate';
+import { seedCouponTypes } from './modules/couponType/repository';
+import { getServices } from './services';
 import { ingestOnce, scheduleIngest } from './ingest/run';
 import { schema } from './schema';
 
@@ -34,6 +36,9 @@ async function handleInternalIngest(req: IncomingMessage, res: ServerResponse): 
 
 async function main(): Promise<void> {
   await runMigrations();
+
+  // Seed default coupon types if the table is empty.
+  await seedCouponTypes(getServices().couponTypeService);
 
   const server = createServer((req, res) => {
     const url = req.url ?? '/';
