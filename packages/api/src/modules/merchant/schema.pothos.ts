@@ -8,6 +8,9 @@ MerchantRef.implement({
   fields: (t) => ({
     id: t.exposeID('id'),
     name: t.exposeString('name'),
+    address: t.exposeString('address', { nullable: true }),
+    lat: t.exposeFloat('lat', { nullable: true }),
+    lng: t.exposeFloat('lng', { nullable: true }),
     createdAt: t.expose('createdAt', { type: 'DateTime' }),
   }),
 });

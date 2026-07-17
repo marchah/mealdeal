@@ -12,6 +12,9 @@ const now = sql`(unixepoch())`;
 export const merchants = sqliteTable('merchants', {
   id: text('id').primaryKey(),
   name: text('name').notNull().unique(),
+  address: text('address'),
+  lat: real('lat'),
+  lng: real('lng'),
   createdAt: timestamp('created_at').notNull().default(now),
 });
 

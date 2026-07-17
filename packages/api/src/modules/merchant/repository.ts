@@ -23,6 +23,14 @@ export function merchantRepositoryFactory({ db }: { db: Db }): MerchantRepositor
       await db.insert(merchants).values(row);
       return row;
     },
+    async updateLocation(merchantId, args) {
+      const fields: Partial<Merchant> = {};
+      if ('address' in args) fields.address = args.address;
+      if ('lat' in args) fields.lat = args.lat;
+      if ('lng' in args) fields.lng = args.lng;
+      if (Object.keys(fields).length === 0) return;
+      await db.update(merchants).set(fields).where(eq(merchants.id, merchantId));
+    },
     async count() {
       const rows = await db.select({ value: count() }).from(merchants);
       return rows[0]?.value ?? 0;
