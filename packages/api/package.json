@@ -12,6 +12,7 @@
     "build-schema": "tsx scripts/build-schema.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
+    "test:integration": "DATABASE_URL=file:./data/integration-test.db NODE_ENV=test vitest run -c vitest.integration.config.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts"
   },

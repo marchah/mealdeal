@@ -102,7 +102,8 @@ repository + port + service together. Keep changes additive; keep `dedup_hash` s
 ## Commands that must pass
 
 ```bash
-pnpm check         # typecheck + lint (+ boundaries) + prettier + tests + drift — the gate
+pnpm check             # typecheck + lint (+ boundaries) + prettier + unit tests + drift — the gate
+pnpm test:integration  # boot the real composition root against a file-based test DB (own CI job)
 pnpm dev           # api (:4000) + web (Vite dev) together
 pnpm build         # SDL → web build → api bundle
 pnpm build-schema  # emit packages/contract/schema.graphql
@@ -112,13 +113,27 @@ pnpm db:generate   # generate a Drizzle migration from db/schema.ts
 
 ## Definition of Done (satisfy before finishing a task)
 
-- [ ] `pnpm check` is green (types, lint+boundaries, prettier, tests, drift).
-- [ ] A unit test was added for any new service (factory-DI mock style).
+- [ ] `pnpm check` is green (types, lint+boundaries, prettier, unit tests, drift).
+- [ ] **Test pyramid** for new behavior: a **unit** test for any new service (factory-DI mock style,
+      see `modules/deal/service.spec.ts`) **and** an **integration** test that exercises the new
+      resolver/query against a real test DB (`pnpm test:integration`; template
+      `packages/api/test/integration/deal.integration.spec.ts`). Tests must be meaningful and cover
+      edge cases (empty/null/boundary/error), not just the happy path. (**e2e** with Playwright is
+      required too once that infra lands — not yet built.)
 - [ ] All inputs validated with **Zod** at the boundary (GraphQL args, IMAP, LLM output — never trust LLM shape).
 - [ ] No secrets/PII in code or fixtures (**public repo**; config comes from env only).
 - [ ] `packages/contract/schema.graphql` + `packages/web/src/graphql-env.d.ts` regenerated and committed.
 - [ ] Follows the `deal` module template: correct files/roles, factory-DI, data reached only via `ctx.services`.
 - [ ] Web changes are accessibility-clean (no `jsx-a11y` errors).
+
+## Reviewing a PR
+
+Every PR gets a rigorous review against this file, the plan, and the test pyramid. Use the portable
+**`review-pr`** skill (`.agents/skills/review-pr/SKILL.md`, mirrored to `.claude/skills/`): in Claude Code
+run `/review-pr <PR#>`; in ChatGPT/Codex paste the skill plus `gh pr view/diff <N>` and `docs/PLAN.md`. It
+grades spec conformance, architecture, the test pyramid, reuse/anti-duplication, correctness, security,
+migrations, performance, readability, and hygiene, then emits APPROVE / REQUEST CHANGES + a must-fix list.
+A PR missing a required test tier for new behavior is a blocker.
 
 ## Conventions
 
