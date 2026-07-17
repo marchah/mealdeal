@@ -18,6 +18,18 @@ jobs:
       # typecheck + lint (incl. layer boundaries) + prettier + tests + schema/codegen drift
       - run: pnpm check
 
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      # boot the real composition root against a file-based test DB (migrations applied in globalSetup)
+      - run: pnpm test:integration
+
   secrets:
     runs-on: ubuntu-latest
     steps:
