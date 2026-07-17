@@ -15,11 +15,18 @@ export const merchants = sqliteTable('merchants', {
   createdAt: timestamp('created_at').notNull().default(now),
 });
 
+export const couponTypes = sqliteTable('coupon_types', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  createdAt: timestamp('created_at').notNull().default(now),
+});
+
 export const deals = sqliteTable('deals', {
   id: text('id').primaryKey(),
   merchantId: text('merchant_id')
     .notNull()
     .references(() => merchants.id),
+  couponTypeId: text('coupon_type_id').references(() => couponTypes.id, { onDelete: 'set null' }),
   title: text('title').notNull(),
   category: text('category'),
   item: text('item'),
