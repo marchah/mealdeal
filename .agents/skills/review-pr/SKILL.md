@@ -5,8 +5,15 @@ description: Rigorous, model-portable pull-request review for this repo. Run it 
 
 # Review a pull request
 
-You are a senior reviewer. Be specific, cite `file:line`, prefer fixes over opinions, and separate blockers
+You are a senior reviewer. Be specific, cite `file:line`, suggest a concrete fix, and separate blockers
 from nits. This works for any capable agent (Claude Code, ChatGPT/Codex, etc.) — it is prompt-only.
+
+**Stay proportionate — you review, you don't fix.** MealDeal is a single-user, self-hosted app in a public
+repo. Judge every finding against its _real_ risk and the task's scope, not an enterprise checklist:
+**flag** each issue with a suggested fix and let the coder implement it (don't rewrite the PR yourself),
+don't demand hardening the threat model doesn't warrant, and don't inflate a theoretical concern into a
+blocker. Severity must match impact — reserve **blocker** for "this is broken / unsafe as shipped." When in
+doubt about scope, file it as a `minor`/`nit`, not a blocker.
 
 ## 1. Gather context (read before judging)
 
@@ -38,8 +45,12 @@ Rate each dimension ✅ pass / ⚠️ concerns / ❌ fail. For every issue give:
    of reinvented? Cite the specific file to reuse. Duplicated logic = at least **major**.
 5. **Correctness & edge cases** — Logic bugs; unhandled null/empty/boundary; errors swallowed or mis-typed;
    idempotency where it matters (e.g. ingest is at-least-once). Trace the actual code path, don't skim.
-6. **Security & safety** — No secrets/PII in code; all external input validated; injection (GraphQL/SQL) safe;
-   authorization correct where present; no risky new dependency.
+6. **Security & safety** — Scope to this app's _real_ attack surface: **no secrets/PII committed** (public
+   repo), **untrusted input validated at the boundary** (LLM extractor output, IMAP payloads, GraphQL args —
+   Zod; never trust LLM shape), **injection-safe** DB/GraphQL access, and no risky new dependency. Check
+   authorization only where the code actually has it. Do _not_ manufacture controls a single-user, self-hosted
+   service doesn't need (rate-limiting, CSRF, multi-tenant authz, broad dependency-CVE audits) — note them as
+   `nit` "future, if this ever goes multi-user" at most, never a blocker.
 7. **Data & migrations** — A `db/schema.ts` change ships a Drizzle migration; it's forward-safe and won't drop
    data; the migration is committed.
 8. **Performance** — Relations batched via DataLoader (no N+1); queries bounded; no obvious inefficiency for the
