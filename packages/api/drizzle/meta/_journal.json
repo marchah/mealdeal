@@ -15,6 +15,20 @@
       "when": 1784199690635,
       "tag": "0001_careless_meltdown",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1784284276061,
+      "tag": "0002_add_coupon_types_table",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1784379545843,
+      "tag": "0003_rare_dreaming_celestial",
+      "breakpoints": true
     }
   ]
 }
