@@ -59,9 +59,9 @@ enum PrefScope {
 }
 
 type Query {
-  couponTypes: [CouponType!]!
   deal(id: ID!): QueryDealResult!
   deals(activeOnly: Boolean = true, category: String): [Deal!]!
+  getCouponTypes: [CouponType!]!
   prefs: [TrackingPref!]!
   stats: Stats!
 }

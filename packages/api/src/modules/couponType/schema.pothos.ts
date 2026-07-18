@@ -12,7 +12,7 @@ CouponTypeRef.implement({
 });
 
 builder.queryFields((t) => ({
-  couponTypes: t.field({
+  getCouponTypes: t.field({
     type: [CouponTypeRef],
     resolve: (_root, _args, ctx) => ctx.services.couponTypeService.getCouponTypes(),
   }),

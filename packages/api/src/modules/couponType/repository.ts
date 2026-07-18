@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { couponTypes } from '../../db/schema';
 import type { Db } from '../../db/client';
-import type { CouponType, CouponTypeRepository, CouponTypeService, NewCouponType } from './types';
+import type { CouponType, CouponTypeRepository, NewCouponType } from './types';
 
 // The ONLY layer that imports the db. Composes Drizzle queries into the CouponTypeRepository port.
+// Persistence primitives only — orchestration (e.g. seeding) lives in the service, never here.
 export function couponTypeRepositoryFactory({ db }: { db: Db }): CouponTypeRepository {
   return {
     async listAll() {
@@ -14,22 +15,14 @@ export function couponTypeRepositoryFactory({ db }: { db: Db }): CouponTypeRepos
       const rows = await db.select().from(couponTypes).where(eq(couponTypes.key, key)).limit(1);
       return rows[0] ?? null;
     },
-    async insert(newCouponType: NewCouponType): Promise<CouponType> {
-      const result = await db
+    // Idempotent + repairable: a single atomic INSERT ... ON CONFLICT DO NOTHING on the unique
+    // `key`. An existing key is a no-op, so re-running seed fills only the missing rows and never
+    // duplicates. Mirrors the deal repository's `insertIfNew`.
+    async upsertByKey(newCouponType: NewCouponType): Promise<void> {
+      await db
         .insert(couponTypes)
         .values({ id: randomUUID(), ...newCouponType })
-        .returning();
-      if (!result[0]) throw new Error('Failed to insert coupon type');
-      return result[0];
-    },
-    async count(): Promise<number> {
-      const rows = await db.select({ value: sql<number>`count(*)` }).from(couponTypes);
-      return rows[0]?.value ?? 0;
+        .onConflictDoNothing({ target: couponTypes.key });
     },
   };
-}
-
-// Seed the coupon_types table with defaults on init.
-export async function seedCouponTypes(service: CouponTypeService): Promise<void> {
-  await service.seed();
 }

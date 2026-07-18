@@ -19,8 +19,8 @@ export interface NewCouponType {
 export interface CouponTypeRepository {
   listAll(): Promise<CouponType[]>;
   findByKey(key: string): Promise<Maybe<CouponType>>;
-  insert(newCouponType: NewCouponType): Promise<CouponType>;
-  count(): Promise<number>;
+  /** Insert the row, but no-op if `key` already exists (atomic). Makes seeding repairable. */
+  upsertByKey(newCouponType: NewCouponType): Promise<void>;
 }
 
 export interface CouponTypeService {
