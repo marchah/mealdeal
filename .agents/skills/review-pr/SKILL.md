@@ -15,6 +15,22 @@ don't demand hardening the threat model doesn't warrant, and don't inflate a the
 blocker. Severity must match impact — reserve **blocker** for "this is broken / unsafe as shipped." When in
 doubt about scope, file it as a `minor`/`nit`, not a blocker.
 
+**Judge the SLICE, not the whole feature (critical — this is a thin-slice codebase).** The loop builds
+features as a sequence of small slices, usually split by layer: e.g. a **data-layer slice** (schema +
+migration + repository + service + unit tests, _no GraphQL_) followed by a **GraphQL slice** (schema.pothos +
+regenerated SDL + integration test), then a **web slice**. A PR is normally **one such slice**. Judge
+completeness against **THIS PR's declared scope** — its description and the linked kanban task — **not**
+against the full `PLAN.md` feature. Rules:
+- **A layer the PR explicitly defers is NOT a gap.** If a data-layer slice says "no GraphQL yet — later
+  slice," do **not** flag missing GraphQL / missing SDL regen / missing GraphQL-integration test as a
+  blocker, major, or even a must-fix. At most mention it once as context ("GraphQL deferred to the next
+  slice — consistent with the stated scope"). The full feature not being done in one PR is _by design_.
+- **Only block on defects WITHIN the delivered scope:** is the slice internally coherent (the layers it
+  _does_ touch line up — e.g. a column it persists is also readable through the domain type it ships),
+  correct, tested for what it delivers, and green? A slice that is self-consistent and green is APPROVE even
+  though the feature around it is unfinished.
+- If the PR's scope is genuinely unclear (no description, no task), _then_ fall back to `PLAN.md` — but say so.
+
 ## 1. Gather context (read before judging)
 
 - **The change:** `gh pr view <N>` (title/body/checks) and `gh pr diff <N>`. (ChatGPT: paste both.)
@@ -30,17 +46,22 @@ doubt about scope, file it as a `minor`/`nit`, not a blocker.
 Rate each dimension ✅ pass / ⚠️ concerns / ❌ fail. For every issue give: `path:line` · **severity**
 (`blocker` / `major` / `minor` / `nit`) · what's wrong · the concrete fix.
 
-1. **Spec / plan conformance** — Does it implement the assigned task and meet `PLAN.md`'s acceptance criteria?
-   Anything missing, or scope creep beyond the task? Does the PR description explain the change?
+1. **Spec / plan conformance** — Does it implement **its declared slice** (the PR description + linked task)?
+   Judge "missing" against _that slice's_ scope, not the whole `PLAN.md` feature — a layer the PR says it
+   defers is not missing (see "Judge the SLICE" above). Flag genuine gaps _within_ scope, and scope creep
+   _beyond_ the task. Does the PR description explain the change and what it defers?
 2. **Architecture & conventions** — The clean-arch layer rule holds: resolver → service → repository → db (a
    resolver never imports `db/` or a repository; a service depends on repository _port types_, never `db/`;
    web never imports api). New entities follow the `modules/deal/` shape and are registered in `services.ts` +
    `schema.ts`. Factory-DI, `common/settings` (no stray `process.env`), `common/logger` (no `console.*`),
    `common/errors` (typed errors), Zod at every boundary, non-null GraphQL defaults, web changes a11y-clean.
-3. **Test pyramid** — **unit** (logic with mocked ports), **integration** (resolver/service against a real
-   test DB), and **e2e** (user flow, once that infra exists) are present, _meaningful_ (not trivial/tautological),
-   and cover the change **plus edge cases** (empty/null/boundary/error). CI is green. Missing a required tier
-   for new behavior = **blocker**.
+3. **Test pyramid** — Require only the tiers **relevant to what this slice delivers**: **unit** (logic with
+   mocked ports) for repo/service logic; **integration** (resolver/service against a real test DB) when the
+   slice ships a DB read/write path or a GraphQL field; **e2e** for a user flow (once that infra exists).
+   Tests present must be _meaningful_ (not trivial/tautological) and cover the change **plus edge cases**
+   (empty/null/boundary/error). CI is green. Missing a tier that this slice's delivered behavior _needs_ =
+   **blocker**; do **not** demand a tier for a layer the slice deliberately defers (e.g. no GraphQL-integration
+   test on a data-only slice).
 4. **Reuse / anti-duplication** — Is there an existing module, helper, or pattern that should be reused instead
    of reinvented? Cite the specific file to reuse. Duplicated logic = at least **major**.
 5. **Correctness & edge cases** — Logic bugs; unhandled null/empty/boundary; errors swallowed or mis-typed;
