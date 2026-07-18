@@ -21,6 +21,7 @@ migration + repository + service + unit tests, _no GraphQL_) followed by a **Gra
 regenerated SDL + integration test), then a **web slice**. A PR is normally **one such slice**. Judge
 completeness against **THIS PR's declared scope** — its description and the linked kanban task — **not**
 against the full `PLAN.md` feature. Rules:
+
 - **A layer the PR explicitly defers is NOT a gap.** If a data-layer slice says "no GraphQL yet — later
   slice," do **not** flag missing GraphQL / missing SDL regen / missing GraphQL-integration test as a
   blocker, major, or even a must-fix. At most mention it once as context ("GraphQL deferred to the next

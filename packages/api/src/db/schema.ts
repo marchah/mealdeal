@@ -41,6 +41,10 @@ export const deals = sqliteTable('deals', {
   minSpend: real('min_spend'),
   url: text('url'),
   sourceAlias: text('source_alias'),
+  // links deal to a CouponType category (nullable FK)
+  couponTypeId: text('coupon_type_id').references(() => couponTypes.id, {
+    onDelete: 'set null',
+  }),
   // deals dedup on this hash (stable across re-ingests of the same offer)
   dedupHash: text('dedup_hash').notNull().unique(),
   startsAt: timestamp('starts_at'),
