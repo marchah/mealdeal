@@ -10,10 +10,12 @@ export interface MerchantRepository {
   findByName(name: string): Promise<Merchant | null>;
   create(name: string): Promise<Merchant>;
   count(): Promise<number>;
+  updateLocation(id: string, args: { address?: string; lat?: number; lng?: number }): Promise<void>;
 }
 
 export interface MerchantService {
   findByIds(ids: readonly string[]): Promise<Merchant[]>;
   getOrCreate(name: string): Promise<Merchant>;
   count(): Promise<number>;
+  updateLocation(id: string, args: { address?: string; lat?: number; lng?: number }): Promise<void>;
 }

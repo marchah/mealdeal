@@ -15,6 +15,13 @@
       "when": 1784199690635,
       "tag": "0001_careless_meltdown",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1784375424219,
+      "tag": "0002_lethal_hitman",
+      "breakpoints": true
     }
   ]
 }
