@@ -4,4 +4,5 @@ coverage
 pnpm-lock.yaml
 packages/contract/schema.graphql
 packages/web/src/graphql-env.d.ts
+packages/api/drizzle/
 docs/
