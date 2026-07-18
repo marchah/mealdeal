@@ -15,6 +15,13 @@
       "when": 1784199690635,
       "tag": "0001_careless_meltdown",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1784377364301,
+      "tag": "0002_complete_goliath",
+      "breakpoints": true
     }
   ]
 }

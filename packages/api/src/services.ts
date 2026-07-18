@@ -8,6 +8,9 @@ import type { IngestRunService } from './modules/ingestRun/types';
 import { merchantRepositoryFactory } from './modules/merchant/repository';
 import { merchantServiceFactory } from './modules/merchant/service';
 import type { MerchantService } from './modules/merchant/types';
+import { couponTypeRepositoryFactory } from './modules/couponType/repository';
+import { couponTypeServiceFactory } from './modules/couponType/service';
+import type { CouponTypeService } from './modules/couponType/types';
 import { trackingPrefRepositoryFactory } from './modules/trackingPref/repository';
 import { trackingPrefServiceFactory } from './modules/trackingPref/service';
 import type { TrackingPrefService } from './modules/trackingPref/types';
@@ -18,6 +21,7 @@ export interface Services {
   merchantService: MerchantService;
   ingestRunService: IngestRunService;
   trackingPrefService: TrackingPrefService;
+  couponTypeService: CouponTypeService;
 }
 
 let cached: Services | undefined;
@@ -46,7 +50,16 @@ export function getServices(): Services {
     ingestRunService,
     trackingPrefService,
   });
+  const couponTypeService = couponTypeServiceFactory({
+    couponTypeRepository: couponTypeRepositoryFactory({ db }),
+  });
 
-  cached = { dealService, merchantService, ingestRunService, trackingPrefService };
+  cached = {
+    dealService,
+    merchantService,
+    ingestRunService,
+    trackingPrefService,
+    couponTypeService,
+  };
   return cached;
 }
