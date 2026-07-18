@@ -1,1 +1,1 @@
-ALTER TABLE `deals` ADD `coupon_type_id` text REFERENCES coupon_types(id);
+ALTER TABLE `deals` ADD `coupon_type_id` text REFERENCES coupon_types(id) ON DELETE SET NULL;
