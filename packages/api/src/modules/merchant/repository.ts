@@ -4,6 +4,8 @@ import { merchants } from '../../db/schema';
 import type { Db } from '../../db/client';
 import type { Merchant, MerchantRepository } from './types';
 
+type LocationUpdate = { address?: string; lat?: number; lng?: number };
+
 // The ONLY layer that imports the db. Composes Drizzle queries into the MerchantRepository port.
 export function merchantRepositoryFactory({ db }: { db: Db }): MerchantRepository {
   return {
@@ -19,13 +21,31 @@ export function merchantRepositoryFactory({ db }: { db: Db }): MerchantRepositor
       return rows[0] ?? null;
     },
     async create(name) {
-      const row: Merchant = { id: randomUUID(), name, createdAt: new Date() };
+      const row: Merchant = {
+        id: randomUUID(),
+        name,
+        address: null,
+        lat: null,
+        lng: null,
+        createdAt: new Date(),
+      };
       await db.insert(merchants).values(row);
       return row;
     },
     async count() {
       const rows = await db.select({ value: count() }).from(merchants);
       return rows[0]?.value ?? 0;
+    },
+    async updateLocation(id, args: LocationUpdate) {
+      if (args.address === undefined && args.lat === undefined && args.lng === undefined) return;
+      await db
+        .update(merchants)
+        .set({
+          address: args.address,
+          lat: args.lat,
+          lng: args.lng,
+        })
+        .where(eq(merchants.id, id));
     },
   };
 }

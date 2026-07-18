@@ -13,5 +13,6 @@ export function merchantServiceFactory({
       const existing = await merchantRepository.findByName(name);
       return existing ?? merchantRepository.create(name);
     },
+    updateLocation: (id, args) => merchantRepository.updateLocation(id, args),
   };
 }
