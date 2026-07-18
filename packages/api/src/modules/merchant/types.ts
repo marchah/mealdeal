@@ -2,6 +2,11 @@
 export interface Merchant {
   id: string;
   name: string;
+  // Location (nullable; populated via updateLocation). Carried on the domain type so persisted
+  // location is READABLE through the port, not just writable.
+  address: string | null;
+  lat: number | null;
+  lng: number | null;
   createdAt: Date;
 }
 

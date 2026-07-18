@@ -5,6 +5,9 @@ import type { Merchant, MerchantRepository } from './types';
 const makeMerchant = (over: Partial<Merchant> = {}): Merchant => ({
   id: 'm1',
   name: 'TestMart',
+  address: null,
+  lat: null,
+  lng: null,
   createdAt: new Date('2026-01-01T00:00:00Z'),
   ...over,
 });
@@ -95,5 +98,19 @@ describe('merchantService', () => {
     const service = merchantServiceFactory({ merchantRepository: repo });
     await service.updateLocation('m2', { lat: 51.5 });
     expect(updateLocation).toHaveBeenCalledWith('m2', { lat: 51.5 });
+  });
+
+  it('surfaces persisted location through the read path (not write-only)', async () => {
+    const located = makeMerchant({ id: 'm3', address: '5 Market St', lat: 40.7, lng: -74.0 });
+    const repo: MerchantRepository = {
+      findByIds: (ids) => Promise.resolve(ids.includes('m3') ? [located] : []),
+      findByName: () => Promise.resolve(null),
+      create: () => Promise.resolve(makeMerchant()),
+      count: () => Promise.resolve(0),
+      updateLocation: () => Promise.resolve(),
+    };
+    const service = merchantServiceFactory({ merchantRepository: repo });
+    const [m] = await service.findByIds(['m3']);
+    expect(m).toMatchObject({ address: '5 Market St', lat: 40.7, lng: -74.0 });
   });
 });

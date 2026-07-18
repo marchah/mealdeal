@@ -21,7 +21,14 @@ export function merchantRepositoryFactory({ db }: { db: Db }): MerchantRepositor
       return rows[0] ?? null;
     },
     async create(name) {
-      const row: Merchant = { id: randomUUID(), name, createdAt: new Date() };
+      const row: Merchant = {
+        id: randomUUID(),
+        name,
+        address: null,
+        lat: null,
+        lng: null,
+        createdAt: new Date(),
+      };
       await db.insert(merchants).values(row);
       return row;
     },
