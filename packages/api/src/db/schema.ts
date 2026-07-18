@@ -9,6 +9,13 @@ import { integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlit
 const timestamp = (name: string) => integer(name, { mode: 'timestamp' });
 const now = sql`(unixepoch())`;
 
+export const couponTypes = sqliteTable('coupon_types', {
+  id: text('id').primaryKey(),
+  key: text('key').notNull().unique(),
+  label: text('label').notNull(),
+  createdAt: timestamp('created_at').notNull().default(now),
+});
+
 export const merchants = sqliteTable('merchants', {
   id: text('id').primaryKey(),
   name: text('name').notNull().unique(),
