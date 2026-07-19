@@ -1,0 +1,188 @@
+# ARCHITECTURE.md — MealDeal clean architecture
+
+> The deep reference for how MealDeal is structured. `AGENTS.md` is the quick working rules + the
+> `pnpm check` gate; **this file is the architecture the coder, reviewer, and planner must follow.**
+> It is a living document — modeled on our further-along services and expected to grow. When a rule
+> here can be mechanically enforced, it should move into `pnpm check` (see [§9](#9-enforcement)).
+
+## North star
+
+A **modular monolith** with **ports & adapters** boundaries and **factory-function dependency
+injection**, wired at one composition root. Every external dependency (the DB, a third-party API,
+an LLM, a mailbox) sits behind a **port the domain owns**; nothing framework- or vendor-specific
+leaks inward. The dependency arrow always points one way:
+
+```
+resolver (delivery) → service (domain / use-case) → repository | adapter (data & I/O ports) → db | provider
+```
+
+Inner layers never import outer ones: a resolver never touches `db/`, a service never imports a
+provider SDK, a repository never calls a service.
+
+## 1. Where things live (folder = responsibility)
+
+| Concern                      | Location                                                                        | Notes                                                                             |
+| ---------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| **Feature module**           | `packages/api/src/modules/<entity>/`                                            | The vertical slice. Copy `modules/deal/`. A feature never lives at `src/<name>/`. |
+| **External-service adapter** | `packages/api/src/third-party/<provider>/`                                      | Any third-party API / SDK / LLM / geocoder. Behind a port the module owns.        |
+| **Cross-cutting kernel**     | `packages/api/src/common/`                                                      | `errors.ts`, `settings.ts`, `logger.ts`, `types.ts`. Imports nothing domain.      |
+| **Persistence**              | `packages/api/src/db/`                                                          | Drizzle schema + client. Touched **only** by repositories.                        |
+| **Composition / backbone**   | `services.ts`, `schema.ts`, `builder.ts`, `context.ts`, `server.ts`/`worker.ts` | The only wiring sites.                                                            |
+| **Ingest pipeline**          | `packages/api/src/ingest/`                                                      | `imap` / `extractor` are existing reference adapters.                             |
+| **Shared SDL**               | `packages/contract/`                                                            | The one artifact web + api both touch.                                            |
+| **Web SPA**                  | `packages/web/`                                                                 | Never imports `packages/api` — depends only on `@mealdeal/contract`.              |
+
+**A provider's name / client / SDK must never appear outside `third-party/`.** Modules depend on
+the port, not the provider.
+
+## 2. The module (vertical slice) — copy `deal`
+
+Each feature is a folder `modules/<entity>/` with fixed file roles (the import matrix is in
+`AGENTS.md`):
+
+```
+modules/<entity>/
+  types.ts          # domain types + the module's PORT interfaces (repository / service / adapter ports)
+  repository.ts     # the ONLY layer that touches db/. Returns domain types.
+  service.ts        # business logic / use-cases. Depends on PORT TYPES. Takes ctx.
+  schema.pothos.ts  # GraphQL types + resolvers. Thin: validate args → call ctx.services → shape result.
+  *.spec.ts         # unit tests (factory-DI mocks)
+```
+
+Register it in `services.ts` (build repo + service, add to `Services`) and import its
+`schema.pothos` in `schema.ts`. Regenerate the SDL + gql.tada and commit the generated files.
+
+**Layer discipline:**
+
+- **Resolvers are thin** — parse args, call one service method via `ctx.services`, shape the result.
+  No `db/`/repository access, no business logic.
+- **Services** hold the logic. They depend on **repository / adapter port _types_** (declared in the
+  module's `types.ts`), never on implementations, `db/`, a resolver, or a provider SDK.
+- **Repositories** are the only code that touches `db/`. They return domain types; ORM detail never
+  leaks upward. A repository never imports a service or resolver.
+
+## 3. Ports & adapters — isolating every external dependency
+
+This is the rule the `location` / `zippopotam` work drifted from, so it is spelled out.
+
+**Any integration with something outside the process — a third-party HTTP API, an SDK, an LLM, a
+mailbox — is a port implemented by an adapter.**
+
+- **The port** is a plain interface declared in the _consuming module's_ `types.ts`:
+
+  ```ts
+  // modules/location/types.ts
+  export interface ZipCoordinateLookup {
+    lookup(zip: string): Promise<Coordinate>; // throws LocationLookupError on failure
+  }
+  ```
+
+- **The adapter** implements the port, lives in `third-party/<provider>/`, and is named
+  `<provider>AdapterFactory`:
+
+  ```ts
+  // third-party/zippopotam/index.ts
+  export function zippopotamAdapterFactory(deps: { httpClient: HttpClient }): ZipCoordinateLookup { … }
+  ```
+
+- **The adapter owns the transport and nothing else:** the URL, auth, the fetch call, mapping the
+  provider's response, and **validating that response** — never trust a provider's shape; parse it
+  with Zod at this boundary. Its request/response types are a _deliberately partial_ mirror of the
+  provider — only the fields we use.
+- **Domain logic lives in the service, not the adapter.** The adapter returns clean domain values or
+  throws a typed error; the service decides what to do with them.
+- **Adapters are wired only in `services.ts`** and injected into the service. A resolver, service, or
+  repository **never** imports a provider SDK or the adapter directly — it depends on the **port**.
+
+**Swappable providers (one port, many adapters).** When a capability can have more than one provider
+(say a different geocoder), keep the one port and add a second adapter under its own
+`third-party/<provider>/`; select the implementation in `services.ts` from settings — never branch
+on the provider inside a service.
+
+## 4. Dependency injection & the composition root
+
+- **Every unit is a factory** taking its dependencies as one object and returning an object typed by
+  an explicit port: `dealServiceFactory({ dealRepository }): DealService`. No DI container, no
+  decorators, no module-level singletons (they break test isolation).
+- **`services.ts` is the one composition root.** It builds repositories → adapters → services in
+  dependency order, memoized once, exposed as the typed `Services` registry reached through
+  `ctx.services`. It is the only place cross-module wiring happens.
+- **`ctx` is threaded, not global.** The request context carries the service registry + request
+  identity; pass it down. Services receive their dependencies by construction and use `ctx` only for
+  request-scoped data — they do not reach back into `ctx.services` to resolve siblings (inject those
+  as dependencies instead).
+- **Prefer an injected clock over `Date.now()`** in business logic where timing matters — it keeps
+  tests deterministic.
+
+## 5. Naming
+
+- **Factories:** `<name>ServiceFactory` / `<name>RepositoryFactory` / `<provider>AdapterFactory`,
+  returning `<Name>Service` / `<Name>Repository` / the port type.
+- **Ports / interfaces:** `<Entity>Service`, `<Entity>Repository`, or a capability name (e.g.
+  `ZipCoordinateLookup`) — declared in the module's `types.ts`.
+- **Methods — the read semantics are load-bearing:**
+  - `find*` → may return `null` (absence is normal),
+  - `get*` → throws `NotFoundError` (absence is exceptional),
+  - `list*` → a collection.
+
+  Use `<verb><Entity>`: `getDeal`, `listDeals`, `createDeal`, `updateDealStatus`.
+
+- **Errors:** `<Reason>Error` extending the base in `common/errors.ts`.
+
+## 6. Errors, validation, logging, settings
+
+- **Errors:** throw the typed classes in `common/errors.ts`; expose expected failures as typed
+  **GraphQL result unions** (`errors: { types: [...] }`), never generic thrown errors across the
+  resolver boundary. Don't catch an error just to swallow it — log and rethrow, or return a typed
+  error.
+- **Validate every untrusted boundary with Zod** — GraphQL args, IMAP payloads, LLM output, **and
+  third-party responses**. (The `location` adapter returning `{ lat: 0, lng: 0 }` from a coerced
+  `null` was a missing-validation bug at exactly this boundary.)
+- **Settings:** read env only in `common/settings.ts` (Zod-validated, single source of truth); never
+  `process.env` elsewhere. _(ESLint-enforced.)_
+- **Logging:** use `common/logger.ts`; never `console.*`. _(ESLint-enforced.)_
+
+## 7. Testing
+
+- **Unit** (`*.spec.ts`, colocated): build a service with hand-mocked ports (see
+  `modules/deal/service.spec.ts` — the reference test). DI is what makes this trivial: depend on port
+  types, inject fakes.
+- **Integration** (`pnpm test:integration`): the real composition root against a file-based test DB.
+- Cover the error paths and edge cases (empty / null / boundary), not just the happy path. Keep time
+  deterministic (injected clock / fake timers) — no real `Date.now()` in a test's logic.
+
+## 8. Codegen & migrations
+
+- Schema is **code-first (Pothos)**; `pnpm build-schema` emits `packages/contract/schema.graphql`,
+  `pnpm gen` writes the web `graphql-env.d.ts`, `pnpm db:generate` produces Drizzle migrations.
+- **Generated artifacts are committed and regenerated, never hand-edited** (drift is checked by
+  `pnpm check`). Never hand-write a migration.
+
+## 9. Enforcement — put architecture in `pnpm check`, not just prose
+
+The rules above are only as strong as the gate. What `pnpm check` enforces **today**
+(`eslint.config.js`):
+
+- the layer dependency rule _within_ `modules/*` (`boundaries/dependencies`: resolver ↛ db/repository,
+  service ↛ db/resolver, repository ↛ service/resolver);
+- env access only in `common/settings.ts`; no `console.*`.
+
+**Gaps to close (the drift slipped through these):**
+
+- **`boundaries/no-unknown-files: error`** — every `src/**/*.ts` must match a known element, so a
+  feature can't be dropped at `src/<name>/` outside `modules/`. (Requires first categorizing the
+  remaining backbone files — a one-time ratchet.)
+- **A `third-party` boundary element** — classify `third-party/*/**` and forbid a module from
+  importing an adapter (depend on the port) and an adapter from importing a service / repository /
+  `db/`.
+- **No provider client outside `third-party/`** — `no-restricted-imports` (or dependency-cruiser)
+  banning http / provider-SDK imports from `modules/**`.
+
+**Principle: if an architecture rule matters, encode it in `pnpm check`.** Prose gets followed most
+of the time; a red gate gets followed every time.
+
+---
+
+_Reference implementations: `modules/deal/` (the canonical module) and `ingest/{imap,extractor}` (the
+existing adapters). When adding an external integration, `third-party/` is the home; when adding a
+feature, `modules/<entity>/` is._

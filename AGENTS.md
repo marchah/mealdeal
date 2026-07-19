@@ -5,6 +5,10 @@ Read this before writing any code. These rules are **mechanically enforced** by 
 them cannot pass review and cannot be committed by the loop. Keep changes focused and idiomatic to
 the surrounding code.
 
+**For the full architecture — layers, ports & adapters, DI, naming, and the enforcement roadmap —
+read [`ARCHITECTURE.md`](./ARCHITECTURE.md).** This file is the quick working rules + the gate;
+`ARCHITECTURE.md` is the clean architecture the coder, reviewer, and planner follow.
+
 ## What MealDeal is
 
 A self-hostable app: an **ingest worker** reads a dedicated IMAP mailbox on a schedule, uses an
@@ -89,6 +93,11 @@ build magic) and makes unit tests trivial: build a service with hand-mocked port
 For a DB change: edit `db/schema.ts`, run `pnpm db:generate` (commits a migration), update the affected
 repository + port + service together. Keep changes additive; keep `dedup_hash` stable.
 
+For an **external integration** (third-party HTTP API, SDK, LLM, geocoder): put the adapter in
+`packages/api/src/third-party/<provider>/` named **`<provider>AdapterFactory`**, behind a **port
+interface declared in the consuming module's `types.ts`**; wire it in `services.ts` and inject it into
+the service. A provider's client/SDK **must never appear outside `third-party/`**. See `ARCHITECTURE.md` §3.
+
 ## GraphQL / codegen workflow
 
 - Schema is **code-first (Pothos)**; `pnpm build-schema` prints the SDL to `packages/contract/schema.graphql`
@@ -148,6 +157,9 @@ A PR missing a required test tier for new behavior is a blocker.
 - Always block a PR that: fails `pnpm check`; hand-edits a generated artifact (SDL /
   graphql-env.d.ts); hand-writes a migration; skips a required test tier for new behavior; reads
   `process.env` outside `common/settings.ts`; uses `console.*`; or crosses a layer boundary.
+- Block a PR that puts an **external-service client outside `third-party/<provider>/`**, misnames an
+  adapter (must be `<provider>AdapterFactory` behind a module-owned port), or has a module import a
+  provider SDK directly instead of the port (`ARCHITECTURE.md` §3).
 
 ## Conventions
 
