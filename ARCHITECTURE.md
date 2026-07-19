@@ -63,7 +63,8 @@ Register it in `services.ts` (build repo + service, add to `Services`) and impor
 
 ## 3. Ports & adapters — isolating every external dependency
 
-This is the rule the `location` / `zippopotam` work drifted from, so it is spelled out.
+External dependencies are where architecture erodes fastest, so this boundary is spelled out
+explicitly.
 
 **Any integration with something outside the process — a third-party HTTP API, an SDK, an LLM, a
 mailbox — is a port implemented by an adapter.**
@@ -81,7 +82,7 @@ mailbox — is a port implemented by an adapter.**
   `<provider>AdapterFactory`:
 
   ```ts
-  // third-party/zippopotam/index.ts
+  // third-party/zippopotam/adapter.ts
   export function zippopotamAdapterFactory(deps: { httpClient: HttpClient }): ZipCoordinateLookup { … }
   ```
 
@@ -127,17 +128,19 @@ on the provider inside a service.
 
   Use `<verb><Entity>`: `getDeal`, `listDeals`, `createDeal`, `updateDealStatus`.
 
-- **Errors:** `<Reason>Error` extending the base in `common/errors.ts`.
+- **Errors:** the shared base hierarchy lives in `common/errors.ts`; a module's own error subclasses
+  live in its `types.ts` (part of the module's contract), named `<Reason>Error`.
 
 ## 6. Errors, validation, logging, settings
 
-- **Errors:** throw the typed classes in `common/errors.ts`; expose expected failures as typed
+- **Errors:** throw the typed classes — the shared base in `common/errors.ts`, a module's own
+  subclasses in its `types.ts`; expose expected failures as typed
   **GraphQL result unions** (`errors: { types: [...] }`), never generic thrown errors across the
   resolver boundary. Don't catch an error just to swallow it — log and rethrow, or return a typed
   error.
 - **Validate every untrusted boundary with Zod** — GraphQL args, IMAP payloads, LLM output, **and
-  third-party responses**. (The `location` adapter returning `{ lat: 0, lng: 0 }` from a coerced
-  `null` was a missing-validation bug at exactly this boundary.)
+  third-party responses**. (A coerced `null` or empty value silently becoming `0` at a provider
+  boundary is the kind of bug this prevents — never trust a provider's shape.)
 - **Settings:** read env only in `common/settings.ts` (Zod-validated, single source of truth); never
   `process.env` elsewhere. _(ESLint-enforced.)_
 - **Logging:** use `common/logger.ts`; never `console.*`. _(ESLint-enforced.)_
@@ -160,23 +163,18 @@ on the provider inside a service.
 
 ## 9. Enforcement — put architecture in `pnpm check`, not just prose
 
-The rules above are only as strong as the gate. What `pnpm check` enforces **today**
-(`eslint.config.js`):
+The rules above are only as strong as the gate, so the structural ones are machine-checked. What
+`pnpm check` enforces (`eslint.config.js`, `eslint-plugin-boundaries`):
 
-- the layer dependency rule _within_ `modules/*` (`boundaries/dependencies`: resolver ↛ db/repository,
-  service ↛ db/resolver, repository ↛ service/resolver);
-- env access only in `common/settings.ts`; no `console.*`.
-
-**Gaps to close (the drift slipped through these):**
-
-- **`boundaries/no-unknown-files: error`** — every `src/**/*.ts` must match a known element, so a
-  feature can't be dropped at `src/<name>/` outside `modules/`. (Requires first categorizing the
-  remaining backbone files — a one-time ratchet.)
-- **A `third-party` boundary element** — classify `third-party/*/**` and forbid a module from
-  importing an adapter (depend on the port) and an adapter from importing a service / repository /
-  `db/`.
-- **No provider client outside `third-party/`** — `no-restricted-imports` (or dependency-cruiser)
-  banning http / provider-SDK imports from `modules/**`.
+- **Every file under `packages/api/src/` matches a known element** (`no-unknown-files`) — a feature
+  can't be dropped at `src/<name>/` outside `modules/`, and a stray file fails the gate.
+- **The dependency rule** (`boundaries/dependencies`): a resolver never reaches `db` / a repository /
+  an adapter; a service never reaches `db` / a resolver / an adapter (it depends on port types); a
+  repository never reaches a service / resolver / adapter; an **adapter** never reaches a service /
+  repository / resolver / `db` (it owns only transport, behind the module's port).
+- **No provider / HTTP client imported inside `modules/`** (`no-restricted-imports`) — transport
+  belongs in `third-party/<provider>/`.
+- **Env access only in `common/settings.ts`; no `console.*`.**
 
 **Principle: if an architecture rule matters, encode it in `pnpm check`.** Prose gets followed most
 of the time; a red gate gets followed every time.

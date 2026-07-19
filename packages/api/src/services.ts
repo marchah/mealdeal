@@ -12,9 +12,9 @@ import { couponTypeRepositoryFactory } from './modules/couponType/repository';
 import { couponTypeServiceFactory } from './modules/couponType/service';
 import type { CouponTypeService } from './modules/couponType/types';
 import { settings } from './common/settings';
-import { userLocationResolverFactory } from './location/userLocationResolver';
-import type { UserLocationResolver } from './location/types';
-import { zippopotamZipCoordinateLookupFactory } from './location/zippopotam';
+import { locationServiceFactory } from './modules/location/service';
+import type { LocationService } from './modules/location/types';
+import { zippopotamAdapterFactory } from './third-party/zippopotam/adapter';
 import { trackingPrefRepositoryFactory } from './modules/trackingPref/repository';
 import { trackingPrefServiceFactory } from './modules/trackingPref/service';
 import type { TrackingPrefService } from './modules/trackingPref/types';
@@ -26,7 +26,7 @@ export interface Services {
   ingestRunService: IngestRunService;
   trackingPrefService: TrackingPrefService;
   couponTypeService: CouponTypeService;
-  userLocationResolver: UserLocationResolver;
+  locationService: LocationService;
 }
 
 let cached: Services | undefined;
@@ -58,9 +58,9 @@ export function getServices(): Services {
   const couponTypeService = couponTypeServiceFactory({
     couponTypeRepository: couponTypeRepositoryFactory({ db }),
   });
-  const userLocationResolver = userLocationResolverFactory({
+  const locationService = locationServiceFactory({
     zip: settings.USER_LOCATION,
-    zipCoordinateLookup: zippopotamZipCoordinateLookupFactory(),
+    zipCoordinateLookup: zippopotamAdapterFactory(),
   });
 
   cached = {
@@ -69,7 +69,7 @@ export function getServices(): Services {
     ingestRunService,
     trackingPrefService,
     couponTypeService,
-    userLocationResolver,
+    locationService,
   };
   return cached;
 }

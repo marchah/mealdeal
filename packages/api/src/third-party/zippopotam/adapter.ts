@@ -1,6 +1,9 @@
 import { z } from 'zod';
-import { LocationLookupError } from './errors';
-import type { Coordinates, ZipCoordinateLookup } from './types';
+import {
+  LocationLookupError,
+  type Coordinates,
+  type ZipCoordinateLookup,
+} from '../../modules/location/types';
 
 const ZIPPOTAM_BASE_URL = 'https://api.zippopotam.us';
 
@@ -28,10 +31,11 @@ export interface FetchResponse {
 export type Fetcher = (url: string) => Promise<FetchResponse>;
 
 /**
- * Zippopotam.us adapter. It is deliberately isolated here: application code receives only the
- * ZipCoordinateLookup port and can swap this HTTP implementation for a local dataset if needed.
+ * Zippopotam.us adapter for the `ZipCoordinateLookup` port. It owns only the transport — the URL,
+ * the fetch call, and validating the provider response — so application code can swap this HTTP
+ * implementation for a local dataset without touching the domain.
  */
-export function zippopotamZipCoordinateLookupFactory({
+export function zippopotamAdapterFactory({
   fetcher = fetch,
 }: {
   fetcher?: Fetcher;
