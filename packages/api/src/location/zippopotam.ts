@@ -4,12 +4,16 @@ import type { Coordinates, ZipCoordinateLookup } from './types';
 
 const ZIPPOTAM_BASE_URL = 'https://api.zippopotam.us';
 
+const CoordinateSchema = z
+  .union([z.number(), z.string().trim().min(1).transform(Number)])
+  .pipe(z.number().finite());
+
 const ResponseSchema = z.object({
   places: z
     .array(
       z.object({
-        latitude: z.coerce.number().finite().min(-90).max(90),
-        longitude: z.coerce.number().finite().min(-180).max(180),
+        latitude: CoordinateSchema.pipe(z.number().min(-90).max(90)),
+        longitude: CoordinateSchema.pipe(z.number().min(-180).max(180)),
       }),
     )
     .min(1),

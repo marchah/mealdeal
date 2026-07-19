@@ -51,6 +51,22 @@ describe('zippopotamZipCoordinateLookup', () => {
     await expect(lookup.lookup('02139')).rejects.toBeInstanceOf(LocationLookupError);
   });
 
+  it.each([
+    ['null', null, '-71.1043'],
+    ['empty string', '42.3648', ''],
+  ])('rejects %s provider coordinates', async (_description, latitude, longitude) => {
+    const lookup = zippopotamZipCoordinateLookupFactory({
+      fetcher: () =>
+        Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ places: [{ latitude, longitude }] }),
+        }),
+    });
+
+    await expect(lookup.lookup('02139')).rejects.toBeInstanceOf(LocationLookupError);
+  });
+
   it('rejects provider coordinates outside WGS84 bounds', async () => {
     const lookup = zippopotamZipCoordinateLookupFactory({
       fetcher: () =>
