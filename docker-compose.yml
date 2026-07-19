@@ -19,6 +19,7 @@ services:
       OPENAI_MODEL: ${OPENAI_MODEL:-}
       INGEST_CRON: ${INGEST_CRON:-*/30 * * * *}
       INGEST_TOKEN: ${INGEST_TOKEN:-}
+      USER_LOCATION: ${USER_LOCATION:-}
     volumes:
       - mealdeal-data:/data
     restart: unless-stopped

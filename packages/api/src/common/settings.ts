@@ -29,10 +29,16 @@ const EnvSchema = z.object({
   OPENAI_BASE_URL: z.string().default('http://localhost:1234/v1'),
   OPENAI_API_KEY: z.string().default('not-needed'),
   OPENAI_MODEL: z.string().default('qwen3.6-35b-a3b'),
-});
 
-// eslint-disable-next-line no-restricted-properties -- the one allowed read of process.env
-const ENV = EnvSchema.parse(process.env);
+  // A five-digit US ZIP code. It is optional until a near-me feature needs it.
+  USER_LOCATION: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z
+      .string()
+      .regex(/^\d{5}$/, 'USER_LOCATION must be a five-digit US ZIP code')
+      .optional(),
+  ),
+});
 
 /** IMAP connection settings (grouped so it can be null when unconfigured). */
 export interface ImapSettings {
@@ -51,37 +57,45 @@ export interface LlmSettings {
   OPENAI_MODEL: string;
 }
 
-// null when IMAP is not configured (host/user/password absent) — ingest is then disabled.
-const IMAP: ImapSettings | null =
-  ENV.IMAP_HOST && ENV.IMAP_USER && ENV.IMAP_PASSWORD
-    ? {
-        IMAP_HOST: ENV.IMAP_HOST,
-        IMAP_PORT: ENV.IMAP_PORT,
-        IMAP_SECURE: ENV.IMAP_SECURE !== 'false',
-        IMAP_USER: ENV.IMAP_USER,
-        IMAP_PASSWORD: ENV.IMAP_PASSWORD,
-        IMAP_MAILBOX: ENV.IMAP_MAILBOX,
-      }
-    : null;
+/** Parse environment variables for startup and unit tests without another process.env reader. */
+export function parseSettings(env: NodeJS.ProcessEnv) {
+  const ENV = EnvSchema.parse(env);
+  // null when IMAP is not configured (host/user/password absent) — ingest is then disabled.
+  const IMAP: ImapSettings | null =
+    ENV.IMAP_HOST && ENV.IMAP_USER && ENV.IMAP_PASSWORD
+      ? {
+          IMAP_HOST: ENV.IMAP_HOST,
+          IMAP_PORT: ENV.IMAP_PORT,
+          IMAP_SECURE: ENV.IMAP_SECURE !== 'false',
+          IMAP_USER: ENV.IMAP_USER,
+          IMAP_PASSWORD: ENV.IMAP_PASSWORD,
+          IMAP_MAILBOX: ENV.IMAP_MAILBOX,
+        }
+      : null;
 
-export const settings = {
-  NODE_ENV: ENV.NODE_ENV,
-  LOG_LEVEL: ENV.LOG_LEVEL,
-  PORT: ENV.PORT,
-  WEB_DIR: ENV.WEB_DIR,
-  DATABASE_URL: ENV.DATABASE_URL,
-  MIGRATIONS_DIR: ENV.MIGRATIONS_DIR,
+  return {
+    NODE_ENV: ENV.NODE_ENV,
+    LOG_LEVEL: ENV.LOG_LEVEL,
+    PORT: ENV.PORT,
+    WEB_DIR: ENV.WEB_DIR,
+    DATABASE_URL: ENV.DATABASE_URL,
+    MIGRATIONS_DIR: ENV.MIGRATIONS_DIR,
 
-  INGEST_INLINE: ENV.INGEST_INLINE !== '0',
-  INGEST_CRON: ENV.INGEST_CRON,
-  INGEST_BATCH: ENV.INGEST_BATCH,
-  INGEST_TOKEN: ENV.INGEST_TOKEN,
+    INGEST_INLINE: ENV.INGEST_INLINE !== '0',
+    INGEST_CRON: ENV.INGEST_CRON,
+    INGEST_BATCH: ENV.INGEST_BATCH,
+    INGEST_TOKEN: ENV.INGEST_TOKEN,
 
-  IMAP,
+    IMAP,
 
-  OPENAI_BASE_URL: ENV.OPENAI_BASE_URL,
-  OPENAI_API_KEY: ENV.OPENAI_API_KEY,
-  OPENAI_MODEL: ENV.OPENAI_MODEL,
-};
+    OPENAI_BASE_URL: ENV.OPENAI_BASE_URL,
+    OPENAI_API_KEY: ENV.OPENAI_API_KEY,
+    OPENAI_MODEL: ENV.OPENAI_MODEL,
+    USER_LOCATION: ENV.USER_LOCATION ?? null,
+  };
+}
+
+// eslint-disable-next-line no-restricted-properties -- the one allowed read of process.env
+export const settings = parseSettings(process.env);
 
 export type Settings = typeof settings;

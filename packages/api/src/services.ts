@@ -11,6 +11,10 @@ import type { MerchantService } from './modules/merchant/types';
 import { couponTypeRepositoryFactory } from './modules/couponType/repository';
 import { couponTypeServiceFactory } from './modules/couponType/service';
 import type { CouponTypeService } from './modules/couponType/types';
+import { settings } from './common/settings';
+import { userLocationResolverFactory } from './location/userLocationResolver';
+import type { UserLocationResolver } from './location/types';
+import { zippopotamZipCoordinateLookupFactory } from './location/zippopotam';
 import { trackingPrefRepositoryFactory } from './modules/trackingPref/repository';
 import { trackingPrefServiceFactory } from './modules/trackingPref/service';
 import type { TrackingPrefService } from './modules/trackingPref/types';
@@ -22,6 +26,7 @@ export interface Services {
   ingestRunService: IngestRunService;
   trackingPrefService: TrackingPrefService;
   couponTypeService: CouponTypeService;
+  userLocationResolver: UserLocationResolver;
 }
 
 let cached: Services | undefined;
@@ -53,6 +58,10 @@ export function getServices(): Services {
   const couponTypeService = couponTypeServiceFactory({
     couponTypeRepository: couponTypeRepositoryFactory({ db }),
   });
+  const userLocationResolver = userLocationResolverFactory({
+    zip: settings.USER_LOCATION,
+    zipCoordinateLookup: zippopotamZipCoordinateLookupFactory(),
+  });
 
   cached = {
     dealService,
@@ -60,6 +69,7 @@ export function getServices(): Services {
     ingestRunService,
     trackingPrefService,
     couponTypeService,
+    userLocationResolver,
   };
   return cached;
 }
