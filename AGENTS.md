@@ -135,6 +135,20 @@ grades spec conformance, architecture, the test pyramid, reuse/anti-duplication,
 migrations, performance, readability, and hygiene, then emits APPROVE / REQUEST CHANGES + a must-fix list.
 A PR missing a required test tier for new behavior is a blocker.
 
+## Review guidelines
+
+(Codex automatic PR review and the loop Reviewer read this section.)
+
+- Judge a PR against **its slice/plan scope**, not the whole roadmap. An explicitly deferred
+  layer is by-design, not a gap; require only the test tiers the delivered scope needs.
+- REQUEST CHANGES only for **genuine defects** — broken, unsafe, or a violation of the rules in
+  this file _as shipped_. MealDeal is a **single-user, self-hosted** app: do NOT block on
+  enterprise hardening it doesn't need (rate-limiting, CSRF, multi-tenant authz, CVE audits) or
+  on theoretical nits / style preferences.
+- Always block a PR that: fails `pnpm check`; hand-edits a generated artifact (SDL /
+  graphql-env.d.ts); hand-writes a migration; skips a required test tier for new behavior; reads
+  `process.env` outside `common/settings.ts`; uses `console.*`; or crosses a layer boundary.
+
 ## Conventions
 
 - **TypeScript strict** (`noUncheckedIndexedAccess`, `verbatimModuleSyntax`, …). Prefix intentionally
@@ -147,7 +161,7 @@ A PR missing a required test tier for new behavior is a blocker.
 - **Errors:** throw the typed classes in `common/errors.ts`; list them in a field's `errors` to expose
   as union members.
 - **No new runtime dependency** without a clear reason.
-- **Never** run `npm`/build/tests inside the orchestrator — the loop runs checks on the coder-runner.
+- **Run the gate (`pnpm check`) in your workspace and make it green before finishing** — never report a task done without it passing.
 
 ## Files to read first
 
