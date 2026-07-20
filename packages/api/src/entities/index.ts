@@ -52,14 +52,15 @@ export function getEntitiesServices({
   const trackingPrefService = trackingPrefServiceFactory({
     trackingPrefRepository: trackingPrefRepositoryFactory({ db }),
   });
+  const couponTypeService = couponTypeServiceFactory({
+    couponTypeRepository: couponTypeRepositoryFactory({ db }),
+  });
   const dealService = dealServiceFactory({
     dealRepository: dealRepositoryFactory({ db }),
     merchantService,
     ingestRunService,
     trackingPrefService,
-  });
-  const couponTypeService = couponTypeServiceFactory({
-    couponTypeRepository: couponTypeRepositoryFactory({ db }),
+    couponTypeService,
   });
   const locationService = locationServiceFactory({ zipCoordinateLookup });
   return { dealService, merchantService, trackingPrefService, couponTypeService, locationService };

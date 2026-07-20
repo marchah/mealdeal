@@ -2,6 +2,7 @@ import { NotFoundError } from '../../common/errors';
 import type { IngestRunService } from '../../features/ingestRun/types';
 import type { MerchantService } from '../merchant/types';
 import type { TrackingPrefService } from '../trackingPref/types';
+import type { CouponTypeService } from '../couponType/types';
 import type { DealRepository, DealService, ListDealsInput, Stats } from './types';
 
 // Business logic. Depends on repository + collaborator service PORT types — never the db.
@@ -10,11 +11,13 @@ export function dealServiceFactory({
   merchantService,
   ingestRunService,
   trackingPrefService,
+  couponTypeService,
 }: {
   dealRepository: DealRepository;
   merchantService: MerchantService;
   ingestRunService: IngestRunService;
   trackingPrefService: TrackingPrefService;
+  couponTypeService: CouponTypeService;
 }): DealService {
   async function listDeals(input: ListDealsInput) {
     const rows = await dealRepository.listAll(input);
@@ -37,6 +40,8 @@ export function dealServiceFactory({
       if (!deal) throw new NotFoundError(`No deal with id ${id}`);
       return deal;
     },
+    getCouponType: (deal) =>
+      deal.couponTypeId ? couponTypeService.findById(deal.couponTypeId) : Promise.resolve(null),
     async getStats(): Promise<Stats> {
       // activeDeals reuses listDeals so it stays consistent with the rendered list
       // (both exclude muted items/categories).

@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
+import { sql } from 'drizzle-orm';
 import { createYoga } from 'graphql-yoga';
 import { beforeEach, expect, test } from 'vitest';
 import { createContext } from '../../src/context';
 import { createDb } from '../../src/db/client';
-import { deals, merchants } from '../../src/db/schema';
+import { couponTypes, deals, merchants } from '../../src/db/schema';
 import { schema } from '../../src/schema';
 
 // INTEGRATION reference test. Exercises the `deals` query end-to-end through the real Yoga app
@@ -16,7 +17,16 @@ const yoga = createYoga({ schema, context: createContext });
 
 interface GraphQLResponse {
   errors?: unknown;
-  data?: { deals: Array<{ id: string; title: string; merchant: { name: string } }> };
+  data?: {
+    deals: Array<{
+      id: string;
+      title: string;
+      category: string | null;
+      couponTypeId: string | null;
+      couponType: { id: string; key: string; label: string } | null;
+      merchant: { name: string };
+    }>;
+  };
 }
 
 async function runQuery(query: string): Promise<GraphQLResponse> {
@@ -33,6 +43,8 @@ async function seedDeal(opts: {
   title: string;
   merchant: string;
   expiresAt?: Date;
+  category?: string | null;
+  couponTypeId?: string | null;
 }): Promise<void> {
   const db = createDb();
   const merchantId = randomUUID();
@@ -41,7 +53,8 @@ async function seedDeal(opts: {
     id: randomUUID(),
     merchantId,
     title: opts.title,
-    category: 'grocery',
+    category: opts.category ?? 'grocery',
+    couponTypeId: opts.couponTypeId ?? null,
     dedupHash: randomUUID(),
     expiresAt: opts.expiresAt ?? null,
   });
@@ -54,6 +67,7 @@ beforeEach(async () => {
   const db = createDb();
   await db.delete(deals);
   await db.delete(merchants);
+  await db.delete(couponTypes);
 });
 
 test('deals query returns the seeded active deal with its merchant', async () => {
@@ -80,4 +94,78 @@ test('deals query excludes expired deals (and is isolated from the previous test
 
   expect(body.errors).toBeUndefined();
   expect(body.data?.deals).toHaveLength(0);
+});
+
+test('deals query exposes a classified deal without changing its free-text category', async () => {
+  const couponTypeId = randomUUID();
+  await createDb().insert(couponTypes).values({ id: couponTypeId, key: 'food', label: 'Food' });
+  await seedDeal({
+    title: '25% off pasta',
+    merchant: 'Pasta Place',
+    category: 'Italian grocery',
+    couponTypeId,
+  });
+
+  const body = await runQuery(
+    '{ deals { title category couponTypeId couponType { id key label } merchant { name } } }',
+  );
+
+  expect(body.errors).toBeUndefined();
+  expect(body.data?.deals).toHaveLength(1);
+  expect(body.data?.deals[0]).toMatchObject({
+    title: '25% off pasta',
+    category: 'Italian grocery',
+    couponTypeId,
+    couponType: { id: couponTypeId, key: 'food', label: 'Food' },
+  });
+});
+
+test('deals query returns null for a stale coupon-type reference instead of failing the deal', async () => {
+  const db = createDb();
+  const merchantId = randomUUID();
+  await db.insert(merchants).values({ id: merchantId, name: 'Legacy Mart' });
+  // SQLite normally prevents this. It models an orphaned row from a legacy/imported database so
+  // the nullable GraphQL relationship's missing-row policy is exercised end-to-end.
+  await db.run(sql`PRAGMA foreign_keys = OFF`);
+  await db.insert(deals).values({
+    id: randomUUID(),
+    merchantId,
+    title: 'Legacy deal',
+    category: 'grocery',
+    couponTypeId: 'missing-coupon-type',
+    dedupHash: randomUUID(),
+  });
+  await db.run(sql`PRAGMA foreign_keys = ON`);
+
+  const body = await runQuery(
+    '{ deals { title couponTypeId couponType { key } merchant { name } } }',
+  );
+
+  expect(body.errors).toBeUndefined();
+  expect(body.data?.deals[0]).toMatchObject({
+    title: 'Legacy deal',
+    couponTypeId: 'missing-coupon-type',
+    couponType: null,
+  });
+});
+
+test('deals query preserves an unclassified deal as a null relationship', async () => {
+  await seedDeal({
+    title: 'Mystery markdown',
+    merchant: 'General Store',
+    category: 'weekly special',
+    couponTypeId: null,
+  });
+
+  const body = await runQuery(
+    '{ deals { title category couponTypeId couponType { key } merchant { name } } }',
+  );
+
+  expect(body.errors).toBeUndefined();
+  expect(body.data?.deals[0]).toMatchObject({
+    title: 'Mystery markdown',
+    category: 'weekly special',
+    couponTypeId: null,
+    couponType: null,
+  });
 });
