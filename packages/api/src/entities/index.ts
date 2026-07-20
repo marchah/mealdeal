@@ -40,11 +40,11 @@ export interface EntitiesServices {
 export function getEntitiesServices({
   db,
   ingestRunService,
-  zippopotamAdapter,
+  zipCoordinateLookup,
 }: {
   db: Db;
   ingestRunService: IngestRunService;
-  zippopotamAdapter: ZipCoordinateLookup;
+  zipCoordinateLookup: ZipCoordinateLookup;
 }): EntitiesServices {
   const merchantService = merchantServiceFactory({
     merchantRepository: merchantRepositoryFactory({ db }),
@@ -61,6 +61,6 @@ export function getEntitiesServices({
   const couponTypeService = couponTypeServiceFactory({
     couponTypeRepository: couponTypeRepositoryFactory({ db }),
   });
-  const locationService = locationServiceFactory({ zippopotamAdapter });
+  const locationService = locationServiceFactory({ zipCoordinateLookup });
   return { dealService, merchantService, trackingPrefService, couponTypeService, locationService };
 }

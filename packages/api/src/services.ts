@@ -23,7 +23,7 @@ export function getServices(): Services {
   const entities = getEntitiesServices({
     db,
     ingestRunService: features.ingestRunService,
-    zippopotamAdapter,
+    zipCoordinateLookup: zippopotamAdapter,
   });
   cached = { ...entities, ...features };
   return cached;

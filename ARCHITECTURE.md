@@ -102,6 +102,9 @@ mailbox — is a port implemented by an adapter.**
   throws a typed error; the service decides what to do with them.
 - **Adapters are wired only in `services.ts`** and injected into the service. A resolver, service, or
   repository **never** imports a provider SDK or the adapter directly — it depends on the **port**.
+  Name the dependency after the **port** where it's consumed (`zipCoordinateLookup`); the concrete
+  adapter name (`zippopotamAdapter`) lives only in `third-party/` and the composition root, so a slice
+  never hard-codes which provider backs its port.
 
 **Rich providers add a `service.ts` on top of the adapter (an anti-corruption layer).** When a
 provider's raw API needs real translation before the domain can use it — multi-call flows, mapping its
