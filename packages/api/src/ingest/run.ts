@@ -3,6 +3,7 @@ import cron from 'node-cron';
 import { ServerError } from '../common/errors';
 import { logException, logInfo, logWarning } from '../common/logger';
 import { settings } from '../common/settings';
+import type { Maybe } from '../common/types';
 import { getServices, type Services } from '../services';
 import type { NewDeal } from '../entities/deal/types';
 import { llmExtractorFactory, type DealExtractor, type ExtractedDeal } from './extractor';
@@ -26,7 +27,7 @@ function dedupHash(merchant: string, deal: ExtractedDeal): string {
   return createHash('sha256').update(key).digest('hex');
 }
 
-function toDate(iso: string | null | undefined): Date | null {
+function toDate(iso: Maybe<string> | undefined): Maybe<Date> {
   if (!iso) return null;
   const date = new Date(iso);
   return Number.isNaN(date.getTime()) ? null : date;

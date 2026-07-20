@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import { z } from 'zod';
 import { ServerError } from '../common/errors';
 import type { LlmSettings } from '../common/settings';
+import type { Maybe } from '../common/types';
 
 // The LLM returns free-form JSON; we NEVER trust its shape — every field is validated by
 // this Zod schema before it reaches the domain. Extra/malformed fields are dropped.
@@ -42,7 +43,7 @@ const SYSTEM_PROMPT = [
  * truncated/garbled response for an email that had deals must not be silently dropped.
  * A valid `{"deals":[]}` is a legitimate "no deals" result and returns `[]` (success).
  */
-export function parseExtractionResponse(content: string | null | undefined): ExtractedDeal[] {
+export function parseExtractionResponse(content: Maybe<string> | undefined): ExtractedDeal[] {
   if (!content || content.trim() === '') {
     throw new ServerError('LLM returned an empty response');
   }
