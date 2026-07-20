@@ -35,8 +35,11 @@ type Deal {
 }
 
 type Merchant {
+  address: String
   createdAt: DateTime!
   id: ID!
+  lat: Float
+  lng: Float
   name: String!
 }
 
