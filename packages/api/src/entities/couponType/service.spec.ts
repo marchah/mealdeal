@@ -23,6 +23,7 @@ function makeService(seed: NewCouponType[] = []) {
 
   const couponTypeRepository: CouponTypeRepository = {
     listAll: () => Promise.resolve([...rows.values()]),
+    findById: (id) => Promise.resolve([...rows.values()].find((ct) => ct.id === id) ?? null),
     findByKey: (key) => Promise.resolve(rows.get(key) ?? null),
     // Atomic no-op on an existing key — the real ON CONFLICT DO NOTHING contract.
     upsertByKey: (ct) => {

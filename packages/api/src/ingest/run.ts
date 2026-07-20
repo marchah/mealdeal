@@ -63,6 +63,7 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
           const merchant = await services.merchantService.getOrCreate(deal.merchant);
           const newDeal: NewDeal = {
             merchantId: merchant.id,
+            couponTypeId: null,
             title: deal.title,
             category: deal.category ?? null,
             item: deal.item ?? null,

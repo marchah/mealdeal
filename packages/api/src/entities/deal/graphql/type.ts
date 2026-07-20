@@ -1,6 +1,7 @@
 import { builder } from '../../../builder';
 import { NotFoundError } from '../../../common/errors';
 import { MerchantRef } from '../../merchant/graphql/type';
+import { CouponTypeRef } from '../../couponType/graphql/type';
 import type { Deal, Stats } from '../types';
 
 export const DealRef = builder.objectRef<Deal>('Deal');
@@ -8,6 +9,7 @@ DealRef.implement({
   fields: (t) => ({
     id: t.exposeID('id'),
     title: t.exposeString('title'),
+    couponTypeId: t.exposeID('couponTypeId', { nullable: true }),
     category: t.exposeString('category', { nullable: true }),
     item: t.exposeString('item', { nullable: true }),
     discountText: t.exposeString('discountText', { nullable: true }),
@@ -27,6 +29,11 @@ DealRef.implement({
         if (!merchant) throw new NotFoundError(`Merchant ${deal.merchantId} not found`);
         return merchant;
       },
+    }),
+    couponType: t.field({
+      type: CouponTypeRef,
+      nullable: true,
+      resolve: (deal, _args, ctx) => ctx.services.dealService.getCouponType(deal),
     }),
   }),
 });

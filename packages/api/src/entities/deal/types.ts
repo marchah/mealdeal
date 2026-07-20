@@ -1,4 +1,5 @@
 import type { Maybe } from '../../common/types';
+import type { CouponType } from '../couponType/types';
 
 // ── Ports for the deal slice. This is the CANONICAL entity — copy this shape for new
 // entities. Services depend on these interfaces; only the repository touches the db.
@@ -7,6 +8,7 @@ import type { Maybe } from '../../common/types';
 export interface Deal {
   id: string;
   merchantId: string;
+  couponTypeId: Maybe<string>;
   title: string;
   category: Maybe<string>;
   item: Maybe<string>;
@@ -31,6 +33,7 @@ export interface ListDealsInput {
 /** A deal ready to persist (produced by the ingest pipeline after dedup-hashing). */
 export interface NewDeal {
   merchantId: string;
+  couponTypeId: Maybe<string>;
   title: string;
   category: Maybe<string>;
   item: Maybe<string>;
@@ -66,6 +69,7 @@ export interface DealRepository {
 export interface DealService {
   listDeals(input: ListDealsInput): Promise<Deal[]>;
   getById(id: string): Promise<Deal>;
+  getCouponType(deal: Deal): Promise<Maybe<CouponType>>;
   getStats(): Promise<Stats>;
   /** Persist a deal produced by ingest; returns false if it was a dedup no-op. */
   add(deal: NewDeal): Promise<boolean>;

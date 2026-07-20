@@ -11,6 +11,10 @@ export function couponTypeRepositoryFactory({ db }: { db: Db }): CouponTypeRepos
     async listAll() {
       return db.select().from(couponTypes);
     },
+    async findById(id: string): Promise<CouponType | null> {
+      const rows = await db.select().from(couponTypes).where(eq(couponTypes.id, id)).limit(1);
+      return rows[0] ?? null;
+    },
     async findByKey(key: string): Promise<CouponType | null> {
       const rows = await db.select().from(couponTypes).where(eq(couponTypes.key, key)).limit(1);
       return rows[0] ?? null;

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { IngestRunService } from '../../features/ingestRun/types';
+import type { CouponType, CouponTypeService } from '../couponType/types';
 import type { MerchantService } from '../merchant/types';
 import type { TrackingPrefService } from '../trackingPref/types';
 import { dealServiceFactory } from './service';
@@ -11,6 +12,7 @@ import type { Deal, DealRepository } from './types';
 const makeDeal = (over: Partial<Deal> = {}): Deal => ({
   id: 'd1',
   merchantId: 'm1',
+  couponTypeId: null,
   title: 'Cheese 2-for-1',
   category: 'dairy',
   item: 'cheese',
@@ -32,6 +34,7 @@ function makeService(
   over: {
     deals?: Deal[];
     muted?: { items: Set<string>; categories: Set<string> };
+    couponTypes?: CouponType[];
   } = {},
 ) {
   const rows = over.deals ?? [makeDeal()];
@@ -50,12 +53,17 @@ function makeService(
     mutedValues: () =>
       Promise.resolve(over.muted ?? { items: new Set<string>(), categories: new Set<string>() }),
   } as unknown as TrackingPrefService;
+  const couponTypeService = {
+    findById: (id: string) =>
+      Promise.resolve(over.couponTypes?.find((couponType) => couponType.id === id) ?? null),
+  } as unknown as CouponTypeService;
 
   return dealServiceFactory({
     dealRepository,
     merchantService,
     ingestRunService,
     trackingPrefService,
+    couponTypeService,
   });
 }
 
@@ -94,5 +102,21 @@ describe('dealService', () => {
   it('throws NotFoundError for a missing id', async () => {
     const service = makeService({ deals: [] });
     await expect(service.getById('nope')).rejects.toThrow('No deal with id nope');
+  });
+
+  it('loads coupon types through the injected service and tolerates missing classifications', async () => {
+    const couponType: CouponType = {
+      id: 'ct-food',
+      key: 'food',
+      label: 'Food',
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+    };
+    const service = makeService({ couponTypes: [couponType] });
+
+    await expect(service.getCouponType(makeDeal({ couponTypeId: couponType.id }))).resolves.toEqual(
+      couponType,
+    );
+    await expect(service.getCouponType(makeDeal({ couponTypeId: 'missing' }))).resolves.toBeNull();
+    await expect(service.getCouponType(makeDeal({ couponTypeId: null }))).resolves.toBeNull();
   });
 });

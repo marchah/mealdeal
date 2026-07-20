@@ -23,6 +23,10 @@ export function couponTypeServiceFactory({
     return couponTypeRepository.listAll();
   }
 
+  async function findById(id: string) {
+    return couponTypeRepository.findById(id);
+  }
+
   async function getCouponTypeByKey(key: string) {
     return couponTypeRepository.findByKey(key);
   }
@@ -36,5 +40,5 @@ export function couponTypeServiceFactory({
     }
   }
 
-  return { getCouponTypes, getCouponTypeByKey, seed };
+  return { getCouponTypes, findById, getCouponTypeByKey, seed };
 }

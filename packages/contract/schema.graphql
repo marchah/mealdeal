@@ -18,6 +18,8 @@ scalar DateTime
 type Deal {
   category: String
   code: String
+  couponType: CouponType
+  couponTypeId: ID
   createdAt: DateTime!
   currency: String
   discountPct: Float
