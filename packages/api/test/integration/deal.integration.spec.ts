@@ -25,7 +25,12 @@ interface GraphQLResponse {
       category: Maybe<string>;
       couponTypeId: Maybe<string>;
       couponType: Maybe<{ id: string; key: string; label: string }>;
-      merchant: { name: string };
+      merchant: {
+        name: string;
+        address: Maybe<string>;
+        lat: Maybe<number>;
+        lng: Maybe<number>;
+      };
     }>;
   };
 }
@@ -46,10 +51,19 @@ async function seedDeal(opts: {
   expiresAt?: Date;
   category?: Maybe<string>;
   couponTypeId?: Maybe<string>;
+  address?: Maybe<string>;
+  lat?: Maybe<number>;
+  lng?: Maybe<number>;
 }): Promise<void> {
   const db = createDb();
   const merchantId = randomUUID();
-  await db.insert(merchants).values({ id: merchantId, name: opts.merchant });
+  await db.insert(merchants).values({
+    id: merchantId,
+    name: opts.merchant,
+    address: opts.address ?? null,
+    lat: opts.lat ?? null,
+    lng: opts.lng ?? null,
+  });
   await db.insert(deals).values({
     id: randomUUID(),
     merchantId,
@@ -80,6 +94,38 @@ test('deals query returns the seeded active deal with its merchant', async () =>
   expect(body.data?.deals).toHaveLength(1);
   expect(body.data?.deals[0]?.title).toBe('50% off olive oil');
   expect(body.data?.deals[0]?.merchant.name).toBe('Trader Vals');
+});
+
+test('deals query exposes populated merchant location fields', async () => {
+  await seedDeal({
+    title: '30% off produce',
+    merchant: 'Green Grocer',
+    address: '123 Market Street',
+    lat: 40.7128,
+    lng: -74.006,
+  });
+
+  const body = await runQuery('{ deals { merchant { address lat lng } } }');
+
+  expect(body.errors).toBeUndefined();
+  expect(body.data?.deals[0]?.merchant).toMatchObject({
+    address: '123 Market Street',
+    lat: 40.7128,
+    lng: -74.006,
+  });
+});
+
+test('deals query exposes absent merchant location fields as null', async () => {
+  await seedDeal({ title: '15% off staples', merchant: 'Corner Market' });
+
+  const body = await runQuery('{ deals { merchant { address lat lng } } }');
+
+  expect(body.errors).toBeUndefined();
+  expect(body.data?.deals[0]?.merchant).toMatchObject({
+    address: null,
+    lat: null,
+    lng: null,
+  });
 });
 
 test('deals query excludes expired deals (and is isolated from the previous test)', async () => {
