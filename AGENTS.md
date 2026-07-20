@@ -103,7 +103,9 @@ repository + port + service together. Keep changes additive; keep `dedup_hash` s
 For an **external integration** (third-party HTTP API, SDK, LLM, geocoder): put the adapter in
 `packages/api/src/third-party/<provider>/` named **`<provider>AdapterFactory`**, behind a **port
 interface declared in the consuming slice's `types.ts`**; wire it in `services.ts` and inject it into
-the service. A provider's client/SDK **must never appear outside `third-party/`**. See `ARCHITECTURE.md` §3.
+the service. If the provider's raw API needs translation, add a `<provider>ServiceFactory` (`service.ts`)
+on top of the adapter — the anti-corruption layer — and inject that instead. A provider's client/SDK
+**must never appear outside `third-party/`**. See `ARCHITECTURE.md` §3.
 
 ## GraphQL / codegen workflow
 

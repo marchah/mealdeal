@@ -103,6 +103,17 @@ mailbox — is a port implemented by an adapter.**
 - **Adapters are wired only in `services.ts`** and injected into the service. A resolver, service, or
   repository **never** imports a provider SDK or the adapter directly — it depends on the **port**.
 
+**Rich providers add a `service.ts` on top of the adapter (an anti-corruption layer).** When a
+provider's raw API needs real translation before the domain can use it — multi-call flows, mapping its
+shapes/errors into our terms — put that in `third-party/<provider>/service.ts` (a
+`<provider>ServiceFactory` that takes the adapter as a dep and exposes the clean operations the domain
+wants). The **adapter** stays a thin transport wrapper over the SDK/HTTP; the **service** holds the
+provider-specific orchestration + shape/error mapping. So a `third-party/<provider>/` folder is:
+**`adapter.ts`** (raw transport) · optional **`service.ts`** (provider logic → domain-friendly
+interface) · **`types.ts`** (the provider's payload types). A rich provider's `service.ts` implements
+the port the slice owns; a simple one (like `zippopotam`) skips the service and the `adapter.ts`
+implements the port directly.
+
 **Swappable providers (one port, many adapters).** When a capability can have more than one provider
 (say a different geocoder), keep the one port and add a second adapter under its own
 `third-party/<provider>/`; select the implementation in `services.ts` from settings — never branch
