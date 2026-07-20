@@ -159,6 +159,11 @@ through a `repository.ts`; a slice with no DB table (e.g. `location`) instead de
 
 - **Errors:** all typed errors — the base hierarchy and every slice-specific subclass — live in
   `common/errors.ts`, named `<Reason>Error`.
+- **Enums:** model a fixed value set as a TS `enum` in the slice's `types.ts` and reuse it — the
+  Drizzle column (`.$type<Enum>()`), the domain type, and the GraphQL enum (`builder.enumType(Enum, {
+name })`). One source of truth; don't pair a string-literal union with a duplicate Pothos value list.
+  Use **SCREAMING_SNAKE_CASE** for both key and value (`MUTE = 'MUTE'`) — the key is the GraphQL value
+  name, the value is what's stored.
 
 ## 6. Errors, validation, logging, settings
 

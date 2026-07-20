@@ -181,6 +181,10 @@ A PR missing a required test tier for new behavior is a blocker.
   `{ tag, extra }` option); **never `console.*`** (ESLint enforces this).
 - **Errors:** throw the typed classes in `common/errors.ts`; list them in a field's `errors` to expose
   as union members.
+- **Enums:** a fixed value set is a TS `enum` (**SCREAMING_SNAKE_CASE** key **and** value, e.g.
+  `MUTE = 'MUTE'`) in the slice's `types.ts`, reused by the Drizzle column (`.$type<Enum>()`) and the
+  GraphQL enum (`builder.enumType(Enum, { name })`) — one source of truth, not a string-union + a
+  duplicate Pothos value list.
 - **No new runtime dependency** without a clear reason.
 - **Run the gate (`pnpm check`) in your workspace and make it green before finishing** — never report a task done without it passing.
 

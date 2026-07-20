@@ -1,12 +1,10 @@
 import { builder } from '../../../builder';
-import type { TrackingPref } from '../types';
+import { PrefKind, PrefScope, type TrackingPref } from '../types';
 
-export const PrefKindEnum = builder.enumType('PrefKind', {
-  values: ['mute', 'watchlist'] as const,
-});
-export const PrefScopeEnum = builder.enumType('PrefScope', {
-  values: ['item', 'category'] as const,
-});
+// Reuse the domain enums as the GraphQL enums (one source of truth). Pothos uses the enum keys as
+// the GraphQL value names (SCREAMING_SNAKE_CASE, per the enum members in types.ts).
+export const PrefKindEnum = builder.enumType(PrefKind, { name: 'PrefKind' });
+export const PrefScopeEnum = builder.enumType(PrefScope, { name: 'PrefScope' });
 
 export const TrackingPrefRef = builder.objectRef<TrackingPref>('TrackingPref');
 TrackingPrefRef.implement({

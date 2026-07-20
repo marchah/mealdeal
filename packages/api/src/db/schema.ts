@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import type { PrefKind, PrefScope } from '../entities/trackingPref/types';
 
 // The persistence schema. This file + client.ts are the ONLY dialect-aware files:
 // swapping to Postgres means re-expressing these tables with drizzle-orm/pg-core and
@@ -57,8 +58,12 @@ export const trackingPrefs = sqliteTable(
   'tracking_prefs',
   {
     id: text('id').primaryKey(),
-    kind: text('kind', { enum: ['mute', 'watchlist'] }).notNull(),
-    scope: text('scope', { enum: ['item', 'category'] }).notNull(),
+    kind: text('kind', { enum: ['MUTE', 'WATCHLIST'] })
+      .$type<PrefKind>()
+      .notNull(),
+    scope: text('scope', { enum: ['ITEM', 'CATEGORY'] })
+      .$type<PrefScope>()
+      .notNull(),
     value: text('value').notNull(),
     createdAt: timestamp('created_at').notNull().default(now),
   },
