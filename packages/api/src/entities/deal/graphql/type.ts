@@ -1,9 +1,9 @@
-import { builder } from '../../builder';
-import { NotFoundError } from '../../common/errors';
-import { MerchantRef } from '../merchant/schema.pothos';
-import type { Deal, Stats } from './types';
+import { builder } from '../../../builder';
+import { NotFoundError } from '../../../common/errors';
+import { MerchantRef } from '../../merchant/graphql/type';
+import type { Deal, Stats } from '../types';
 
-const DealRef = builder.objectRef<Deal>('Deal');
+export const DealRef = builder.objectRef<Deal>('Deal');
 DealRef.implement({
   fields: (t) => ({
     id: t.exposeID('id'),
@@ -31,7 +31,7 @@ DealRef.implement({
   }),
 });
 
-const StatsRef = builder.objectRef<Stats>('Stats');
+export const StatsRef = builder.objectRef<Stats>('Stats');
 StatsRef.implement({
   fields: (t) => ({
     totalDeals: t.exposeInt('totalDeals'),
@@ -40,29 +40,3 @@ StatsRef.implement({
     lastIngestAt: t.expose('lastIngestAt', { type: 'DateTime', nullable: true }),
   }),
 });
-
-builder.queryFields((t) => ({
-  deals: t.field({
-    type: [DealRef],
-    args: {
-      activeOnly: t.arg.boolean({ defaultValue: true }),
-      category: t.arg.string({ required: false }),
-    },
-    resolve: (_root, args, ctx) =>
-      ctx.services.dealService.listDeals({
-        activeOnly: args.activeOnly ?? true,
-        category: args.category ?? null,
-      }),
-  }),
-  deal: t.field({
-    type: DealRef,
-    // Result union: `Deal | NotFoundError` (the good-practice typed-error pattern).
-    errors: { types: [NotFoundError] },
-    args: { id: t.arg.id({ required: true }) },
-    resolve: (_root, args, ctx) => ctx.services.dealService.getById(args.id),
-  }),
-  stats: t.field({
-    type: StatsRef,
-    resolve: (_root, _args, ctx) => ctx.services.dealService.getStats(),
-  }),
-}));

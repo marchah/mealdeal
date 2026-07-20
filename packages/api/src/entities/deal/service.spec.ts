@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { IngestRunService } from '../ingestRun/types';
+import type { IngestRunService } from '../../features/ingestRun/types';
 import type { MerchantService } from '../merchant/types';
 import type { TrackingPrefService } from '../trackingPref/types';
 import { dealServiceFactory } from './service';

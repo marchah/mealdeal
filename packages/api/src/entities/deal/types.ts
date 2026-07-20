@@ -1,6 +1,6 @@
 import type { Maybe } from '../../common/types';
 
-// ── Ports for the deal module. This is the CANONICAL module — copy this shape for new
+// ── Ports for the deal slice. This is the CANONICAL entity — copy this shape for new
 // entities. Services depend on these interfaces; only the repository touches the db.
 
 /** A stored deal (domain shape; omits internal columns like dedup_hash). */

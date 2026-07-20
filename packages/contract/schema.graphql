@@ -49,13 +49,13 @@ type NotFoundError {
 }
 
 enum PrefKind {
-  mute
-  watchlist
+  MUTE
+  WATCHLIST
 }
 
 enum PrefScope {
-  category
-  item
+  CATEGORY
+  ITEM
 }
 
 type Query {

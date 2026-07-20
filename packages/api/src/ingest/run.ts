@@ -4,7 +4,7 @@ import { ServerError } from '../common/errors';
 import { logException, logInfo, logWarning } from '../common/logger';
 import { settings } from '../common/settings';
 import { getServices, type Services } from '../services';
-import type { NewDeal } from '../modules/deal/types';
+import type { NewDeal } from '../entities/deal/types';
 import { llmExtractorFactory, type DealExtractor, type ExtractedDeal } from './extractor';
 import { imapClientFactory, type ImapClient } from './imap';
 

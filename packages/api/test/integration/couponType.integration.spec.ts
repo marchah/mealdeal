@@ -4,7 +4,7 @@ import { beforeEach, expect, test } from 'vitest';
 import { createContext } from '../../src/context';
 import { createDb } from '../../src/db/client';
 import { couponTypes } from '../../src/db/schema';
-import { DEFAULT_COUPON_TYPES } from '../../src/modules/couponType/service';
+import { DEFAULT_COUPON_TYPES } from '../../src/entities/couponType/service';
 import { getServices } from '../../src/services';
 import { schema } from '../../src/schema';
 

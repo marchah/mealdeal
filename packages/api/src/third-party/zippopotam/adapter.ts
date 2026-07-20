@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { LocationLookupError } from './errors';
-import type { Coordinates, ZipCoordinateLookup } from './types';
+import { LocationLookupError } from '../../common/errors';
+import type { Coordinates, ZipCoordinateLookup } from '../../entities/location/types';
 
 const ZIPPOTAM_BASE_URL = 'https://api.zippopotam.us';
 
@@ -19,28 +19,17 @@ const ResponseSchema = z.object({
     .min(1),
 });
 
-export interface FetchResponse {
-  ok: boolean;
-  status: number;
-  json(): Promise<unknown>;
-}
-
-export type Fetcher = (url: string) => Promise<FetchResponse>;
-
 /**
- * Zippopotam.us adapter. It is deliberately isolated here: application code receives only the
- * ZipCoordinateLookup port and can swap this HTTP implementation for a local dataset if needed.
+ * Zippopotam.us adapter for the `ZipCoordinateLookup` port. It owns only the transport — the URL,
+ * the `fetch` call, and validating the provider response — so application code can swap this HTTP
+ * implementation for a local dataset without touching the domain.
  */
-export function zippopotamZipCoordinateLookupFactory({
-  fetcher = fetch,
-}: {
-  fetcher?: Fetcher;
-} = {}): ZipCoordinateLookup {
+export function zippopotamAdapterFactory(): ZipCoordinateLookup {
   return {
     async lookup(zip: string): Promise<Coordinates | null> {
-      let response: FetchResponse;
+      let response: Awaited<ReturnType<typeof fetch>>;
       try {
-        response = await fetcher(`${ZIPPOTAM_BASE_URL}/us/${encodeURIComponent(zip)}`);
+        response = await fetch(`${ZIPPOTAM_BASE_URL}/us/${encodeURIComponent(zip)}`);
       } catch {
         throw new LocationLookupError();
       }

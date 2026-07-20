@@ -67,15 +67,32 @@ export default tseslint.config(
         typescript: { alwaysTryTypes: true, project: 'packages/api/tsconfig.json' },
       },
       'boundaries/include': ['packages/api/src/**/*'],
-      // File-level classification (each layer is a file inside a module folder).
+      // File-level classification (each layer is a file inside an entity/module folder).
+      // Every file under src/ must match one of these (see no-unknown-files below). Order matters:
+      // the FIRST matching pattern classifies the file, so tests come first (a *.spec.ts is never
+      // mistaken for the layer it sits beside).
       'boundaries/files': [
-        { category: 'resolver', pattern: 'packages/api/src/modules/*/schema.pothos.ts' },
-        { category: 'service', pattern: 'packages/api/src/modules/*/service.ts' },
-        { category: 'repository', pattern: 'packages/api/src/modules/*/repository.ts' },
+        { category: 'test', pattern: 'packages/api/src/**/*.spec.ts' },
+        { category: 'resolver', pattern: 'packages/api/src/{entities,features}/*/graphql/**/*.ts' },
+        { category: 'service', pattern: 'packages/api/src/{entities,features}/*/service.ts' },
+        { category: 'repository', pattern: 'packages/api/src/{entities,features}/*/repository.ts' },
+        { category: 'types', pattern: 'packages/api/src/{entities,features}/*/types.ts' },
+        { category: 'adapter', pattern: 'packages/api/src/third-party/*/**/*.ts' },
         { category: 'db', pattern: 'packages/api/src/db/**/*.ts' },
+        { category: 'ingest', pattern: 'packages/api/src/ingest/*.ts' },
+        { category: 'common', pattern: 'packages/api/src/common/*.ts' },
+        // Package composition roots (each folder's index.ts) + the top-level backbone files.
+        {
+          category: 'backbone',
+          pattern: 'packages/api/src/{entities,features,third-party}/index.ts',
+        },
+        { category: 'backbone', pattern: 'packages/api/src/*.ts' },
       ],
     },
     rules: {
+      // No file under packages/api/src may escape classification (see boundaries/files) — this is
+      // what stops a feature being dropped at src/<name>/ instead of an entities/ or features/ folder.
+      'boundaries/no-unknown-files': 'error',
       'boundaries/dependencies': [
         'error',
         {
@@ -83,21 +100,59 @@ export default tseslint.config(
           policies: [
             {
               from: { file: { categories: 'resolver' } },
-              disallow: { to: { file: { categories: { anyOf: ['db', 'repository'] } } } },
+              disallow: {
+                to: { file: { categories: { anyOf: ['db', 'repository', 'adapter'] } } },
+              },
               message:
-                'Layer violation: resolvers must reach data via ctx.services — never import db or repository.',
+                'Layer violation: resolvers must reach data via ctx.services — never import db, a repository, or an adapter.',
             },
             {
               from: { file: { categories: 'service' } },
-              disallow: { to: { file: { categories: { anyOf: ['db', 'resolver'] } } } },
+              disallow: { to: { file: { categories: { anyOf: ['db', 'resolver', 'adapter'] } } } },
               message:
-                'Layer violation: services depend on repository PORT TYPES — never the db or a resolver.',
+                'Layer violation: services depend on repository/adapter PORT TYPES — never the db, a resolver, or a concrete adapter.',
             },
             {
               from: { file: { categories: 'repository' } },
-              disallow: { to: { file: { categories: { anyOf: ['resolver', 'service'] } } } },
+              disallow: {
+                to: { file: { categories: { anyOf: ['resolver', 'service', 'adapter'] } } },
+              },
               message:
-                'Layer violation: repositories are the data layer — never import a service or resolver.',
+                'Layer violation: repositories are the data layer — never import a service, resolver, or adapter.',
+            },
+            {
+              from: { file: { categories: 'adapter' } },
+              disallow: {
+                to: {
+                  file: { categories: { anyOf: ['db', 'repository', 'service', 'resolver'] } },
+                },
+              },
+              message:
+                'Layer violation: third-party adapters own only transport — never import db, a repository, a service, or a resolver. Implement the port declared in the slice that owns the port.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // ---- Provider/HTTP clients belong in third-party/, never inside a module ----
+  {
+    files: ['packages/api/src/{entities,features}/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: ['axios', 'node-fetch', 'undici', 'got'].map((name) => ({
+            name,
+            message:
+              'HTTP/provider clients belong in third-party/<provider>/ behind a port — not in a slice.',
+          })),
+          patterns: [
+            {
+              group: ['node:http', 'node:https'],
+              message:
+                'Raw HTTP belongs in third-party/<provider>/ behind a port — not in a slice.',
             },
           ],
         },

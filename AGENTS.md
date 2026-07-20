@@ -5,6 +5,10 @@ Read this before writing any code. These rules are **mechanically enforced** by 
 them cannot pass review and cannot be committed by the loop. Keep changes focused and idiomatic to
 the surrounding code.
 
+**For the full architecture — layers, ports & adapters, DI, naming, and the enforcement roadmap —
+read [`ARCHITECTURE.md`](./ARCHITECTURE.md).** This file is the quick working rules + the gate;
+`ARCHITECTURE.md` is the clean architecture the coder, reviewer, and planner follow.
+
 ## What MealDeal is
 
 A self-hostable app: an **ingest worker** reads a dedicated IMAP mailbox on a schedule, uses an
@@ -19,7 +23,7 @@ packages/web  (React SPA, urql + gql.tada)
       │  GraphQL over /graphql  (typed by the committed SDL)
       ▼
 packages/api  (GraphQL Yoga)
-   resolver (schema.pothos.ts)  →  service.ts  →  repository.ts  →  db (Drizzle + libsql/SQLite)
+   resolver (graphql/)          →  service.ts  →  repository.ts  →  db (Drizzle + libsql/SQLite)
                                         ▲
    ingest worker (imap → LLM extract → Zod) ┘  reuses the same services
 
@@ -30,21 +34,26 @@ Backend = a standalone Yoga server (a real `main()` in `server.ts`) with a **fac
 composition root. It also serves the built SPA's static files, so the whole thing ships as **one
 container / one Node process** (the ingest cron runs in-process by default).
 
-## Folder = module, file = role
+## Folder = slice, file = role
 
-Each backend feature is a folder under `packages/api/src/modules/<entity>/`. Files have fixed roles:
+Each backend feature is a vertical slice — a folder under `packages/api/src/entities/<entity>/` (a
+low-level **data entity**) or `packages/api/src/features/<name>/` (a service with more complex
+**business logic**). Both have the same fixed file roles:
 
-| File                   | Role                                                  | May import                                                      | May NOT import                          |
-| ---------------------- | ----------------------------------------------------- | --------------------------------------------------------------- | --------------------------------------- |
-| `<e>/types.ts`         | domain types + repository/service **port interfaces** | `common`                                                        | anything with side effects              |
-| `<e>/repository.ts`    | data access — the **only** layer that touches the db  | `db/`, `drizzle-orm`, own `types`                               | a service or resolver                   |
-| `<e>/service.ts`       | business logic                                        | repository **port types**, other services' port types, `common` | `db/` / `db/schema`, a resolver, Pothos |
-| `<e>/schema.pothos.ts` | GraphQL types + resolvers                             | `builder`, own `service`/`types`, `common`, other modules' refs | `db/`, a repository                     |
-| `<e>/*.spec.ts`        | Vitest unit tests                                     | anything                                                        | —                                       |
+| File                | Role                                                  | May import                                                      | May NOT import                          |
+| ------------------- | ----------------------------------------------------- | --------------------------------------------------------------- | --------------------------------------- |
+| `<e>/types.ts`      | domain types + repository/service **port interfaces** | `common`                                                        | anything with side effects              |
+| `<e>/repository.ts` | data access — the **only** layer that touches the db  | `db/`, `drizzle-orm`, own `types`                               | a service or resolver                   |
+| `<e>/service.ts`    | business logic                                        | repository **port types**, other services' port types, `common` | `db/` / `db/schema`, a resolver, Pothos |
+| `<e>/graphql/*.ts`  | GraphQL types + resolvers (`type`/`query`/`mutation`) | `builder`, `common`, own `types`, other slices' `graphql` refs  | `db/`, a repository, an adapter         |
+| `<e>/*.spec.ts`     | Vitest unit tests                                     | anything                                                        | —                                       |
 
-Backbone (not per-module): `builder.ts` (the one Pothos builder), `services.ts` (composition root —
-the only wiring site), `context.ts` (request services + DataLoaders), `schema.ts` (assembles modules),
-`server.ts` / `worker.ts` (entrypoints), `db/{schema,client,migrate}.ts`, `common/{errors,types}.ts`,
+Each module has an **`index.ts`** that builds its own services (`entities/index.ts` →
+`getEntitiesServices`, `features/index.ts`, `third-party/index.ts`) or re-exports its surface
+(`common/index.ts`); the individual slices stay plain files. Backbone (not per-slice): `builder.ts`
+(the one Pothos builder), `services.ts` (composition root — composes the module indexes), `context.ts`
+(request services + DataLoaders), `schema.ts` (imports each module to assemble GraphQL), `server.ts` /
+`worker.ts` (entrypoints), `db/{schema,client,migrate}.ts`, `common/{errors,types}.ts`,
 `ingest/{imap,extractor,run}.ts`.
 
 ## The hard dependency rule (enforced by ESLint `boundaries/dependencies`)
@@ -71,23 +80,32 @@ export function dealServiceFactory({ dealRepository }: { dealRepository: DealRep
 The graph is wired **once** in `getServices()` (`services.ts`), memoized, and reached through the
 request `ctx` (`ctx.services.dealService…`). This works with Node's runtime (no `reflect-metadata`, no
 build magic) and makes unit tests trivial: build a service with hand-mocked ports (see
-`modules/deal/service.spec.ts` — the reference test).
+`entities/deal/service.spec.ts` — the reference test).
 
-## How to add a feature / entity — copy the `deal` module
+## How to add a feature / entity — copy the `deal` entity
 
-`modules/deal/` is the **canonical reference**. To add an entity:
+`entities/deal/` is the **canonical reference**. Most features are **entities** (low-level data slices);
+reserve `features/<name>/` for services with more complex business logic. To add an entity:
 
-1. `cp -r packages/api/src/modules/deal packages/api/src/modules/<entity>` and rename the types/factories.
+1. `cp -r packages/api/src/entities/deal packages/api/src/entities/<entity>` and rename the types/factories.
 2. Adjust `types.ts` (domain type + ports), `repository.ts` (Drizzle queries), `service.ts` (logic),
-   `schema.pothos.ts` (GraphQL type + query/mutation fields via `ctx.services`).
-3. Register it in **`services.ts`** (build its repo + service, add to `Services`) and import its
-   `schema.pothos` in **`schema.ts`**.
+   `graphql/{type,query,mutation}.ts` (GraphQL types + resolvers via `ctx.services`).
+3. Register it in its module's **`index.ts`**: build its repo + service in `getEntitiesServices`, add
+   it to `EntitiesServices`, and add its `graphql/*` to the side-effect imports. (`services.ts` and
+   `schema.ts` already import the module index — no per-slice edit there.)
 4. Run `pnpm build-schema` (updates `packages/contract/schema.graphql`) and, for web changes,
    `pnpm gen` (updates `graphql-env.d.ts`). **Commit both generated files.**
 5. Add a `*.spec.ts` for the new service.
 
 For a DB change: edit `db/schema.ts`, run `pnpm db:generate` (commits a migration), update the affected
 repository + port + service together. Keep changes additive; keep `dedup_hash` stable.
+
+For an **external integration** (third-party HTTP API, SDK, LLM, geocoder): put the adapter in
+`packages/api/src/third-party/<provider>/` named **`<provider>AdapterFactory`**, behind a **port
+interface declared in the consuming slice's `types.ts`**; wire it in `services.ts` and inject it into
+the service. If the provider's raw API needs translation, add a `<provider>ServiceFactory` (`service.ts`)
+on top of the adapter — the anti-corruption layer — and inject that instead. A provider's client/SDK
+**must never appear outside `third-party/`**. See `ARCHITECTURE.md` §3.
 
 ## GraphQL / codegen workflow
 
@@ -115,7 +133,7 @@ pnpm db:generate   # generate a Drizzle migration from db/schema.ts
 
 - [ ] `pnpm check` is green (types, lint+boundaries, prettier, unit tests, drift).
 - [ ] **Test pyramid** for new behavior: a **unit** test for any new service (factory-DI mock style,
-      see `modules/deal/service.spec.ts`) **and** an **integration** test that exercises the new
+      see `entities/deal/service.spec.ts`) **and** an **integration** test that exercises the new
       resolver/query against a real test DB (`pnpm test:integration`; template
       `packages/api/test/integration/deal.integration.spec.ts`). Tests must be meaningful and cover
       edge cases (empty/null/boundary/error), not just the happy path. (**e2e** with Playwright is
@@ -123,7 +141,7 @@ pnpm db:generate   # generate a Drizzle migration from db/schema.ts
 - [ ] All inputs validated with **Zod** at the boundary (GraphQL args, IMAP, LLM output — never trust LLM shape).
 - [ ] No secrets/PII in code or fixtures (**public repo**; config comes from env only).
 - [ ] `packages/contract/schema.graphql` + `packages/web/src/graphql-env.d.ts` regenerated and committed.
-- [ ] Follows the `deal` module template: correct files/roles, factory-DI, data reached only via `ctx.services`.
+- [ ] Follows the `deal` entity template: correct files/roles, factory-DI, data reached only via `ctx.services`.
 - [ ] Web changes are accessibility-clean (no `jsx-a11y` errors).
 
 ## Reviewing a PR
@@ -148,6 +166,9 @@ A PR missing a required test tier for new behavior is a blocker.
 - Always block a PR that: fails `pnpm check`; hand-edits a generated artifact (SDL /
   graphql-env.d.ts); hand-writes a migration; skips a required test tier for new behavior; reads
   `process.env` outside `common/settings.ts`; uses `console.*`; or crosses a layer boundary.
+- Block a PR that puts an **external-service client outside `third-party/<provider>/`**, misnames an
+  adapter (must be `<provider>AdapterFactory` behind a slice-owned port), or has a slice import a
+  provider SDK directly instead of the port (`ARCHITECTURE.md` §3).
 
 ## Conventions
 
@@ -160,11 +181,16 @@ A PR missing a required test tier for new behavior is a blocker.
   `{ tag, extra }` option); **never `console.*`** (ESLint enforces this).
 - **Errors:** throw the typed classes in `common/errors.ts`; list them in a field's `errors` to expose
   as union members.
+- **Enums:** a fixed value set is a TS `enum` (**SCREAMING_SNAKE_CASE** key **and** value, e.g.
+  `MUTE = 'MUTE'`) in the slice's `types.ts`, reused by the Drizzle column (`.$type<Enum>()`) and the
+  GraphQL enum (`builder.enumType(Enum, { name })`) — one source of truth, not a string-union + a
+  duplicate Pothos value list.
 - **No new runtime dependency** without a clear reason.
 - **Run the gate (`pnpm check`) in your workspace and make it green before finishing** — never report a task done without it passing.
 
 ## Files to read first
 
-`modules/deal/{types,repository,service,schema.pothos,service.spec}.ts` (the template) · `services.ts`
+`entities/deal/{types,repository,service,graphql/*,service.spec}.ts` (the template) · `entities/index.ts`
+(a module composition root) · `services.ts`
 (composition root) · `context.ts` (services + loaders) · `builder.ts` · `eslint.config.js` (the enforced
 boundaries).

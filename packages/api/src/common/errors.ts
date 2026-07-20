@@ -72,3 +72,28 @@ export class TooManyRequestsError<Data = ErrorData> extends ServerError<Data> {
     this.name = 'TooManyRequestsError';
   }
 }
+
+// Slice-specific errors live here too, alongside the base hierarchy — one home for typed errors.
+
+export class LocationNotConfiguredError extends ServerError {
+  constructor() {
+    super('USER_LOCATION is not configured');
+    this.status = 503;
+    this.name = 'LocationNotConfiguredError';
+  }
+}
+
+export class LocationNotFoundError extends NotFoundError {
+  constructor(zip: string) {
+    super(`No coordinates found for ZIP code ${zip}`);
+    this.name = 'LocationNotFoundError';
+  }
+}
+
+export class LocationLookupError extends ServerError {
+  constructor() {
+    super('Unable to resolve USER_LOCATION');
+    this.status = 502;
+    this.name = 'LocationLookupError';
+  }
+}
