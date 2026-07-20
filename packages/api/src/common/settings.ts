@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { z } from 'zod';
+import type { Maybe } from './types';
 
 // The SINGLE place environment variables are read. Everything else imports `settings`;
 // nothing else touches process.env (enforced by ESLint). Field names are SCREAMING_SNAKE_CASE
@@ -61,7 +62,7 @@ export interface LlmSettings {
 export function parseSettings(env: NodeJS.ProcessEnv) {
   const ENV = EnvSchema.parse(env);
   // null when IMAP is not configured (host/user/password absent) — ingest is then disabled.
-  const IMAP: ImapSettings | null =
+  const IMAP: Maybe<ImapSettings> =
     ENV.IMAP_HOST && ENV.IMAP_USER && ENV.IMAP_PASSWORD
       ? {
           IMAP_HOST: ENV.IMAP_HOST,

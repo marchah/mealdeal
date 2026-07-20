@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { LocationLookupError } from '../../common/errors';
+import type { Maybe } from '../../common/types';
 import type { Coordinates, ZipCoordinateLookup } from '../../entities/location/types';
 
 const ZIPPOTAM_BASE_URL = 'https://api.zippopotam.us';
@@ -26,7 +27,7 @@ const ResponseSchema = z.object({
  */
 export function zippopotamAdapterFactory(): ZipCoordinateLookup {
   return {
-    async lookup(zip: string): Promise<Coordinates | null> {
+    async lookup(zip: string): Promise<Maybe<Coordinates>> {
       let response: Awaited<ReturnType<typeof fetch>>;
       try {
         response = await fetch(`${ZIPPOTAM_BASE_URL}/us/${encodeURIComponent(zip)}`);

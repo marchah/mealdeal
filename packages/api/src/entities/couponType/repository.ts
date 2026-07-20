@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
+import type { Maybe } from '../../common/types';
 import { couponTypes } from '../../db/schema';
 import type { Db } from '../../db/client';
 import type { CouponType, CouponTypeRepository, NewCouponType } from './types';
@@ -11,11 +12,11 @@ export function couponTypeRepositoryFactory({ db }: { db: Db }): CouponTypeRepos
     async listAll() {
       return db.select().from(couponTypes);
     },
-    async findById(id: string): Promise<CouponType | null> {
+    async findById(id: string): Promise<Maybe<CouponType>> {
       const rows = await db.select().from(couponTypes).where(eq(couponTypes.id, id)).limit(1);
       return rows[0] ?? null;
     },
-    async findByKey(key: string): Promise<CouponType | null> {
+    async findByKey(key: string): Promise<Maybe<CouponType>> {
       const rows = await db.select().from(couponTypes).where(eq(couponTypes.key, key)).limit(1);
       return rows[0] ?? null;
     },

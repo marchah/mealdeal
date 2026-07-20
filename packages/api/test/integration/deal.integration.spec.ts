@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { createYoga } from 'graphql-yoga';
 import { beforeEach, expect, test } from 'vitest';
+import type { Maybe } from '../../src/common/types';
 import { createContext } from '../../src/context';
 import { createDb } from '../../src/db/client';
 import { couponTypes, deals, merchants } from '../../src/db/schema';
@@ -21,9 +22,9 @@ interface GraphQLResponse {
     deals: Array<{
       id: string;
       title: string;
-      category: string | null;
-      couponTypeId: string | null;
-      couponType: { id: string; key: string; label: string } | null;
+      category: Maybe<string>;
+      couponTypeId: Maybe<string>;
+      couponType: Maybe<{ id: string; key: string; label: string }>;
       merchant: { name: string };
     }>;
   };
@@ -43,8 +44,8 @@ async function seedDeal(opts: {
   title: string;
   merchant: string;
   expiresAt?: Date;
-  category?: string | null;
-  couponTypeId?: string | null;
+  category?: Maybe<string>;
+  couponTypeId?: Maybe<string>;
 }): Promise<void> {
   const db = createDb();
   const merchantId = randomUUID();
