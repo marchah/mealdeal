@@ -23,7 +23,7 @@ provider SDK, a repository never calls a service.
 
 | Concern                      | Location                                                                        | Notes                                                                                        |
 | ---------------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| **Entity (data slice)**      | `packages/api/src/entities/<entity>/`                                           | A low-level data slice: types · repository · service · schema.pothos. Copy `entities/deal/`. |
+| **Entity (data slice)**      | `packages/api/src/entities/<entity>/`                                           | A low-level data slice: types · repository · service · graphql. Copy `entities/deal/`. |
 | **Module (complex service)** | `packages/api/src/modules/<name>/`                                              | A service with more complex business logic / orchestration. Same file roles as an entity.    |
 | **External-service adapter** | `packages/api/src/third-party/<provider>/`                                      | Any third-party API / SDK / LLM / geocoder. Behind a port the module owns.                   |
 | **Cross-cutting kernel**     | `packages/api/src/common/`                                                      | `errors.ts`, `settings.ts`, `logger.ts`, `types.ts`. Imports nothing domain.                 |
@@ -48,12 +48,17 @@ entities/<entity>/   # (or modules/<name>/ for a complex-logic service)
   types.ts          # domain types + the slice's PORT interfaces (repository / service / adapter ports)
   repository.ts     # the ONLY layer that touches db/. Returns domain types.
   service.ts        # business logic / use-cases. Depends on PORT TYPES. Takes ctx.
-  schema.pothos.ts  # GraphQL types + resolvers. Thin: validate args → call ctx.services → shape result.
+  graphql/
+    type.ts         # GraphQL object/enum types (Pothos refs)
+    query.ts        # query resolvers — thin: validate args → ctx.services → shape result
+    mutation.ts     # mutation resolvers (only if the slice has any)
   *.spec.ts         # unit tests (factory-DI mocks)
 ```
 
-Register it in `services.ts` (build repo + service, add to `Services`) and import its
-`schema.pothos` in `schema.ts`. Regenerate the SDL + gql.tada and commit the generated files.
+Register it in its **package's `index.ts`**: build its repo + service inside `get<Package>Services`,
+add it to that package's services type, and add its `graphql/*` to the side-effect imports. The main
+`services.ts` composes the package indexes (§4); `schema.ts` imports each package. Regenerate the
+SDL + gql.tada and commit the generated files.
 
 **Layer discipline:**
 
@@ -103,14 +108,24 @@ mailbox — is a port implemented by an adapter.**
 `third-party/<provider>/`; select the implementation in `services.ts` from settings — never branch
 on the provider inside a service.
 
-## 4. Dependency injection & the composition root
+**A slice's data source can be an adapter, not a repository.** A data entity normally reads the DB
+through a `repository.ts`; a slice with no DB table (e.g. `location`) instead depends on a
+`third-party` adapter behind its port (`ZipCoordinateLookup`) — same shape, different backing store.
+
+## 4. Packages & the composition root
 
 - **Every unit is a factory** taking its dependencies as one object and returning an object typed by
   an explicit port: `dealServiceFactory({ dealRepository }): DealService`. No DI container, no
   decorators, no module-level singletons (they break test isolation).
-- **`services.ts` is the one composition root.** It builds repositories → adapters → services in
-  dependency order, memoized once, exposed as the typed `Services` registry reached through
-  `ctx.services`. It is the only place cross-module wiring happens.
+- **Each top-level folder is a package with an `index.ts` that builds its own piece.**
+  `entities/index.ts` → `getEntitiesServices(deps)`, `modules/index.ts` → `getModulesServices(deps)`,
+  `third-party/index.ts` → `getThirdPartyServices()`, and `common/index.ts` re-exports the kernel. A
+  package takes what it needs as deps and registers its own GraphQL (side-effect imports); it never
+  reaches into another package's internals.
+- **`services.ts` is the one composition root.** It calls each package's `get*Services`, injects the
+  cross-package deps (a module service, a third-party port), memoizes once, and exposes the combined
+  typed `Services` registry reached through `ctx.services`. It is the only place packages are wired
+  together; `schema.ts` assembles the GraphQL by importing each package.
 - **`ctx` is threaded, not global.** The request context carries the service registry + request
   identity; pass it down. Services receive their dependencies by construction and use `ctx` only for
   request-scoped data — they do not reach back into `ctx.services` to resolve siblings (inject those

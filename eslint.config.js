@@ -73,7 +73,7 @@ export default tseslint.config(
       // mistaken for the layer it sits beside).
       'boundaries/files': [
         { category: 'test', pattern: 'packages/api/src/**/*.spec.ts' },
-        { category: 'resolver', pattern: 'packages/api/src/{entities,modules}/*/schema.pothos.ts' },
+        { category: 'resolver', pattern: 'packages/api/src/{entities,modules}/*/graphql/**/*.ts' },
         { category: 'service', pattern: 'packages/api/src/{entities,modules}/*/service.ts' },
         { category: 'repository', pattern: 'packages/api/src/{entities,modules}/*/repository.ts' },
         { category: 'types', pattern: 'packages/api/src/{entities,modules}/*/types.ts' },
@@ -81,6 +81,11 @@ export default tseslint.config(
         { category: 'db', pattern: 'packages/api/src/db/**/*.ts' },
         { category: 'ingest', pattern: 'packages/api/src/ingest/*.ts' },
         { category: 'common', pattern: 'packages/api/src/common/*.ts' },
+        // Package composition roots (each folder's index.ts) + the top-level backbone files.
+        {
+          category: 'backbone',
+          pattern: 'packages/api/src/{entities,modules,third-party}/index.ts',
+        },
         { category: 'backbone', pattern: 'packages/api/src/*.ts' },
       ],
     },

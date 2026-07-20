@@ -23,7 +23,7 @@ packages/web  (React SPA, urql + gql.tada)
       │  GraphQL over /graphql  (typed by the committed SDL)
       ▼
 packages/api  (GraphQL Yoga)
-   resolver (schema.pothos.ts)  →  service.ts  →  repository.ts  →  db (Drizzle + libsql/SQLite)
+   resolver (graphql/)          →  service.ts  →  repository.ts  →  db (Drizzle + libsql/SQLite)
                                         ▲
    ingest worker (imap → LLM extract → Zod) ┘  reuses the same services
 
@@ -40,17 +40,20 @@ Each backend feature is a vertical slice — a folder under `packages/api/src/en
 low-level **data entity**) or `packages/api/src/modules/<name>/` (a service with more complex
 **business logic**). Both have the same fixed file roles:
 
-| File                   | Role                                                  | May import                                                      | May NOT import                          |
-| ---------------------- | ----------------------------------------------------- | --------------------------------------------------------------- | --------------------------------------- |
-| `<e>/types.ts`         | domain types + repository/service **port interfaces** | `common`                                                        | anything with side effects              |
-| `<e>/repository.ts`    | data access — the **only** layer that touches the db  | `db/`, `drizzle-orm`, own `types`                               | a service or resolver                   |
-| `<e>/service.ts`       | business logic                                        | repository **port types**, other services' port types, `common` | `db/` / `db/schema`, a resolver, Pothos |
-| `<e>/schema.pothos.ts` | GraphQL types + resolvers                             | `builder`, own `service`/`types`, `common`, other modules' refs | `db/`, a repository                     |
-| `<e>/*.spec.ts`        | Vitest unit tests                                     | anything                                                        | —                                       |
+| File                | Role                                                  | May import                                                      | May NOT import                          |
+| ------------------- | ----------------------------------------------------- | --------------------------------------------------------------- | --------------------------------------- |
+| `<e>/types.ts`      | domain types + repository/service **port interfaces** | `common`                                                        | anything with side effects              |
+| `<e>/repository.ts` | data access — the **only** layer that touches the db  | `db/`, `drizzle-orm`, own `types`                               | a service or resolver                   |
+| `<e>/service.ts`    | business logic                                        | repository **port types**, other services' port types, `common` | `db/` / `db/schema`, a resolver, Pothos |
+| `<e>/graphql/*.ts`  | GraphQL types + resolvers (`type`/`query`/`mutation`) | `builder`, `common`, own `types`, other slices' `graphql` refs  | `db/`, a repository, an adapter         |
+| `<e>/*.spec.ts`     | Vitest unit tests                                     | anything                                                        | —                                       |
 
-Backbone (not per-module): `builder.ts` (the one Pothos builder), `services.ts` (composition root —
-the only wiring site), `context.ts` (request services + DataLoaders), `schema.ts` (assembles modules),
-`server.ts` / `worker.ts` (entrypoints), `db/{schema,client,migrate}.ts`, `common/{errors,types}.ts`,
+Each package has an **`index.ts`** that builds its own services (`entities/index.ts` →
+`getEntitiesServices`, `modules/index.ts`, `third-party/index.ts`) or re-exports its surface
+(`common/index.ts`); the individual slices stay plain files. Backbone (not per-slice): `builder.ts`
+(the one Pothos builder), `services.ts` (composition root — composes the package indexes), `context.ts`
+(request services + DataLoaders), `schema.ts` (imports each package to assemble GraphQL), `server.ts` /
+`worker.ts` (entrypoints), `db/{schema,client,migrate}.ts`, `common/{errors,types}.ts`,
 `ingest/{imap,extractor,run}.ts`.
 
 ## The hard dependency rule (enforced by ESLint `boundaries/dependencies`)
@@ -86,9 +89,10 @@ reserve `modules/<name>/` for services with more complex business logic. To add 
 
 1. `cp -r packages/api/src/entities/deal packages/api/src/entities/<entity>` and rename the types/factories.
 2. Adjust `types.ts` (domain type + ports), `repository.ts` (Drizzle queries), `service.ts` (logic),
-   `schema.pothos.ts` (GraphQL type + query/mutation fields via `ctx.services`).
-3. Register it in **`services.ts`** (build its repo + service, add to `Services`) and import its
-   `schema.pothos` in **`schema.ts`**.
+   `graphql/{type,query,mutation}.ts` (GraphQL types + resolvers via `ctx.services`).
+3. Register it in its package's **`index.ts`**: build its repo + service in `getEntitiesServices`, add
+   it to `EntitiesServices`, and add its `graphql/*` to the side-effect imports. (`services.ts` and
+   `schema.ts` already import the package index — no per-slice edit there.)
 4. Run `pnpm build-schema` (updates `packages/contract/schema.graphql`) and, for web changes,
    `pnpm gen` (updates `graphql-env.d.ts`). **Commit both generated files.**
 5. Add a `*.spec.ts` for the new service.
@@ -180,6 +184,7 @@ A PR missing a required test tier for new behavior is a blocker.
 
 ## Files to read first
 
-`entities/deal/{types,repository,service,schema.pothos,service.spec}.ts` (the template) · `services.ts`
+`entities/deal/{types,repository,service,graphql/*,service.spec}.ts` (the template) · `entities/index.ts`
+(a package composition root) · `services.ts`
 (composition root) · `context.ts` (services + loaders) · `builder.ts` · `eslint.config.js` (the enforced
 boundaries).

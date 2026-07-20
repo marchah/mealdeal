@@ -1,10 +1,8 @@
 import { builder } from './builder';
 
-// Side-effect imports: each module registers its GraphQL types/fields on the shared
-// builder. Add a new module's schema here so it appears in the schema.
-import './entities/couponType/schema.pothos';
-import './entities/deal/schema.pothos';
-import './entities/merchant/schema.pothos';
-import './entities/trackingPref/schema.pothos';
+// Importing each package runs its slices' side-effect GraphQL registration on the shared
+// builder. Add a new package here so its types/fields appear in the schema.
+import './entities';
+import './modules';
 
 export const schema = builder.toSchema();
