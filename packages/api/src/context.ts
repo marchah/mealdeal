@@ -1,5 +1,5 @@
 import DataLoader from 'dataloader';
-import type { Merchant } from './modules/merchant/types';
+import type { Merchant } from './entities/merchant/types';
 import { getServices, type Services } from './services';
 
 // Per-request batching. Loaders are rebuilt for each request so their cache never leaks

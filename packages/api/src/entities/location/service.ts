@@ -1,9 +1,5 @@
-import {
-  LocationNotConfiguredError,
-  LocationNotFoundError,
-  type LocationService,
-  type ZipCoordinateLookup,
-} from './types';
+import { LocationNotConfiguredError, LocationNotFoundError } from '../../common/errors';
+import type { LocationService, ZipCoordinateLookup } from './types';
 
 /** Resolves the configured ZIP through a provider-neutral lookup port. */
 export function locationServiceFactory({

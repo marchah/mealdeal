@@ -1,23 +1,23 @@
 import { createDb } from './db/client';
-import { dealRepositoryFactory } from './modules/deal/repository';
-import { dealServiceFactory } from './modules/deal/service';
-import type { DealService } from './modules/deal/types';
+import { dealRepositoryFactory } from './entities/deal/repository';
+import { dealServiceFactory } from './entities/deal/service';
+import type { DealService } from './entities/deal/types';
 import { ingestRunRepositoryFactory } from './modules/ingestRun/repository';
 import { ingestRunServiceFactory } from './modules/ingestRun/service';
 import type { IngestRunService } from './modules/ingestRun/types';
-import { merchantRepositoryFactory } from './modules/merchant/repository';
-import { merchantServiceFactory } from './modules/merchant/service';
-import type { MerchantService } from './modules/merchant/types';
-import { couponTypeRepositoryFactory } from './modules/couponType/repository';
-import { couponTypeServiceFactory } from './modules/couponType/service';
-import type { CouponTypeService } from './modules/couponType/types';
+import { merchantRepositoryFactory } from './entities/merchant/repository';
+import { merchantServiceFactory } from './entities/merchant/service';
+import type { MerchantService } from './entities/merchant/types';
+import { couponTypeRepositoryFactory } from './entities/couponType/repository';
+import { couponTypeServiceFactory } from './entities/couponType/service';
+import type { CouponTypeService } from './entities/couponType/types';
 import { settings } from './common/settings';
-import { locationServiceFactory } from './modules/location/service';
-import type { LocationService } from './modules/location/types';
+import { locationServiceFactory } from './entities/location/service';
+import type { LocationService } from './entities/location/types';
 import { zippopotamAdapterFactory } from './third-party/zippopotam/adapter';
-import { trackingPrefRepositoryFactory } from './modules/trackingPref/repository';
-import { trackingPrefServiceFactory } from './modules/trackingPref/service';
-import type { TrackingPrefService } from './modules/trackingPref/types';
+import { trackingPrefRepositoryFactory } from './entities/trackingPref/repository';
+import { trackingPrefServiceFactory } from './entities/trackingPref/service';
+import type { TrackingPrefService } from './entities/trackingPref/types';
 
 // The application's service surface. Resolvers and the worker use this shape via context.
 export interface Services {

@@ -21,28 +21,31 @@ provider SDK, a repository never calls a service.
 
 ## 1. Where things live (folder = responsibility)
 
-| Concern                      | Location                                                                        | Notes                                                                             |
-| ---------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| **Feature module**           | `packages/api/src/modules/<entity>/`                                            | The vertical slice. Copy `modules/deal/`. A feature never lives at `src/<name>/`. |
-| **External-service adapter** | `packages/api/src/third-party/<provider>/`                                      | Any third-party API / SDK / LLM / geocoder. Behind a port the module owns.        |
-| **Cross-cutting kernel**     | `packages/api/src/common/`                                                      | `errors.ts`, `settings.ts`, `logger.ts`, `types.ts`. Imports nothing domain.      |
-| **Persistence**              | `packages/api/src/db/`                                                          | Drizzle schema + client. Touched **only** by repositories.                        |
-| **Composition / backbone**   | `services.ts`, `schema.ts`, `builder.ts`, `context.ts`, `server.ts`/`worker.ts` | The only wiring sites.                                                            |
-| **Ingest pipeline**          | `packages/api/src/ingest/`                                                      | `imap` / `extractor` are existing reference adapters.                             |
-| **Shared SDL**               | `packages/contract/`                                                            | The one artifact web + api both touch.                                            |
-| **Web SPA**                  | `packages/web/`                                                                 | Never imports `packages/api` — depends only on `@mealdeal/contract`.              |
+| Concern                      | Location                                                                        | Notes                                                                                        |
+| ---------------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| **Entity (data slice)**      | `packages/api/src/entities/<entity>/`                                           | A low-level data slice: types · repository · service · schema.pothos. Copy `entities/deal/`. |
+| **Module (complex service)** | `packages/api/src/modules/<name>/`                                              | A service with more complex business logic / orchestration. Same file roles as an entity.    |
+| **External-service adapter** | `packages/api/src/third-party/<provider>/`                                      | Any third-party API / SDK / LLM / geocoder. Behind a port the module owns.                   |
+| **Cross-cutting kernel**     | `packages/api/src/common/`                                                      | `errors.ts`, `settings.ts`, `logger.ts`, `types.ts`. Imports nothing domain.                 |
+| **Persistence**              | `packages/api/src/db/`                                                          | Drizzle schema + client. Touched **only** by repositories.                                   |
+| **Composition / backbone**   | `services.ts`, `schema.ts`, `builder.ts`, `context.ts`, `server.ts`/`worker.ts` | The only wiring sites.                                                                       |
+| **Ingest pipeline**          | `packages/api/src/ingest/`                                                      | `imap` / `extractor` are existing reference adapters.                                        |
+| **Shared SDL**               | `packages/contract/`                                                            | The one artifact web + api both touch.                                                       |
+| **Web SPA**                  | `packages/web/`                                                                 | Never imports `packages/api` — depends only on `@mealdeal/contract`.                         |
 
-**A provider's name / client / SDK must never appear outside `third-party/`.** Modules depend on
-the port, not the provider.
+**A slice never lives at `src/<name>/`** — it is an `entity` (low-level data) or a `module` (complex
+business logic). **A provider's name / client / SDK must never appear outside `third-party/`** — a
+slice depends on the port, not the provider.
 
-## 2. The module (vertical slice) — copy `deal`
+## 2. The vertical slice — copy `entities/deal/`
 
-Each feature is a folder `modules/<entity>/` with fixed file roles (the import matrix is in
-`AGENTS.md`):
+Every feature is a vertical slice — `entities/<entity>/` for a low-level data entity, or
+`modules/<name>/` for a service with more complex business logic. Both use the same fixed file roles
+(the import matrix is in `AGENTS.md`):
 
 ```
-modules/<entity>/
-  types.ts          # domain types + the module's PORT interfaces (repository / service / adapter ports)
+entities/<entity>/   # (or modules/<name>/ for a complex-logic service)
+  types.ts          # domain types + the slice's PORT interfaces (repository / service / adapter ports)
   repository.ts     # the ONLY layer that touches db/. Returns domain types.
   service.ts        # business logic / use-cases. Depends on PORT TYPES. Takes ctx.
   schema.pothos.ts  # GraphQL types + resolvers. Thin: validate args → call ctx.services → shape result.
@@ -72,7 +75,7 @@ mailbox — is a port implemented by an adapter.**
 - **The port** is a plain interface declared in the _consuming module's_ `types.ts`:
 
   ```ts
-  // modules/location/types.ts
+  // entities/location/types.ts
   export interface ZipCoordinateLookup {
     lookup(zip: string): Promise<Coordinate>; // throws LocationLookupError on failure
   }
@@ -128,13 +131,13 @@ on the provider inside a service.
 
   Use `<verb><Entity>`: `getDeal`, `listDeals`, `createDeal`, `updateDealStatus`.
 
-- **Errors:** the shared base hierarchy lives in `common/errors.ts`; a module's own error subclasses
-  live in its `types.ts` (part of the module's contract), named `<Reason>Error`.
+- **Errors:** all typed errors — the base hierarchy and every slice-specific subclass — live in
+  `common/errors.ts`, named `<Reason>Error`.
 
 ## 6. Errors, validation, logging, settings
 
-- **Errors:** throw the typed classes — the shared base in `common/errors.ts`, a module's own
-  subclasses in its `types.ts`; expose expected failures as typed
+- **Errors:** throw the typed classes from `common/errors.ts` (the single home for the error
+  hierarchy); expose expected failures as typed
   **GraphQL result unions** (`errors: { types: [...] }`), never generic thrown errors across the
   resolver boundary. Don't catch an error just to swallow it — log and rethrow, or return a typed
   error.
@@ -148,7 +151,7 @@ on the provider inside a service.
 ## 7. Testing
 
 - **Unit** (`*.spec.ts`, colocated): build a service with hand-mocked ports (see
-  `modules/deal/service.spec.ts` — the reference test). DI is what makes this trivial: depend on port
+  `entities/deal/service.spec.ts` — the reference test). DI is what makes this trivial: depend on port
   types, inject fakes.
 - **Integration** (`pnpm test:integration`): the real composition root against a file-based test DB.
 - Cover the error paths and edge cases (empty / null / boundary), not just the happy path. Keep time
@@ -167,7 +170,7 @@ The rules above are only as strong as the gate, so the structural ones are machi
 `pnpm check` enforces (`eslint.config.js`, `eslint-plugin-boundaries`):
 
 - **Every file under `packages/api/src/` matches a known element** (`no-unknown-files`) — a feature
-  can't be dropped at `src/<name>/` outside `modules/`, and a stray file fails the gate.
+  can't be dropped at `src/<name>/` outside `entities/` or `modules/`, and a stray file fails the gate.
 - **The dependency rule** (`boundaries/dependencies`): a resolver never reaches `db` / a repository /
   an adapter; a service never reaches `db` / a resolver / an adapter (it depends on port types); a
   repository never reaches a service / resolver / adapter; an **adapter** never reaches a service /
@@ -181,6 +184,6 @@ of the time; a red gate gets followed every time.
 
 ---
 
-_Reference implementations: `modules/deal/` (the canonical module) and `ingest/{imap,extractor}` (the
-existing adapters). When adding an external integration, `third-party/` is the home; when adding a
-feature, `modules/<entity>/` is._
+_Reference implementations: `entities/deal/` (the canonical slice) and `ingest/{imap,extractor}` (the
+existing adapters). When adding an external integration, `third-party/` is the home; a low-level data
+feature is an `entities/<entity>/` slice, a complex-logic service a `modules/<name>/` one._

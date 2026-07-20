@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { zippopotamAdapterFactory } from './adapter';
-import { LocationLookupError } from '../../modules/location/types';
+import { LocationLookupError } from '../../common/errors';
 
 describe('zippopotamAdapter', () => {
   it('maps the provider response to application coordinates', async () => {

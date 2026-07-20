@@ -1,9 +1,6 @@
 import { z } from 'zod';
-import {
-  LocationLookupError,
-  type Coordinates,
-  type ZipCoordinateLookup,
-} from '../../modules/location/types';
+import { LocationLookupError } from '../../common/errors';
+import type { Coordinates, ZipCoordinateLookup } from '../../entities/location/types';
 
 const ZIPPOTAM_BASE_URL = 'https://api.zippopotam.us';
 

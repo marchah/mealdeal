@@ -34,9 +34,11 @@ Backend = a standalone Yoga server (a real `main()` in `server.ts`) with a **fac
 composition root. It also serves the built SPA's static files, so the whole thing ships as **one
 container / one Node process** (the ingest cron runs in-process by default).
 
-## Folder = module, file = role
+## Folder = slice, file = role
 
-Each backend feature is a folder under `packages/api/src/modules/<entity>/`. Files have fixed roles:
+Each backend feature is a vertical slice — a folder under `packages/api/src/entities/<entity>/` (a
+low-level **data entity**) or `packages/api/src/modules/<name>/` (a service with more complex
+**business logic**). Both have the same fixed file roles:
 
 | File                   | Role                                                  | May import                                                      | May NOT import                          |
 | ---------------------- | ----------------------------------------------------- | --------------------------------------------------------------- | --------------------------------------- |
@@ -75,13 +77,14 @@ export function dealServiceFactory({ dealRepository }: { dealRepository: DealRep
 The graph is wired **once** in `getServices()` (`services.ts`), memoized, and reached through the
 request `ctx` (`ctx.services.dealService…`). This works with Node's runtime (no `reflect-metadata`, no
 build magic) and makes unit tests trivial: build a service with hand-mocked ports (see
-`modules/deal/service.spec.ts` — the reference test).
+`entities/deal/service.spec.ts` — the reference test).
 
-## How to add a feature / entity — copy the `deal` module
+## How to add a feature / entity — copy the `deal` entity
 
-`modules/deal/` is the **canonical reference**. To add an entity:
+`entities/deal/` is the **canonical reference**. Most features are **entities** (low-level data slices);
+reserve `modules/<name>/` for services with more complex business logic. To add an entity:
 
-1. `cp -r packages/api/src/modules/deal packages/api/src/modules/<entity>` and rename the types/factories.
+1. `cp -r packages/api/src/entities/deal packages/api/src/entities/<entity>` and rename the types/factories.
 2. Adjust `types.ts` (domain type + ports), `repository.ts` (Drizzle queries), `service.ts` (logic),
    `schema.pothos.ts` (GraphQL type + query/mutation fields via `ctx.services`).
 3. Register it in **`services.ts`** (build its repo + service, add to `Services`) and import its
@@ -124,7 +127,7 @@ pnpm db:generate   # generate a Drizzle migration from db/schema.ts
 
 - [ ] `pnpm check` is green (types, lint+boundaries, prettier, unit tests, drift).
 - [ ] **Test pyramid** for new behavior: a **unit** test for any new service (factory-DI mock style,
-      see `modules/deal/service.spec.ts`) **and** an **integration** test that exercises the new
+      see `entities/deal/service.spec.ts`) **and** an **integration** test that exercises the new
       resolver/query against a real test DB (`pnpm test:integration`; template
       `packages/api/test/integration/deal.integration.spec.ts`). Tests must be meaningful and cover
       edge cases (empty/null/boundary/error), not just the happy path. (**e2e** with Playwright is
@@ -132,7 +135,7 @@ pnpm db:generate   # generate a Drizzle migration from db/schema.ts
 - [ ] All inputs validated with **Zod** at the boundary (GraphQL args, IMAP, LLM output — never trust LLM shape).
 - [ ] No secrets/PII in code or fixtures (**public repo**; config comes from env only).
 - [ ] `packages/contract/schema.graphql` + `packages/web/src/graphql-env.d.ts` regenerated and committed.
-- [ ] Follows the `deal` module template: correct files/roles, factory-DI, data reached only via `ctx.services`.
+- [ ] Follows the `deal` entity template: correct files/roles, factory-DI, data reached only via `ctx.services`.
 - [ ] Web changes are accessibility-clean (no `jsx-a11y` errors).
 
 ## Reviewing a PR
@@ -177,6 +180,6 @@ A PR missing a required test tier for new behavior is a blocker.
 
 ## Files to read first
 
-`modules/deal/{types,repository,service,schema.pothos,service.spec}.ts` (the template) · `services.ts`
+`entities/deal/{types,repository,service,schema.pothos,service.spec}.ts` (the template) · `services.ts`
 (composition root) · `context.ts` (services + loaders) · `builder.ts` · `eslint.config.js` (the enforced
 boundaries).

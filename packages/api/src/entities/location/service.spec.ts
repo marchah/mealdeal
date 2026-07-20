@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { locationServiceFactory } from './service';
-import { LocationNotConfiguredError, LocationNotFoundError } from './types';
+import { LocationNotConfiguredError, LocationNotFoundError } from '../../common/errors';
 
 describe('locationService', () => {
   it('resolves a valid ZIP through the lookup port', async () => {

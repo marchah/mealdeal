@@ -67,16 +67,16 @@ export default tseslint.config(
         typescript: { alwaysTryTypes: true, project: 'packages/api/tsconfig.json' },
       },
       'boundaries/include': ['packages/api/src/**/*'],
-      // File-level classification (each layer is a file inside a module folder).
+      // File-level classification (each layer is a file inside an entity/module folder).
       // Every file under src/ must match one of these (see no-unknown-files below). Order matters:
       // the FIRST matching pattern classifies the file, so tests come first (a *.spec.ts is never
       // mistaken for the layer it sits beside).
       'boundaries/files': [
         { category: 'test', pattern: 'packages/api/src/**/*.spec.ts' },
-        { category: 'resolver', pattern: 'packages/api/src/modules/*/schema.pothos.ts' },
-        { category: 'service', pattern: 'packages/api/src/modules/*/service.ts' },
-        { category: 'repository', pattern: 'packages/api/src/modules/*/repository.ts' },
-        { category: 'types', pattern: 'packages/api/src/modules/*/types.ts' },
+        { category: 'resolver', pattern: 'packages/api/src/{entities,modules}/*/schema.pothos.ts' },
+        { category: 'service', pattern: 'packages/api/src/{entities,modules}/*/service.ts' },
+        { category: 'repository', pattern: 'packages/api/src/{entities,modules}/*/repository.ts' },
+        { category: 'types', pattern: 'packages/api/src/{entities,modules}/*/types.ts' },
         { category: 'adapter', pattern: 'packages/api/src/third-party/*/**/*.ts' },
         { category: 'db', pattern: 'packages/api/src/db/**/*.ts' },
         { category: 'ingest', pattern: 'packages/api/src/ingest/*.ts' },
@@ -133,7 +133,7 @@ export default tseslint.config(
 
   // ---- Provider/HTTP clients belong in third-party/, never inside a module ----
   {
-    files: ['packages/api/src/modules/**/*.ts'],
+    files: ['packages/api/src/{entities,modules}/**/*.ts'],
     rules: {
       'no-restricted-imports': [
         'error',
