@@ -11,6 +11,9 @@ import './couponType/graphql/query';
 import './trackingPref/graphql/type';
 import './trackingPref/graphql/query';
 import './trackingPref/graphql/mutation';
+import './newsletter/graphql/type';
+import './newsletter/graphql/query';
+import './newsletter/graphql/mutation';
 
 import { couponTypeRepositoryFactory } from './couponType/repository';
 import { couponTypeServiceFactory } from './couponType/service';
@@ -23,6 +26,9 @@ import type { LocationService, ZipCoordinateLookup } from './location/types';
 import { merchantRepositoryFactory } from './merchant/repository';
 import { merchantServiceFactory } from './merchant/service';
 import type { MerchantService } from './merchant/types';
+import { newsletterRepositoryFactory } from './newsletter/repository';
+import { newsletterServiceFactory } from './newsletter/service';
+import type { NewsletterService } from './newsletter/types';
 import { trackingPrefRepositoryFactory } from './trackingPref/repository';
 import { trackingPrefServiceFactory } from './trackingPref/service';
 import type { TrackingPrefService } from './trackingPref/types';
@@ -35,6 +41,7 @@ export interface EntitiesServices {
   trackingPrefService: TrackingPrefService;
   couponTypeService: CouponTypeService;
   locationService: LocationService;
+  newsletterService: NewsletterService;
 }
 
 export function getEntitiesServices({
@@ -63,5 +70,16 @@ export function getEntitiesServices({
     couponTypeService,
   });
   const locationService = locationServiceFactory({ zipCoordinateLookup });
-  return { dealService, merchantService, trackingPrefService, couponTypeService, locationService };
+  const newsletterService = newsletterServiceFactory({
+    newsletterRepository: newsletterRepositoryFactory({ db }),
+    merchantService,
+  });
+  return {
+    dealService,
+    merchantService,
+    trackingPrefService,
+    couponTypeService,
+    locationService,
+    newsletterService,
+  };
 }

@@ -26,6 +26,17 @@ export const merchants = sqliteTable('merchants', {
   createdAt: timestamp('created_at').notNull().default(now),
 });
 
+export const newsletters = sqliteTable('newsletters', {
+  id: text('id').primaryKey(),
+  merchantId: text('merchant_id')
+    .notNull()
+    .references(() => merchants.id),
+  name: text('name').notNull(),
+  signupUrl: text('signup_url').notNull(),
+  // Recommendations are opt-in; an omitted addNewsletter argument therefore stores false.
+  recommended: integer('recommended', { mode: 'boolean' }).notNull().default(false),
+});
+
 export const deals = sqliteTable('deals', {
   id: text('id').primaryKey(),
   merchantId: text('merchant_id')
