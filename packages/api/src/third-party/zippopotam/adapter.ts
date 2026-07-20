@@ -19,29 +19,17 @@ const ResponseSchema = z.object({
     .min(1),
 });
 
-export interface FetchResponse {
-  ok: boolean;
-  status: number;
-  json(): Promise<unknown>;
-}
-
-export type Fetcher = (url: string) => Promise<FetchResponse>;
-
 /**
  * Zippopotam.us adapter for the `ZipCoordinateLookup` port. It owns only the transport — the URL,
- * the fetch call, and validating the provider response — so application code can swap this HTTP
+ * the `fetch` call, and validating the provider response — so application code can swap this HTTP
  * implementation for a local dataset without touching the domain.
  */
-export function zippopotamAdapterFactory({
-  fetcher = fetch,
-}: {
-  fetcher?: Fetcher;
-} = {}): ZipCoordinateLookup {
+export function zippopotamAdapterFactory(): ZipCoordinateLookup {
   return {
     async lookup(zip: string): Promise<Coordinates | null> {
-      let response: FetchResponse;
+      let response: Awaited<ReturnType<typeof fetch>>;
       try {
-        response = await fetcher(`${ZIPPOTAM_BASE_URL}/us/${encodeURIComponent(zip)}`);
+        response = await fetch(`${ZIPPOTAM_BASE_URL}/us/${encodeURIComponent(zip)}`);
       } catch {
         throw new LocationLookupError();
       }

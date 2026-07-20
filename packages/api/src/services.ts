@@ -1,4 +1,3 @@
-import { settings } from './common/settings';
 import { createDb } from './db/client';
 import { getEntitiesServices, type EntitiesServices } from './entities';
 import { getFeaturesServices, type FeaturesServices } from './features';
@@ -19,13 +18,12 @@ let cached: Services | undefined;
 export function getServices(): Services {
   if (cached) return cached;
   const db = createDb();
-  const { zipCoordinateLookup } = getThirdPartyServices();
+  const { zippopotamAdapter } = getThirdPartyServices();
   const features = getFeaturesServices({ db });
   const entities = getEntitiesServices({
     db,
     ingestRunService: features.ingestRunService,
-    zipCoordinateLookup,
-    userLocationZip: settings.USER_LOCATION,
+    zippopotamAdapter,
   });
   cached = { ...entities, ...features };
   return cached;
