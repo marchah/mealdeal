@@ -33,8 +33,9 @@ The default adapter calls [Zippopotam.us](https://docs.zippopotam.us/docs/v1/) o
 resolved. It requires no credentials and adds no runtime dependency, but the host needs outbound HTTPS
 access and the ZIP is sent to that service. Zippopotam.us uses GeoNames data; GeoNames publishes its data
 under [CC BY 4.0](https://www.geonames.org/) and both sources describe the data as provided as-is. The
-provider is isolated behind `ZipCoordinateLookup`; near-me services should depend on the injectable
-`UserLocationResolver` port (available from `Services`) rather than import this adapter or read settings.
+provider is isolated behind the `ZipCoordinateLookup` adapter port; near-me services should depend on
+the injectable `LocationService` port (`services.locationService`, `getUserLocation()`) rather than
+import this adapter or read settings.
 
 ## Develop
 
@@ -48,7 +49,7 @@ pnpm check      # the gate: typecheck + lint (+ layer boundaries) + prettier + t
 
 See **[AGENTS.md](./AGENTS.md)**. The backend is layered `resolver → service → repository → db`, and
 that boundary is enforced by ESLint (not just convention). Adding a feature = copy the canonical
-`packages/api/src/modules/deal/` module. Small, focused PRs; keep `pnpm check` green.
+`packages/api/src/entities/deal/` slice. Small, focused PRs; keep `pnpm check` green.
 
 ## License
 

@@ -17,8 +17,8 @@ doubt about scope, file it as a `minor`/`nit`, not a blocker.
 
 **Judge the SLICE, not the whole feature (critical — this is a thin-slice codebase).** The loop builds
 features as a sequence of small slices, usually split by layer: e.g. a **data-layer slice** (schema +
-migration + repository + service + unit tests, _no GraphQL_) followed by a **GraphQL slice** (schema.pothos +
-regenerated SDL + integration test), then a **web slice**. A PR is normally **one such slice**. Judge
+migration + repository + service + unit tests, _no GraphQL_) followed by a **GraphQL slice** (`graphql/*`
+type/query/mutation + regenerated SDL + integration test), then a **web slice**. A PR is normally **one such slice**. Judge
 completeness against **THIS PR's declared scope** — its description and the linked kanban task — **not**
 against the full `PLAN.md` feature. Rules:
 
@@ -39,7 +39,7 @@ against the full `PLAN.md` feature. Rules:
   came from the loop, the kanban task body. A PR must be judged against what it was _supposed_ to do.
 - **The rules:** `AGENTS.md` (architecture + Definition of Done) and `README.md`.
 - **The surrounding code:** grep/read the modules the diff touches AND search for _similar existing code_
-  (e.g. `rg <entity>` / look at `packages/api/src/modules/deal/`, the canonical module) so you can flag
+  (e.g. `rg <entity>` / look at `packages/api/src/entities/deal/`, the canonical slice) so you can flag
   reinvention and cite what to reuse.
 
 ## 2. Apply the rubric
@@ -53,8 +53,8 @@ Rate each dimension ✅ pass / ⚠️ concerns / ❌ fail. For every issue give:
    _beyond_ the task. Does the PR description explain the change and what it defers?
 2. **Architecture & conventions** — The clean-arch layer rule holds: resolver → service → repository → db (a
    resolver never imports `db/` or a repository; a service depends on repository _port types_, never `db/`;
-   web never imports api). New entities follow the `modules/deal/` shape and are registered in `services.ts` +
-   `schema.ts`. Factory-DI, `common/settings` (no stray `process.env`), `common/logger` (no `console.*`),
+   web never imports api). New entities follow the `entities/deal/` shape, built in their module's
+   `index.ts` (`getEntitiesServices` + its `graphql/*` side-effect imports). Factory-DI, `common/settings` (no stray `process.env`), `common/logger` (no `console.*`),
    `common/errors` (typed errors), Zod at every boundary, non-null GraphQL defaults, web changes a11y-clean.
 3. **Test pyramid** — Require only the tiers **relevant to what this slice delivers**: **unit** (logic with
    mocked ports) for repo/service logic; **integration** (resolver/service against a real test DB) when the
