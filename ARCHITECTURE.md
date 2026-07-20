@@ -136,6 +136,13 @@ through a `repository.ts`; a slice with no DB table (e.g. `location`) instead de
   `third-party/index.ts` → `getThirdPartyServices()`, and `common/index.ts` re-exports the kernel. A
   module takes what it needs as deps and registers its own GraphQL (side-effect imports); it never
   reaches into another module's internals.
+- **"Internals" means implementations, not the type contract.** The rule above forbids reaching into
+  another module's _implementations_ (`repository.ts` / `service.ts` / `adapter.ts`) or its runtime
+  values — not its types. A **type-only** import of another slice's port or domain type (from its
+  `types.ts`, §2/§3) is allowed and expected: it's how an adapter names the port it implements
+  (`third-party/index.ts` → `ZipCoordinateLookup`) and how a composition names an injected
+  cross-module dependency (`entities/index.ts` → `IngestRunService`). Ports are the shared contract —
+  referencing them across modules is dependency inversion, not a boundary breach.
 - **`services.ts` is the one composition root.** It calls each module's `get*Services`, injects the
   cross-module deps (a feature service, a third-party port), memoizes once, and exposes the combined
   typed `Services` registry reached through `ctx.services`. It is the only place modules are wired
