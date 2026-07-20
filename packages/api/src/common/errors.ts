@@ -73,7 +73,7 @@ export class TooManyRequestsError<Data = ErrorData> extends ServerError<Data> {
   }
 }
 
-// Module-specific errors live here too, alongside the base hierarchy — one home for typed errors.
+// Slice-specific errors live here too, alongside the base hierarchy — one home for typed errors.
 
 export class LocationNotConfiguredError extends ServerError {
   constructor() {

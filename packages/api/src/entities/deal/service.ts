@@ -1,5 +1,5 @@
 import { NotFoundError } from '../../common/errors';
-import type { IngestRunService } from '../../modules/ingestRun/types';
+import type { IngestRunService } from '../../features/ingestRun/types';
 import type { MerchantService } from '../merchant/types';
 import type { TrackingPrefService } from '../trackingPref/types';
 import type { DealRepository, DealService, ListDealsInput, Stats } from './types';

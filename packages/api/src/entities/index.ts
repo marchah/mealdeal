@@ -1,5 +1,5 @@
 import type { Db } from '../db/client';
-import type { IngestRunService } from '../modules/ingestRun/types';
+import type { IngestRunService } from '../features/ingestRun/types';
 
 // Register each slice's GraphQL on the shared builder (side-effect imports; a type before the
 // resolvers that reference it).
@@ -27,8 +27,8 @@ import { trackingPrefRepositoryFactory } from './trackingPref/repository';
 import { trackingPrefServiceFactory } from './trackingPref/service';
 import type { TrackingPrefService } from './trackingPref/types';
 
-// The entities "package": low-level data slices. Built with the db + any cross-package deps (a
-// module service, a third-party port) injected by the composition root.
+// The entities module: low-level data slices. Built with the db + any cross-module deps (a
+// feature service, a third-party port) injected by the composition root.
 export interface EntitiesServices {
   dealService: DealService;
   merchantService: MerchantService;

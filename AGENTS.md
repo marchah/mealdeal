@@ -37,7 +37,7 @@ container / one Node process** (the ingest cron runs in-process by default).
 ## Folder = slice, file = role
 
 Each backend feature is a vertical slice — a folder under `packages/api/src/entities/<entity>/` (a
-low-level **data entity**) or `packages/api/src/modules/<name>/` (a service with more complex
+low-level **data entity**) or `packages/api/src/features/<name>/` (a service with more complex
 **business logic**). Both have the same fixed file roles:
 
 | File                | Role                                                  | May import                                                      | May NOT import                          |
@@ -48,11 +48,11 @@ low-level **data entity**) or `packages/api/src/modules/<name>/` (a service with
 | `<e>/graphql/*.ts`  | GraphQL types + resolvers (`type`/`query`/`mutation`) | `builder`, `common`, own `types`, other slices' `graphql` refs  | `db/`, a repository, an adapter         |
 | `<e>/*.spec.ts`     | Vitest unit tests                                     | anything                                                        | —                                       |
 
-Each package has an **`index.ts`** that builds its own services (`entities/index.ts` →
-`getEntitiesServices`, `modules/index.ts`, `third-party/index.ts`) or re-exports its surface
+Each module has an **`index.ts`** that builds its own services (`entities/index.ts` →
+`getEntitiesServices`, `features/index.ts`, `third-party/index.ts`) or re-exports its surface
 (`common/index.ts`); the individual slices stay plain files. Backbone (not per-slice): `builder.ts`
-(the one Pothos builder), `services.ts` (composition root — composes the package indexes), `context.ts`
-(request services + DataLoaders), `schema.ts` (imports each package to assemble GraphQL), `server.ts` /
+(the one Pothos builder), `services.ts` (composition root — composes the module indexes), `context.ts`
+(request services + DataLoaders), `schema.ts` (imports each module to assemble GraphQL), `server.ts` /
 `worker.ts` (entrypoints), `db/{schema,client,migrate}.ts`, `common/{errors,types}.ts`,
 `ingest/{imap,extractor,run}.ts`.
 
@@ -85,14 +85,14 @@ build magic) and makes unit tests trivial: build a service with hand-mocked port
 ## How to add a feature / entity — copy the `deal` entity
 
 `entities/deal/` is the **canonical reference**. Most features are **entities** (low-level data slices);
-reserve `modules/<name>/` for services with more complex business logic. To add an entity:
+reserve `features/<name>/` for services with more complex business logic. To add an entity:
 
 1. `cp -r packages/api/src/entities/deal packages/api/src/entities/<entity>` and rename the types/factories.
 2. Adjust `types.ts` (domain type + ports), `repository.ts` (Drizzle queries), `service.ts` (logic),
    `graphql/{type,query,mutation}.ts` (GraphQL types + resolvers via `ctx.services`).
-3. Register it in its package's **`index.ts`**: build its repo + service in `getEntitiesServices`, add
+3. Register it in its module's **`index.ts`**: build its repo + service in `getEntitiesServices`, add
    it to `EntitiesServices`, and add its `graphql/*` to the side-effect imports. (`services.ts` and
-   `schema.ts` already import the package index — no per-slice edit there.)
+   `schema.ts` already import the module index — no per-slice edit there.)
 4. Run `pnpm build-schema` (updates `packages/contract/schema.graphql`) and, for web changes,
    `pnpm gen` (updates `graphql-env.d.ts`). **Commit both generated files.**
 5. Add a `*.spec.ts` for the new service.
@@ -102,7 +102,7 @@ repository + port + service together. Keep changes additive; keep `dedup_hash` s
 
 For an **external integration** (third-party HTTP API, SDK, LLM, geocoder): put the adapter in
 `packages/api/src/third-party/<provider>/` named **`<provider>AdapterFactory`**, behind a **port
-interface declared in the consuming module's `types.ts`**; wire it in `services.ts` and inject it into
+interface declared in the consuming slice's `types.ts`**; wire it in `services.ts` and inject it into
 the service. A provider's client/SDK **must never appear outside `third-party/`**. See `ARCHITECTURE.md` §3.
 
 ## GraphQL / codegen workflow
@@ -165,7 +165,7 @@ A PR missing a required test tier for new behavior is a blocker.
   graphql-env.d.ts); hand-writes a migration; skips a required test tier for new behavior; reads
   `process.env` outside `common/settings.ts`; uses `console.*`; or crosses a layer boundary.
 - Block a PR that puts an **external-service client outside `third-party/<provider>/`**, misnames an
-  adapter (must be `<provider>AdapterFactory` behind a module-owned port), or has a module import a
+  adapter (must be `<provider>AdapterFactory` behind a slice-owned port), or has a slice import a
   provider SDK directly instead of the port (`ARCHITECTURE.md` §3).
 
 ## Conventions
@@ -185,6 +185,6 @@ A PR missing a required test tier for new behavior is a blocker.
 ## Files to read first
 
 `entities/deal/{types,repository,service,graphql/*,service.spec}.ts` (the template) · `entities/index.ts`
-(a package composition root) · `services.ts`
+(a module composition root) · `services.ts`
 (composition root) · `context.ts` (services + loaders) · `builder.ts` · `eslint.config.js` (the enforced
 boundaries).

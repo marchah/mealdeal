@@ -1,4 +1,4 @@
-// Ports for the merchant module. Services depend on these interfaces, never on the db.
+// Ports for the merchant slice. Services depend on these interfaces, never on the db.
 export interface Merchant {
   id: string;
   name: string;

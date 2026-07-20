@@ -21,30 +21,30 @@ provider SDK, a repository never calls a service.
 
 ## 1. Where things live (folder = responsibility)
 
-| Concern                      | Location                                                                        | Notes                                                                                     |
-| ---------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| **Entity (data slice)**      | `packages/api/src/entities/<entity>/`                                           | A low-level data slice: types · repository · service · graphql. Copy `entities/deal/`.    |
-| **Module (complex service)** | `packages/api/src/modules/<name>/`                                              | A service with more complex business logic / orchestration. Same file roles as an entity. |
-| **External-service adapter** | `packages/api/src/third-party/<provider>/`                                      | Any third-party API / SDK / LLM / geocoder. Behind a port the module owns.                |
-| **Cross-cutting kernel**     | `packages/api/src/common/`                                                      | `errors.ts`, `settings.ts`, `logger.ts`, `types.ts`. Imports nothing domain.              |
-| **Persistence**              | `packages/api/src/db/`                                                          | Drizzle schema + client. Touched **only** by repositories.                                |
-| **Composition / backbone**   | `services.ts`, `schema.ts`, `builder.ts`, `context.ts`, `server.ts`/`worker.ts` | The only wiring sites.                                                                    |
-| **Ingest pipeline**          | `packages/api/src/ingest/`                                                      | `imap` / `extractor` are existing reference adapters.                                     |
-| **Shared SDL**               | `packages/contract/`                                                            | The one artifact web + api both touch.                                                    |
-| **Web SPA**                  | `packages/web/`                                                                 | Never imports `packages/api` — depends only on `@mealdeal/contract`.                      |
+| Concern                       | Location                                                                        | Notes                                                                                     |
+| ----------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| **Entity (data slice)**       | `packages/api/src/entities/<entity>/`                                           | A low-level data slice: types · repository · service · graphql. Copy `entities/deal/`.    |
+| **Feature (complex service)** | `packages/api/src/features/<name>/`                                             | A service with more complex business logic / orchestration. Same file roles as an entity. |
+| **External-service adapter**  | `packages/api/src/third-party/<provider>/`                                      | Any third-party API / SDK / LLM / geocoder. Behind a port the slice owns.                 |
+| **Cross-cutting kernel**      | `packages/api/src/common/`                                                      | `errors.ts`, `settings.ts`, `logger.ts`, `types.ts`. Imports nothing domain.              |
+| **Persistence**               | `packages/api/src/db/`                                                          | Drizzle schema + client. Touched **only** by repositories.                                |
+| **Composition / backbone**    | `services.ts`, `schema.ts`, `builder.ts`, `context.ts`, `server.ts`/`worker.ts` | The only wiring sites.                                                                    |
+| **Ingest pipeline**           | `packages/api/src/ingest/`                                                      | `imap` / `extractor` are existing reference adapters.                                     |
+| **Shared SDL**                | `packages/contract/`                                                            | The one artifact web + api both touch.                                                    |
+| **Web SPA**                   | `packages/web/`                                                                 | Never imports `packages/api` — depends only on `@mealdeal/contract`.                      |
 
-**A slice never lives at `src/<name>/`** — it is an `entity` (low-level data) or a `module` (complex
+**A slice never lives at `src/<name>/`** — it is an `entity` (low-level data) or a `feature` (complex
 business logic). **A provider's name / client / SDK must never appear outside `third-party/`** — a
 slice depends on the port, not the provider.
 
 ## 2. The vertical slice — copy `entities/deal/`
 
 Every feature is a vertical slice — `entities/<entity>/` for a low-level data entity, or
-`modules/<name>/` for a service with more complex business logic. Both use the same fixed file roles
+`features/<name>/` for a service with more complex business logic. Both use the same fixed file roles
 (the import matrix is in `AGENTS.md`):
 
 ```
-entities/<entity>/   # (or modules/<name>/ for a complex-logic service)
+entities/<entity>/   # (or features/<name>/ for a complex-logic service)
   types.ts          # domain types + the slice's PORT interfaces (repository / service / adapter ports)
   repository.ts     # the ONLY layer that touches db/. Returns domain types.
   service.ts        # business logic / use-cases. Depends on PORT TYPES. Takes ctx.
@@ -55,9 +55,9 @@ entities/<entity>/   # (or modules/<name>/ for a complex-logic service)
   *.spec.ts         # unit tests (factory-DI mocks)
 ```
 
-Register it in its **package's `index.ts`**: build its repo + service inside `get<Package>Services`,
-add it to that package's services type, and add its `graphql/*` to the side-effect imports. The main
-`services.ts` composes the package indexes (§4); `schema.ts` imports each package. Regenerate the
+Register it in its **module's `index.ts`**: build its repo + service inside `get<Module>Services`,
+add it to that module's services type, and add its `graphql/*` to the side-effect imports. The main
+`services.ts` composes the module indexes (§4); `schema.ts` imports each module. Regenerate the
 SDL + gql.tada and commit the generated files.
 
 **Layer discipline:**
@@ -65,7 +65,7 @@ SDL + gql.tada and commit the generated files.
 - **Resolvers are thin** — parse args, call one service method via `ctx.services`, shape the result.
   No `db/`/repository access, no business logic.
 - **Services** hold the logic. They depend on **repository / adapter port _types_** (declared in the
-  module's `types.ts`), never on implementations, `db/`, a resolver, or a provider SDK.
+  slice's `types.ts`), never on implementations, `db/`, a resolver, or a provider SDK.
 - **Repositories** are the only code that touches `db/`. They return domain types; ORM detail never
   leaks upward. A repository never imports a service or resolver.
 
@@ -77,7 +77,7 @@ explicitly.
 **Any integration with something outside the process — a third-party HTTP API, an SDK, an LLM, a
 mailbox — is a port implemented by an adapter.**
 
-- **The port** is a plain interface declared in the _consuming module's_ `types.ts`:
+- **The port** is a plain interface declared in the _consuming slice's_ `types.ts`:
 
   ```ts
   // entities/location/types.ts
@@ -112,20 +112,20 @@ on the provider inside a service.
 through a `repository.ts`; a slice with no DB table (e.g. `location`) instead depends on a
 `third-party` adapter behind its port (`ZipCoordinateLookup`) — same shape, different backing store.
 
-## 4. Packages & the composition root
+## 4. Modules & the composition root
 
 - **Every unit is a factory** taking its dependencies as one object and returning an object typed by
   an explicit port: `dealServiceFactory({ dealRepository }): DealService`. No DI container, no
   decorators, no module-level singletons (they break test isolation).
-- **Each top-level folder is a package with an `index.ts` that builds its own piece.**
-  `entities/index.ts` → `getEntitiesServices(deps)`, `modules/index.ts` → `getModulesServices(deps)`,
+- **Each top-level folder is a module with an `index.ts` that builds its own piece.**
+  `entities/index.ts` → `getEntitiesServices(deps)`, `features/index.ts` → `getFeaturesServices(deps)`,
   `third-party/index.ts` → `getThirdPartyServices()`, and `common/index.ts` re-exports the kernel. A
-  package takes what it needs as deps and registers its own GraphQL (side-effect imports); it never
-  reaches into another package's internals.
-- **`services.ts` is the one composition root.** It calls each package's `get*Services`, injects the
-  cross-package deps (a module service, a third-party port), memoizes once, and exposes the combined
-  typed `Services` registry reached through `ctx.services`. It is the only place packages are wired
-  together; `schema.ts` assembles the GraphQL by importing each package.
+  module takes what it needs as deps and registers its own GraphQL (side-effect imports); it never
+  reaches into another module's internals.
+- **`services.ts` is the one composition root.** It calls each module's `get*Services`, injects the
+  cross-module deps (a feature service, a third-party port), memoizes once, and exposes the combined
+  typed `Services` registry reached through `ctx.services`. It is the only place modules are wired
+  together; `schema.ts` assembles the GraphQL by importing each module.
 - **`ctx` is threaded, not global.** The request context carries the service registry + request
   identity; pass it down. Services receive their dependencies by construction and use `ctx` only for
   request-scoped data — they do not reach back into `ctx.services` to resolve siblings (inject those
@@ -185,12 +185,12 @@ The rules above are only as strong as the gate, so the structural ones are machi
 `pnpm check` enforces (`eslint.config.js`, `eslint-plugin-boundaries`):
 
 - **Every file under `packages/api/src/` matches a known element** (`no-unknown-files`) — a feature
-  can't be dropped at `src/<name>/` outside `entities/` or `modules/`, and a stray file fails the gate.
+  can't be dropped at `src/<name>/` outside `entities/` or `features/`, and a stray file fails the gate.
 - **The dependency rule** (`boundaries/dependencies`): a resolver never reaches `db` / a repository /
   an adapter; a service never reaches `db` / a resolver / an adapter (it depends on port types); a
   repository never reaches a service / resolver / adapter; an **adapter** never reaches a service /
-  repository / resolver / `db` (it owns only transport, behind the module's port).
-- **No provider / HTTP client imported inside `modules/`** (`no-restricted-imports`) — transport
+  repository / resolver / `db` (it owns only transport, behind the slice's port).
+- **No provider / HTTP client imported inside a slice** (`no-restricted-imports`) — transport
   belongs in `third-party/<provider>/`.
 - **Env access only in `common/settings.ts`; no `console.*`.**
 
@@ -201,4 +201,4 @@ of the time; a red gate gets followed every time.
 
 _Reference implementations: `entities/deal/` (the canonical slice) and `ingest/{imap,extractor}` (the
 existing adapters). When adding an external integration, `third-party/` is the home; a low-level data
-feature is an `entities/<entity>/` slice, a complex-logic service a `modules/<name>/` one._
+feature is an `entities/<entity>/` slice, a complex-logic service a `features/<name>/` one._

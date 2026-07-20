@@ -73,10 +73,10 @@ export default tseslint.config(
       // mistaken for the layer it sits beside).
       'boundaries/files': [
         { category: 'test', pattern: 'packages/api/src/**/*.spec.ts' },
-        { category: 'resolver', pattern: 'packages/api/src/{entities,modules}/*/graphql/**/*.ts' },
-        { category: 'service', pattern: 'packages/api/src/{entities,modules}/*/service.ts' },
-        { category: 'repository', pattern: 'packages/api/src/{entities,modules}/*/repository.ts' },
-        { category: 'types', pattern: 'packages/api/src/{entities,modules}/*/types.ts' },
+        { category: 'resolver', pattern: 'packages/api/src/{entities,features}/*/graphql/**/*.ts' },
+        { category: 'service', pattern: 'packages/api/src/{entities,features}/*/service.ts' },
+        { category: 'repository', pattern: 'packages/api/src/{entities,features}/*/repository.ts' },
+        { category: 'types', pattern: 'packages/api/src/{entities,features}/*/types.ts' },
         { category: 'adapter', pattern: 'packages/api/src/third-party/*/**/*.ts' },
         { category: 'db', pattern: 'packages/api/src/db/**/*.ts' },
         { category: 'ingest', pattern: 'packages/api/src/ingest/*.ts' },
@@ -84,14 +84,14 @@ export default tseslint.config(
         // Package composition roots (each folder's index.ts) + the top-level backbone files.
         {
           category: 'backbone',
-          pattern: 'packages/api/src/{entities,modules,third-party}/index.ts',
+          pattern: 'packages/api/src/{entities,features,third-party}/index.ts',
         },
         { category: 'backbone', pattern: 'packages/api/src/*.ts' },
       ],
     },
     rules: {
       // No file under packages/api/src may escape classification (see boundaries/files) — this is
-      // what stops a feature being dropped at src/<name>/ instead of modules/<entity>/.
+      // what stops a feature being dropped at src/<name>/ instead of an entities/ or features/ folder.
       'boundaries/no-unknown-files': 'error',
       'boundaries/dependencies': [
         'error',
@@ -128,7 +128,7 @@ export default tseslint.config(
                 },
               },
               message:
-                'Layer violation: third-party adapters own only transport — never import db, a repository, a service, or a resolver. Implement the port declared in the module types.',
+                'Layer violation: third-party adapters own only transport — never import db, a repository, a service, or a resolver. Implement the port declared in the slice that owns the port.',
             },
           ],
         },
@@ -138,7 +138,7 @@ export default tseslint.config(
 
   // ---- Provider/HTTP clients belong in third-party/, never inside a module ----
   {
-    files: ['packages/api/src/{entities,modules}/**/*.ts'],
+    files: ['packages/api/src/{entities,features}/**/*.ts'],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -146,13 +146,13 @@ export default tseslint.config(
           paths: ['axios', 'node-fetch', 'undici', 'got'].map((name) => ({
             name,
             message:
-              'HTTP/provider clients belong in third-party/<provider>/ behind a port — not in a module.',
+              'HTTP/provider clients belong in third-party/<provider>/ behind a port — not in a slice.',
           })),
           patterns: [
             {
               group: ['node:http', 'node:https'],
               message:
-                'Raw HTTP belongs in third-party/<provider>/ behind a port — not in a module.',
+                'Raw HTTP belongs in third-party/<provider>/ behind a port — not in a slice.',
             },
           ],
         },
