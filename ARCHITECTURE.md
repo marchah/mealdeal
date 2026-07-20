@@ -21,17 +21,17 @@ provider SDK, a repository never calls a service.
 
 ## 1. Where things live (folder = responsibility)
 
-| Concern                      | Location                                                                        | Notes                                                                                        |
-| ---------------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| **Entity (data slice)**      | `packages/api/src/entities/<entity>/`                                           | A low-level data slice: types · repository · service · graphql. Copy `entities/deal/`. |
-| **Module (complex service)** | `packages/api/src/modules/<name>/`                                              | A service with more complex business logic / orchestration. Same file roles as an entity.    |
-| **External-service adapter** | `packages/api/src/third-party/<provider>/`                                      | Any third-party API / SDK / LLM / geocoder. Behind a port the module owns.                   |
-| **Cross-cutting kernel**     | `packages/api/src/common/`                                                      | `errors.ts`, `settings.ts`, `logger.ts`, `types.ts`. Imports nothing domain.                 |
-| **Persistence**              | `packages/api/src/db/`                                                          | Drizzle schema + client. Touched **only** by repositories.                                   |
-| **Composition / backbone**   | `services.ts`, `schema.ts`, `builder.ts`, `context.ts`, `server.ts`/`worker.ts` | The only wiring sites.                                                                       |
-| **Ingest pipeline**          | `packages/api/src/ingest/`                                                      | `imap` / `extractor` are existing reference adapters.                                        |
-| **Shared SDL**               | `packages/contract/`                                                            | The one artifact web + api both touch.                                                       |
-| **Web SPA**                  | `packages/web/`                                                                 | Never imports `packages/api` — depends only on `@mealdeal/contract`.                         |
+| Concern                      | Location                                                                        | Notes                                                                                     |
+| ---------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| **Entity (data slice)**      | `packages/api/src/entities/<entity>/`                                           | A low-level data slice: types · repository · service · graphql. Copy `entities/deal/`.    |
+| **Module (complex service)** | `packages/api/src/modules/<name>/`                                              | A service with more complex business logic / orchestration. Same file roles as an entity. |
+| **External-service adapter** | `packages/api/src/third-party/<provider>/`                                      | Any third-party API / SDK / LLM / geocoder. Behind a port the module owns.                |
+| **Cross-cutting kernel**     | `packages/api/src/common/`                                                      | `errors.ts`, `settings.ts`, `logger.ts`, `types.ts`. Imports nothing domain.              |
+| **Persistence**              | `packages/api/src/db/`                                                          | Drizzle schema + client. Touched **only** by repositories.                                |
+| **Composition / backbone**   | `services.ts`, `schema.ts`, `builder.ts`, `context.ts`, `server.ts`/`worker.ts` | The only wiring sites.                                                                    |
+| **Ingest pipeline**          | `packages/api/src/ingest/`                                                      | `imap` / `extractor` are existing reference adapters.                                     |
+| **Shared SDL**               | `packages/contract/`                                                            | The one artifact web + api both touch.                                                    |
+| **Web SPA**                  | `packages/web/`                                                                 | Never imports `packages/api` — depends only on `@mealdeal/contract`.                      |
 
 **A slice never lives at `src/<name>/`** — it is an `entity` (low-level data) or a `module` (complex
 business logic). **A provider's name / client / SDK must never appear outside `third-party/`** — a
