@@ -174,6 +174,12 @@ A PR missing a required test tier for new behavior is a blocker.
 
 - **TypeScript strict** (`noUncheckedIndexedAccess`, `verbatimModuleSyntax`, …). Prefix intentionally
   unused params with `_`. Use `import type` for type-only imports.
+- **Factory layout:** declare every method as a `function` in the factory body — the `return { … }`
+  only lists them (never inline in the return, never a body/return mix; a body `function` restates the
+  param types the inline form borrowed). Order methods, and `graphql/` `query` / `mutation` fields,
+  reads → writes → the rest: `get`/`find` → `list` → `count` → `create`/`add` → `update` → `delete`,
+  then composed/complex logic last (the SDL is sorted, so reordering graphql fields never drifts).
+  Matches `entities/deal/`.
 - **Latest stable versions** of dependencies; commit the lockfile; bump deliberately.
 - **Config:** every environment variable is read + validated (Zod) in `common/settings.ts` — the single
   source of truth. Import `settings`; **never read `process.env` elsewhere** (ESLint enforces this).

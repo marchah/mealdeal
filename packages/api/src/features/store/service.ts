@@ -7,15 +7,15 @@ export function storeServiceFactory({
 }: {
   storeRepository: StoreRepository;
 }): StoreService {
-  return {
-    async storesNearLocation(input: StoresNearLocationInput) {
-      const stores = await storeRepository.listWithLocation(input);
-      return stores
-        .filter((store) => store.distanceMiles <= input.radiusMiles)
-        .sort(
-          (left, right) =>
-            left.distanceMiles - right.distanceMiles || left.id.localeCompare(right.id),
-        );
-    },
-  };
+  async function storesNearLocation(input: StoresNearLocationInput) {
+    const stores = await storeRepository.listWithLocation(input);
+    return stores
+      .filter((store) => store.distanceMiles <= input.radiusMiles)
+      .sort(
+        (left, right) =>
+          left.distanceMiles - right.distanceMiles || left.id.localeCompare(right.id),
+      );
+  }
+
+  return { storesNearLocation };
 }

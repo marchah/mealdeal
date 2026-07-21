@@ -8,13 +8,13 @@ export function locationServiceFactory({
 }: {
   zipCoordinateLookup: ZipCoordinateLookup;
 }): LocationService {
-  return {
-    async getUserLocation() {
-      const zip = settings.USER_LOCATION;
-      if (!zip) throw new LocationNotConfiguredError();
-      const coordinates = await zipCoordinateLookup.lookup(zip);
-      if (!coordinates) throw new LocationNotFoundError(zip);
-      return coordinates;
-    },
-  };
+  async function getUserLocation() {
+    const zip = settings.USER_LOCATION;
+    if (!zip) throw new LocationNotConfiguredError();
+    const coordinates = await zipCoordinateLookup.lookup(zip);
+    if (!coordinates) throw new LocationNotFoundError(zip);
+    return coordinates;
+  }
+
+  return { getUserLocation };
 }

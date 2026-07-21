@@ -14,17 +14,17 @@ export function dashboardServiceFactory({
   merchantService: MerchantService;
   ingestRunService: IngestRunService;
 }): DashboardService {
-  return {
-    async getStats() {
-      // activeDeals reuses dealService.listDeals so it stays consistent with the rendered list
-      // (both exclude muted items/categories).
-      const [active, totalDeals, merchants, lastIngestAt] = await Promise.all([
-        dealService.listDeals({ activeOnly: true, category: null }),
-        dealService.count(),
-        merchantService.count(),
-        ingestRunService.lastCompletedAt(),
-      ]);
-      return { activeDeals: active.length, totalDeals, merchants, lastIngestAt };
-    },
-  };
+  async function getStats() {
+    // activeDeals reuses dealService.listDeals so it stays consistent with the rendered list
+    // (both exclude muted items/categories).
+    const [active, totalDeals, merchants, lastIngestAt] = await Promise.all([
+      dealService.listDeals({ activeOnly: true, category: null }),
+      dealService.count(),
+      merchantService.count(),
+      ingestRunService.lastCompletedAt(),
+    ]);
+    return { activeDeals: active.length, totalDeals, merchants, lastIngestAt };
+  }
+
+  return { getStats };
 }

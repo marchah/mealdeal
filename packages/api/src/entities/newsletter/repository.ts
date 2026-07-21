@@ -7,28 +7,31 @@ import type { AddNewsletterInput, Newsletter, NewsletterRepository } from './typ
 
 // The ONLY layer that imports the db. Composes Drizzle queries into the NewsletterRepository port.
 export function newsletterRepositoryFactory({ db }: { db: Db }): NewsletterRepository {
-  return {
-    async findById(id: string): Promise<Maybe<Newsletter>> {
-      const rows = await db.select().from(newsletters).where(eq(newsletters.id, id)).limit(1);
-      return rows[0] ?? null;
-    },
-    async listRecommendedByMerchantIds(merchantIds) {
-      if (merchantIds.length === 0) return [];
-      return db
-        .select()
-        .from(newsletters)
-        .where(
-          and(eq(newsletters.recommended, true), inArray(newsletters.merchantId, [...merchantIds])),
-        );
-    },
-    async create(input: AddNewsletterInput): Promise<Newsletter> {
-      const newsletter: Newsletter = { id: randomUUID(), ...input };
-      await db.insert(newsletters).values(newsletter);
-      return newsletter;
-    },
-    async remove(id: string): Promise<boolean> {
-      const result = await db.delete(newsletters).where(eq(newsletters.id, id));
-      return (result.rowsAffected ?? 0) > 0;
-    },
-  };
+  async function findById(id: string): Promise<Maybe<Newsletter>> {
+    const rows = await db.select().from(newsletters).where(eq(newsletters.id, id)).limit(1);
+    return rows[0] ?? null;
+  }
+
+  async function listRecommendedByMerchantIds(merchantIds: readonly string[]) {
+    if (merchantIds.length === 0) return [];
+    return db
+      .select()
+      .from(newsletters)
+      .where(
+        and(eq(newsletters.recommended, true), inArray(newsletters.merchantId, [...merchantIds])),
+      );
+  }
+
+  async function create(input: AddNewsletterInput): Promise<Newsletter> {
+    const newsletter: Newsletter = { id: randomUUID(), ...input };
+    await db.insert(newsletters).values(newsletter);
+    return newsletter;
+  }
+
+  async function remove(id: string): Promise<boolean> {
+    const result = await db.delete(newsletters).where(eq(newsletters.id, id));
+    return (result.rowsAffected ?? 0) > 0;
+  }
+
+  return { findById, listRecommendedByMerchantIds, create, remove };
 }
