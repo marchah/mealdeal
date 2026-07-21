@@ -5,7 +5,7 @@ import { beforeEach, expect, test } from 'vitest';
 import type { Maybe } from '../../src/common/types';
 import { createContext } from '../../src/context';
 import { createDb } from '../../src/db/client';
-import { couponTypes, deals, merchants } from '../../src/db/schema';
+import { couponTypes, deals, merchants, newsletters } from '../../src/db/schema';
 import { schema } from '../../src/schema';
 
 // INTEGRATION reference test. Exercises the `deals` query end-to-end through the real Yoga app
@@ -81,6 +81,7 @@ async function seedDeal(opts: {
 beforeEach(async () => {
   const db = createDb();
   await db.delete(deals);
+  await db.delete(newsletters);
   await db.delete(merchants);
   await db.delete(couponTypes);
 });

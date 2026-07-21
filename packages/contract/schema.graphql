@@ -34,6 +34,21 @@ type Deal {
   url: String
 }
 
+type LocationLookupError {
+  message: String!
+  status: Int!
+}
+
+type LocationNotConfiguredError {
+  message: String!
+  status: Int!
+}
+
+type LocationNotFoundError {
+  message: String!
+  status: Int!
+}
+
 type Merchant {
   address: String
   createdAt: DateTime!
@@ -62,6 +77,11 @@ type MutationRemoveNewsletterSuccess {
   data: Newsletter!
 }
 
+type NearbyDealGroup {
+  couponType: CouponType
+  deals: [Deal!]!
+}
+
 type Newsletter {
   id: ID!
   merchantId: ID!
@@ -88,11 +108,14 @@ enum PrefScope {
 type Query {
   deal(id: ID!): QueryDealResult!
   deals(activeOnly: Boolean = true, category: String): [Deal!]!
+  dealsNearMe(radiusMiles: Float = 25): QueryDealsNearMeResult!
   getCouponTypes: [CouponType!]!
   newsletter(id: ID!): QueryNewsletterResult!
   prefs: [TrackingPref!]!
+  recommendedNewsletters(radiusMiles: Float = 25): QueryRecommendedNewslettersResult!
   stats: Stats!
   storesNearLocation(lat: Float!, lng: Float!, radiusMiles: Float!): QueryStoresNearLocationResult!
+  storesNearMe(radiusMiles: Float = 25): QueryStoresNearMeResult!
 }
 
 union QueryDealResult = NotFoundError | QueryDealSuccess | ServerError
@@ -101,15 +124,33 @@ type QueryDealSuccess {
   data: Deal!
 }
 
+union QueryDealsNearMeResult = LocationLookupError | LocationNotConfiguredError | LocationNotFoundError | QueryDealsNearMeSuccess | ServerError | ValidationError
+
+type QueryDealsNearMeSuccess {
+  data: [NearbyDealGroup!]!
+}
+
 union QueryNewsletterResult = NotFoundError | QueryNewsletterSuccess | ServerError
 
 type QueryNewsletterSuccess {
   data: Newsletter!
 }
 
+union QueryRecommendedNewslettersResult = LocationLookupError | LocationNotConfiguredError | LocationNotFoundError | QueryRecommendedNewslettersSuccess | ServerError | ValidationError
+
+type QueryRecommendedNewslettersSuccess {
+  data: [Newsletter!]!
+}
+
 union QueryStoresNearLocationResult = QueryStoresNearLocationSuccess | ServerError | ValidationError
 
 type QueryStoresNearLocationSuccess {
+  data: [Store!]!
+}
+
+union QueryStoresNearMeResult = LocationLookupError | LocationNotConfiguredError | LocationNotFoundError | QueryStoresNearMeSuccess | ServerError | ValidationError
+
+type QueryStoresNearMeSuccess {
   data: [Store!]!
 }
 

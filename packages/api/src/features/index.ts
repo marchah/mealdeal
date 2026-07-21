@@ -1,4 +1,6 @@
 import type { Db } from '../db/client';
+import { nearMeServiceFactory } from './nearMe/service';
+import type { NearMeDependencies, NearMeService } from './nearMe/types';
 import { ingestRunRepositoryFactory } from './ingestRun/repository';
 import { ingestRunServiceFactory } from './ingestRun/service';
 import type { IngestRunService } from './ingestRun/types';
@@ -23,4 +25,10 @@ export function getFeaturesServices({ db }: { db: Db }): FeaturesServices {
     }),
     storeService: storeServiceFactory({ storeRepository: storeRepositoryFactory({ db }) }),
   };
+}
+
+// Near-me composes services from both modules, so the application composition root injects the
+// already-built port implementations here rather than letting this feature reach into them.
+export function getNearMeService(dependencies: NearMeDependencies): NearMeService {
+  return nearMeServiceFactory(dependencies);
 }

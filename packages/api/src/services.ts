@@ -1,11 +1,12 @@
 import { createDb } from './db/client';
 import { getEntitiesServices, type EntitiesServices } from './entities';
-import { getFeaturesServices, type FeaturesServices } from './features';
+import { getFeaturesServices, getNearMeService, type FeaturesServices } from './features';
+import type { NearMeService } from './features/nearMe/types';
 import { getThirdPartyServices } from './third-party';
 
 // The application's service surface, composed from the independent modules. Resolvers and the
 // worker reach it via context (`ctx.services.<name>`).
-export type Services = EntitiesServices & FeaturesServices;
+export type Services = EntitiesServices & FeaturesServices & { nearMeService: NearMeService };
 
 let cached: Services | undefined;
 
@@ -25,6 +26,13 @@ export function getServices(): Services {
     ingestRunService: features.ingestRunService,
     zipCoordinateLookup: zippopotamAdapter,
   });
-  cached = { ...entities, ...features };
+  const nearMeService = getNearMeService({
+    locationService: entities.locationService,
+    storeService: features.storeService,
+    dealService: entities.dealService,
+    couponTypeService: entities.couponTypeService,
+    newsletterService: entities.newsletterService,
+  });
+  cached = { ...entities, ...features, nearMeService };
   return cached;
 }

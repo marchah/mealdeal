@@ -18,6 +18,12 @@ function makeService({ newsletters = [makeNewsletter()], merchantIds = ['m1'] } 
   const newsletterRepository: NewsletterRepository = {
     findById: (id) =>
       Promise.resolve(newsletters.find((newsletter) => newsletter.id === id) ?? null),
+    listRecommendedByMerchantIds: (merchantIds) =>
+      Promise.resolve(
+        newsletters.filter(
+          (newsletter) => newsletter.recommended && merchantIds.includes(newsletter.merchantId),
+        ),
+      ),
     create,
     remove,
   };
@@ -79,5 +85,21 @@ describe('newsletterService', () => {
     const { service, remove } = makeService();
     await expect(service.removeNewsletter('n1')).resolves.toEqual(makeNewsletter());
     expect(remove).toHaveBeenCalledWith('n1');
+  });
+
+  it('lists recommended newsletters for the requested merchants in a stable order', async () => {
+    const { service } = makeService({
+      newsletters: [
+        makeNewsletter({ id: 'z', merchantId: 'm1', name: 'Zebra', recommended: true }),
+        makeNewsletter({ id: 'b', merchantId: 'm1', name: 'Alpha', recommended: true }),
+        makeNewsletter({ id: 'a', merchantId: 'm1', name: 'Alpha', recommended: true }),
+        makeNewsletter({ id: 'other', merchantId: 'm2', name: 'Nearby?', recommended: true }),
+        makeNewsletter({ id: 'not-recommended', merchantId: 'm1', recommended: false }),
+      ],
+    });
+
+    const newsletters = await service.listRecommendedByMerchantIds(['m1']);
+
+    expect(newsletters.map((newsletter) => newsletter.id)).toEqual(['a', 'b', 'z']);
   });
 });
