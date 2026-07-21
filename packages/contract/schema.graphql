@@ -92,6 +92,7 @@ type Query {
   newsletter(id: ID!): QueryNewsletterResult!
   prefs: [TrackingPref!]!
   stats: Stats!
+  storesNearLocation(lat: Float!, lng: Float!, radiusMiles: Float!): QueryStoresNearLocationResult!
 }
 
 union QueryDealResult = NotFoundError | QueryDealSuccess | ServerError
@@ -106,6 +107,12 @@ type QueryNewsletterSuccess {
   data: Newsletter!
 }
 
+union QueryStoresNearLocationResult = QueryStoresNearLocationSuccess | ServerError | ValidationError
+
+type QueryStoresNearLocationSuccess {
+  data: [Store!]!
+}
+
 type ServerError {
   message: String!
   status: Int!
@@ -116,6 +123,15 @@ type Stats {
   lastIngestAt: DateTime
   merchants: Int!
   totalDeals: Int!
+}
+
+type Store {
+  address: String
+  distanceMiles: Float!
+  id: ID!
+  lat: Float!
+  lng: Float!
+  name: String!
 }
 
 type TrackingPref {
