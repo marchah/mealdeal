@@ -26,27 +26,27 @@ const ResponseSchema = z.object({
  * implementation for a local dataset without touching the domain.
  */
 export function zippopotamAdapterFactory(): ZipCoordinateLookup {
-  return {
-    async lookup(zip: string): Promise<Maybe<Coordinates>> {
-      let response: Awaited<ReturnType<typeof fetch>>;
-      try {
-        response = await fetch(`${ZIPPOTAM_BASE_URL}/us/${encodeURIComponent(zip)}`);
-      } catch {
-        throw new LocationLookupError();
-      }
+  async function lookup(zip: string): Promise<Maybe<Coordinates>> {
+    let response: Awaited<ReturnType<typeof fetch>>;
+    try {
+      response = await fetch(`${ZIPPOTAM_BASE_URL}/us/${encodeURIComponent(zip)}`);
+    } catch {
+      throw new LocationLookupError();
+    }
 
-      if (response.status === 404) return null;
-      if (!response.ok) throw new LocationLookupError();
+    if (response.status === 404) return null;
+    if (!response.ok) throw new LocationLookupError();
 
-      try {
-        const { places } = ResponseSchema.parse(await response.json());
-        const place = places[0];
-        if (!place) throw new LocationLookupError();
-        return { lat: place.latitude, lng: place.longitude };
-      } catch (error) {
-        if (error instanceof LocationLookupError) throw error;
-        throw new LocationLookupError();
-      }
-    },
-  };
+    try {
+      const { places } = ResponseSchema.parse(await response.json());
+      const place = places[0];
+      if (!place) throw new LocationLookupError();
+      return { lat: place.latitude, lng: place.longitude };
+    } catch (error) {
+      if (error instanceof LocationLookupError) throw error;
+      throw new LocationLookupError();
+    }
+  }
+
+  return { lookup };
 }

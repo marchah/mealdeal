@@ -1,7 +1,7 @@
 import { NotFoundError } from '../../common/errors';
 import type { TrackingPrefService } from '../trackingPref/types';
 import type { CouponTypeService } from '../couponType/types';
-import type { DealRepository, DealService, ListDealsInput } from './types';
+import type { Deal, DealRepository, DealService, ListDealsInput, NewDeal } from './types';
 
 // Business logic. Depends on repository + collaborator service PORT types — never the db.
 export function dealServiceFactory({
@@ -13,6 +13,12 @@ export function dealServiceFactory({
   trackingPrefService: TrackingPrefService;
   couponTypeService: CouponTypeService;
 }): DealService {
+  async function getById(id: string) {
+    const deal = await dealRepository.findById(id);
+    if (!deal) throw new NotFoundError(`No deal with id ${id}`);
+    return deal;
+  }
+
   async function listDeals(input: ListDealsInput) {
     const rows = await dealRepository.listAll(input);
     if (!input.activeOnly) return rows;
@@ -27,16 +33,19 @@ export function dealServiceFactory({
     });
   }
 
-  return {
-    listDeals,
-    async getById(id) {
-      const deal = await dealRepository.findById(id);
-      if (!deal) throw new NotFoundError(`No deal with id ${id}`);
-      return deal;
-    },
-    getCouponType: (deal) =>
-      deal.couponTypeId ? couponTypeService.findById(deal.couponTypeId) : Promise.resolve(null),
-    count: () => dealRepository.count(),
-    add: (deal) => dealRepository.insertIfNew(deal),
-  };
+  function count() {
+    return dealRepository.count();
+  }
+
+  function add(deal: NewDeal) {
+    return dealRepository.insertIfNew(deal);
+  }
+
+  function getCouponType(deal: Deal) {
+    return deal.couponTypeId
+      ? couponTypeService.findById(deal.couponTypeId)
+      : Promise.resolve(null);
+  }
+
+  return { getById, listDeals, count, add, getCouponType };
 }

@@ -176,6 +176,16 @@ through a `repository.ts`; a slice with no DB table (e.g. `location`) instead de
 
   Use `<verb><Entity>`: `getDeal`, `listDeals`, `createDeal`, `updateDealStatus`.
 
+- **Factory body, then a bare `return`.** Declare every method as a named `function` in the factory
+  body; the `return { … }` only _lists_ them. Never define a function inline in the returned object,
+  and never mix body functions with inline ones — that split is the hardest shape to read. (Inline
+  methods borrow their parameter types from the factory's return annotation; a body `function` must
+  restate them, e.g. `function getById(id: string) {…}`.)
+- **Order methods (and `graphql/` `query` / `mutation` fields) simple-first.** Reads before writes
+  before the rest: `get*` / `find*` → `list*` → `count*` → `create*` / `add*` → `update*` →
+  `delete*` / `remove*`, then **everything else — composed / derived / orchestration — at the
+  bottom**, roughly simplest to most complex. Same order for services, repositories, and adapters.
+  Reordering `graphql` fields is source-only: the emitted SDL is sorted, so it never drifts.
 - **Errors:** all typed errors — the base hierarchy and every slice-specific subclass — live in
   `common/errors.ts`, named `<Reason>Error`.
 - **Enums:** model a fixed value set as a TS `enum` in the slice's `types.ts` and reuse it — the
