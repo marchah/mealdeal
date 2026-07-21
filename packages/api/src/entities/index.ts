@@ -1,5 +1,4 @@
 import type { Db } from '../db/client';
-import type { IngestRunService } from '../features/ingestRun/types';
 
 // Register each slice's GraphQL on the shared builder (side-effect imports; a type before the
 // resolvers that reference it).
@@ -46,11 +45,9 @@ export interface EntitiesServices {
 
 export function getEntitiesServices({
   db,
-  ingestRunService,
   zipCoordinateLookup,
 }: {
   db: Db;
-  ingestRunService: IngestRunService;
   zipCoordinateLookup: ZipCoordinateLookup;
 }): EntitiesServices {
   const merchantService = merchantServiceFactory({
@@ -64,8 +61,6 @@ export function getEntitiesServices({
   });
   const dealService = dealServiceFactory({
     dealRepository: dealRepositoryFactory({ db }),
-    merchantService,
-    ingestRunService,
     trackingPrefService,
     couponTypeService,
   });

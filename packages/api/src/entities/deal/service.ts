@@ -1,21 +1,15 @@
 import { NotFoundError } from '../../common/errors';
-import type { IngestRunService } from '../../features/ingestRun/types';
-import type { MerchantService } from '../merchant/types';
 import type { TrackingPrefService } from '../trackingPref/types';
 import type { CouponTypeService } from '../couponType/types';
-import type { DealRepository, DealService, ListDealsInput, Stats } from './types';
+import type { DealRepository, DealService, ListDealsInput } from './types';
 
 // Business logic. Depends on repository + collaborator service PORT types — never the db.
 export function dealServiceFactory({
   dealRepository,
-  merchantService,
-  ingestRunService,
   trackingPrefService,
   couponTypeService,
 }: {
   dealRepository: DealRepository;
-  merchantService: MerchantService;
-  ingestRunService: IngestRunService;
   trackingPrefService: TrackingPrefService;
   couponTypeService: CouponTypeService;
 }): DealService {
@@ -42,17 +36,7 @@ export function dealServiceFactory({
     },
     getCouponType: (deal) =>
       deal.couponTypeId ? couponTypeService.findById(deal.couponTypeId) : Promise.resolve(null),
-    async getStats(): Promise<Stats> {
-      // activeDeals reuses listDeals so it stays consistent with the rendered list
-      // (both exclude muted items/categories).
-      const [active, totalDeals, merchants, lastIngestAt] = await Promise.all([
-        listDeals({ activeOnly: true, category: null }),
-        dealRepository.count(),
-        merchantService.count(),
-        ingestRunService.lastCompletedAt(),
-      ]);
-      return { activeDeals: active.length, totalDeals, merchants, lastIngestAt };
-    },
+    count: () => dealRepository.count(),
     add: (deal) => dealRepository.insertIfNew(deal),
   };
 }

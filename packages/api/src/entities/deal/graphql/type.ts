@@ -2,7 +2,7 @@ import { builder } from '../../../builder';
 import { NotFoundError } from '../../../common/errors';
 import { MerchantRef } from '../../merchant/graphql/type';
 import { CouponTypeRef } from '../../couponType/graphql/type';
-import type { Deal, Stats } from '../types';
+import type { Deal } from '../types';
 
 export const DealRef = builder.objectRef<Deal>('Deal');
 DealRef.implement({
@@ -35,15 +35,5 @@ DealRef.implement({
       nullable: true,
       resolve: (deal, _args, ctx) => ctx.services.dealService.getCouponType(deal),
     }),
-  }),
-});
-
-export const StatsRef = builder.objectRef<Stats>('Stats');
-StatsRef.implement({
-  fields: (t) => ({
-    totalDeals: t.exposeInt('totalDeals'),
-    activeDeals: t.exposeInt('activeDeals'),
-    merchants: t.exposeInt('merchants'),
-    lastIngestAt: t.expose('lastIngestAt', { type: 'DateTime', nullable: true }),
   }),
 });

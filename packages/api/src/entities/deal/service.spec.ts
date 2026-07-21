@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { IngestRunService } from '../../features/ingestRun/types';
 import type { CouponType, CouponTypeService } from '../couponType/types';
-import type { MerchantService } from '../merchant/types';
 import type { TrackingPrefService } from '../trackingPref/types';
 import { dealServiceFactory } from './service';
 import type { Deal, DealRepository } from './types';
@@ -45,10 +43,6 @@ function makeService(
     insertIfNew: () => Promise.resolve(true),
     count: () => Promise.resolve(rows.length),
   };
-  const merchantService = { count: () => Promise.resolve(3) } as unknown as MerchantService;
-  const ingestRunService = {
-    lastCompletedAt: () => Promise.resolve(null),
-  } as unknown as IngestRunService;
   const trackingPrefService = {
     mutedValues: () =>
       Promise.resolve(over.muted ?? { items: new Set<string>(), categories: new Set<string>() }),
@@ -60,22 +54,15 @@ function makeService(
 
   return dealServiceFactory({
     dealRepository,
-    merchantService,
-    ingestRunService,
     trackingPrefService,
     couponTypeService,
   });
 }
 
 describe('dealService', () => {
-  it('aggregates stats across repositories and collaborator services', async () => {
+  it('count returns the total number of deals', async () => {
     const service = makeService({ deals: [makeDeal({ id: 'a' }), makeDeal({ id: 'b' })] });
-    await expect(service.getStats()).resolves.toEqual({
-      totalDeals: 2,
-      activeDeals: 2,
-      merchants: 3,
-      lastIngestAt: null,
-    });
+    await expect(service.count()).resolves.toBe(2);
   });
 
   it('filters muted categories out of the active list', async () => {
@@ -85,18 +72,6 @@ describe('dealService', () => {
     });
     const result = await service.listDeals({ activeOnly: true, category: null });
     expect(result.map((d) => d.id)).toEqual(['b']);
-  });
-
-  it('stats.activeDeals excludes muted deals and matches the rendered list', async () => {
-    const service = makeService({
-      deals: [makeDeal({ id: 'a', category: 'dairy' }), makeDeal({ id: 'b', category: 'produce' })],
-      muted: { items: new Set(), categories: new Set(['dairy']) },
-    });
-    const stats = await service.getStats();
-    const active = await service.listDeals({ activeOnly: true, category: null });
-    expect(stats.totalDeals).toBe(2);
-    expect(stats.activeDeals).toBe(1);
-    expect(stats.activeDeals).toBe(active.length);
   });
 
   it('throws NotFoundError for a missing id', async () => {
