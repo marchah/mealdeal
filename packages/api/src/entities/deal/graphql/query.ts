@@ -8,7 +8,7 @@ builder.queryFields((t) => ({
     // Result union: `Deal | NotFoundError` (the good-practice typed-error pattern).
     errors: { types: [NotFoundError] },
     args: { id: t.arg.id({ required: true }) },
-    resolve: (_root, args, ctx) => ctx.services.dealService.getById(args.id),
+    resolve: (_root, args, ctx) => ctx.services.dealService.getDealById(args.id),
   }),
   deals: t.field({
     type: [DealRef],

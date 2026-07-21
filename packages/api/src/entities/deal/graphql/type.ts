@@ -33,7 +33,7 @@ DealRef.implement({
     couponType: t.field({
       type: CouponTypeRef,
       nullable: true,
-      resolve: (deal, _args, ctx) => ctx.services.dealService.getCouponType(deal),
+      resolve: (deal, _args, ctx) => ctx.services.dealService.getDealCouponType(deal),
     }),
   }),
 });

@@ -18,15 +18,15 @@ export interface FinishIngestInput {
 }
 
 export interface IngestRunRepository {
-  create(): Promise<IngestRun>;
-  finish(id: string, input: FinishIngestInput): Promise<void>;
-  lastCompletedAt(): Promise<Maybe<Date>>;
-  count(): Promise<number>;
+  createIngestRun: () => Promise<IngestRun>;
+  finishIngestRun: (id: string, input: FinishIngestInput) => Promise<void>;
+  lastIngestCompletedAt: () => Promise<Maybe<Date>>;
+  countIngestRuns: () => Promise<number>;
 }
 
 export interface IngestRunService {
-  start(): Promise<string>;
-  finish(id: string, input: FinishIngestInput): Promise<void>;
-  lastCompletedAt(): Promise<Maybe<Date>>;
-  count(): Promise<number>;
+  startIngestRun: () => Promise<string>;
+  finishIngestRun: (id: string, input: FinishIngestInput) => Promise<void>;
+  lastIngestCompletedAt: () => Promise<Maybe<Date>>;
+  countIngestRuns: () => Promise<number>;
 }

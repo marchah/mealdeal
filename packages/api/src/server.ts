@@ -37,7 +37,7 @@ async function main(): Promise<void> {
   await runMigrations();
 
   // Seed the default coupon-type taxonomy (idempotent + repairs a partial seed).
-  await getServices().couponTypeService.seed();
+  await getServices().couponTypeService.seedCouponTypes();
 
   const server = createServer((req, res) => {
     const url = req.url ?? '/';

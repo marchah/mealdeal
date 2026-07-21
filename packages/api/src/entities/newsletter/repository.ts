@@ -7,12 +7,12 @@ import type { AddNewsletterInput, Newsletter, NewsletterRepository } from './typ
 
 // The ONLY layer that imports the db. Composes Drizzle queries into the NewsletterRepository port.
 export function newsletterRepositoryFactory({ db }: { db: Db }): NewsletterRepository {
-  async function findById(id: string): Promise<Maybe<Newsletter>> {
+  async function findNewsletterById(id: string): Promise<Maybe<Newsletter>> {
     const rows = await db.select().from(newsletters).where(eq(newsletters.id, id)).limit(1);
     return rows[0] ?? null;
   }
 
-  async function listRecommendedByMerchantIds(merchantIds: readonly string[]) {
+  async function listRecommendedNewslettersByMerchantIds(merchantIds: readonly string[]) {
     if (merchantIds.length === 0) return [];
     return db
       .select()
@@ -22,16 +22,21 @@ export function newsletterRepositoryFactory({ db }: { db: Db }): NewsletterRepos
       );
   }
 
-  async function create(input: AddNewsletterInput): Promise<Newsletter> {
+  async function createNewsletter(input: AddNewsletterInput): Promise<Newsletter> {
     const newsletter: Newsletter = { id: randomUUID(), ...input };
     await db.insert(newsletters).values(newsletter);
     return newsletter;
   }
 
-  async function remove(id: string): Promise<boolean> {
+  async function removeNewsletter(id: string): Promise<boolean> {
     const result = await db.delete(newsletters).where(eq(newsletters.id, id));
     return (result.rowsAffected ?? 0) > 0;
   }
 
-  return { findById, listRecommendedByMerchantIds, create, remove };
+  return {
+    findNewsletterById,
+    listRecommendedNewslettersByMerchantIds,
+    createNewsletter,
+    removeNewsletter,
+  };
 }

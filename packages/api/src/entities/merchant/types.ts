@@ -4,8 +4,8 @@ import type { Maybe } from '../../common/types';
 export interface Merchant {
   id: string;
   name: string;
-  // Location (nullable; populated via updateLocation). Carried on the domain type so persisted
-  // location is READABLE through the port, not just writable.
+  // Location (nullable; populated via updateMerchantLocation). Carried on the domain type so
+  // persisted location is READABLE through the port, not just writable.
   address: Maybe<string>;
   lat: Maybe<number>;
   lng: Maybe<number>;
@@ -13,16 +13,22 @@ export interface Merchant {
 }
 
 export interface MerchantRepository {
-  findByIds(ids: readonly string[]): Promise<Merchant[]>;
-  findByName(name: string): Promise<Maybe<Merchant>>;
-  create(name: string): Promise<Merchant>;
-  count(): Promise<number>;
-  updateLocation(id: string, args: { address?: string; lat?: number; lng?: number }): Promise<void>;
+  findMerchantsByIds: (ids: readonly string[]) => Promise<Merchant[]>;
+  findMerchantByName: (name: string) => Promise<Maybe<Merchant>>;
+  createMerchant: (name: string) => Promise<Merchant>;
+  countMerchants: () => Promise<number>;
+  updateMerchantLocation: (
+    id: string,
+    args: { address?: string; lat?: number; lng?: number },
+  ) => Promise<void>;
 }
 
 export interface MerchantService {
-  findByIds(ids: readonly string[]): Promise<Merchant[]>;
-  getOrCreate(name: string): Promise<Merchant>;
-  count(): Promise<number>;
-  updateLocation(id: string, args: { address?: string; lat?: number; lng?: number }): Promise<void>;
+  findMerchantsByIds: (ids: readonly string[]) => Promise<Merchant[]>;
+  getOrCreateMerchant: (name: string) => Promise<Merchant>;
+  countMerchants: () => Promise<number>;
+  updateMerchantLocation: (
+    id: string,
+    args: { address?: string; lat?: number; lng?: number },
+  ) => Promise<void>;
 }

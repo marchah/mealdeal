@@ -5,15 +5,15 @@ import type { Db } from '../../db/client';
 import type { AddPrefInput, PrefKind, TrackingPref, TrackingPrefRepository } from './types';
 
 export function trackingPrefRepositoryFactory({ db }: { db: Db }): TrackingPrefRepository {
-  async function list() {
+  async function listPrefs() {
     return db.select().from(trackingPrefs);
   }
 
-  async function listByKind(kind: PrefKind) {
+  async function listPrefsByKind(kind: PrefKind) {
     return db.select().from(trackingPrefs).where(eq(trackingPrefs.kind, kind));
   }
 
-  async function add(input: AddPrefInput) {
+  async function addPref(input: AddPrefInput) {
     // Idempotent: a repeat (kind, scope, value) is a no-op insert; return the stored row.
     const row: TrackingPref = { id: randomUUID(), createdAt: new Date(), ...input };
     await db
@@ -36,10 +36,10 @@ export function trackingPrefRepositoryFactory({ db }: { db: Db }): TrackingPrefR
     return stored[0] ?? row;
   }
 
-  async function remove(id: string) {
+  async function removePref(id: string) {
     const result = await db.delete(trackingPrefs).where(eq(trackingPrefs.id, id));
     return (result.rowsAffected ?? 0) > 0;
   }
 
-  return { list, listByKind, add, remove };
+  return { listPrefs, listPrefsByKind, addPref, removePref };
 }

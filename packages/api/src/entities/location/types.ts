@@ -8,10 +8,10 @@ export interface Coordinates {
 
 /** Adapter port: implementations translate a US ZIP code into a coordinate, or report no match. */
 export interface ZipCoordinateLookup {
-  lookup(zip: string): Promise<Maybe<Coordinates>>;
+  lookup: (zip: string) => Promise<Maybe<Coordinates>>;
 }
 
 /** Service port: consumers resolve the configured user location without knowing its source. */
 export interface LocationService {
-  getUserLocation(): Promise<Coordinates>;
+  getUserLocation: () => Promise<Coordinates>;
 }

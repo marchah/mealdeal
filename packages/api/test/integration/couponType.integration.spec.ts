@@ -45,7 +45,7 @@ test('migration created coupon_types: getCouponTypes returns [] before seeding',
 });
 
 test('seed populates the full default taxonomy, surfaced via getCouponTypes', async () => {
-  await getServices().couponTypeService.seed();
+  await getServices().couponTypeService.seedCouponTypes();
 
   const body = await runQuery('{ getCouponTypes { id key label } }');
   expect(body.errors).toBeUndefined();
@@ -58,8 +58,8 @@ test('seed repairs a partial taxonomy and stays idempotent across re-runs', asyn
   // Simulate an interrupted seed: only one default present in the real table.
   await createDb().insert(couponTypes).values({ id: randomUUID(), key: 'food', label: 'Food' });
 
-  await getServices().couponTypeService.seed();
-  await getServices().couponTypeService.seed(); // second pass must be a pure no-op (no conflict error)
+  await getServices().couponTypeService.seedCouponTypes();
+  await getServices().couponTypeService.seedCouponTypes(); // second pass must be a pure no-op (no conflict error)
 
   const body = await runQuery('{ getCouponTypes { key } }');
   expect(body.errors).toBeUndefined();

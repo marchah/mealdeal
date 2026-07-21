@@ -17,16 +17,16 @@ export interface NewCouponType {
 }
 
 export interface CouponTypeRepository {
-  listAll(): Promise<CouponType[]>;
-  findById(id: string): Promise<Maybe<CouponType>>;
-  findByKey(key: string): Promise<Maybe<CouponType>>;
+  listCouponTypes: () => Promise<CouponType[]>;
+  findCouponTypeById: (id: string) => Promise<Maybe<CouponType>>;
+  findCouponTypeByKey: (key: string) => Promise<Maybe<CouponType>>;
   /** Insert the row, but no-op if `key` already exists (atomic). Makes seeding repairable. */
-  upsertByKey(newCouponType: NewCouponType): Promise<void>;
+  upsertCouponTypeByKey: (newCouponType: NewCouponType) => Promise<void>;
 }
 
 export interface CouponTypeService {
-  getCouponTypes(): Promise<CouponType[]>;
-  findById(id: string): Promise<Maybe<CouponType>>;
-  getCouponTypeByKey(key: string): Promise<Maybe<CouponType>>;
-  seed(): Promise<void>;
+  getCouponTypes: () => Promise<CouponType[]>;
+  findCouponTypeById: (id: string) => Promise<Maybe<CouponType>>;
+  getCouponTypeByKey: (key: string) => Promise<Maybe<CouponType>>;
+  seedCouponTypes: () => Promise<void>;
 }

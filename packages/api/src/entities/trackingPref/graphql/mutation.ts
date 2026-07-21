@@ -11,7 +11,7 @@ builder.mutationFields((t) => ({
       value: t.arg.string({ required: true, validate: { minLength: 1, maxLength: 200 } }),
     },
     resolve: (_root, args, ctx) =>
-      ctx.services.trackingPrefService.add({
+      ctx.services.trackingPrefService.addPref({
         kind: args.kind,
         scope: args.scope,
         value: args.value,
@@ -21,6 +21,6 @@ builder.mutationFields((t) => ({
     type: 'Boolean',
     args: { id: t.arg.id({ required: true }) },
     // Idempotent: returns whether a row was removed.
-    resolve: (_root, args, ctx) => ctx.services.trackingPrefService.remove(args.id),
+    resolve: (_root, args, ctx) => ctx.services.trackingPrefService.removePref(args.id),
   }),
 }));

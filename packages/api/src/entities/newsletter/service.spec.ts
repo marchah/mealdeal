@@ -13,31 +13,41 @@ const makeNewsletter = (over: Partial<Newsletter> = {}): Newsletter => ({
 });
 
 function makeService({ newsletters = [makeNewsletter()], merchantIds = ['m1'] } = {}) {
-  const create = vi.fn((input) => Promise.resolve(makeNewsletter({ ...input })));
-  const remove = vi.fn(() => Promise.resolve(true));
+  const createNewsletter = vi.fn((input) => Promise.resolve(makeNewsletter({ ...input })));
+  const removeNewsletter = vi.fn(() => Promise.resolve(true));
   const newsletterRepository: NewsletterRepository = {
-    findById: (id) =>
+    findNewsletterById: (id) =>
       Promise.resolve(newsletters.find((newsletter) => newsletter.id === id) ?? null),
-    listRecommendedByMerchantIds: (merchantIds) =>
+    listRecommendedNewslettersByMerchantIds: (merchantIds) =>
       Promise.resolve(
         newsletters.filter(
           (newsletter) => newsletter.recommended && merchantIds.includes(newsletter.merchantId),
         ),
       ),
-    create,
-    remove,
+    createNewsletter,
+    removeNewsletter,
   };
-  const merchantService = {
-    findByIds: (ids: readonly string[]) =>
+  // @ts-expect-error partial mock: only findMerchantsByIds is used
+  const merchantService: MerchantService = {
+    findMerchantsByIds: (ids: readonly string[]) =>
       Promise.resolve(
-        ids.filter((id) => merchantIds.includes(id)).map((id) => ({ id, name: 'Test Mart' })),
+        ids
+          .filter((id) => merchantIds.includes(id))
+          .map((id) => ({
+            id,
+            name: 'Test Mart',
+            address: null,
+            lat: null,
+            lng: null,
+            createdAt: new Date('2026-01-01T00:00:00Z'),
+          })),
       ),
-  } as unknown as MerchantService;
+  };
 
   return {
     service: newsletterServiceFactory({ newsletterRepository, merchantService }),
-    create,
-    remove,
+    createNewsletter,
+    removeNewsletter,
   };
 }
 
@@ -56,7 +66,7 @@ describe('newsletterService', () => {
   });
 
   it('creates a newsletter for an existing merchant', async () => {
-    const { service, create } = makeService();
+    const { service, createNewsletter } = makeService();
     await expect(
       service.addNewsletter({
         merchantId: 'm1',
@@ -65,11 +75,11 @@ describe('newsletterService', () => {
         recommended: true,
       }),
     ).resolves.toMatchObject({ name: 'VIP Savings', recommended: true });
-    expect(create).toHaveBeenCalledOnce();
+    expect(createNewsletter).toHaveBeenCalledOnce();
   });
 
   it('throws a typed not-found error instead of attempting an FK insert for a missing merchant', async () => {
-    const { service, create } = makeService({ merchantIds: [] });
+    const { service, createNewsletter } = makeService({ merchantIds: [] });
     await expect(
       service.addNewsletter({
         merchantId: 'missing',
@@ -78,13 +88,13 @@ describe('newsletterService', () => {
         recommended: false,
       }),
     ).rejects.toThrow('No merchant with id missing');
-    expect(create).not.toHaveBeenCalled();
+    expect(createNewsletter).not.toHaveBeenCalled();
   });
 
   it('removes an existing newsletter and returns the removed newsletter', async () => {
-    const { service, remove } = makeService();
+    const { service, removeNewsletter } = makeService();
     await expect(service.removeNewsletter('n1')).resolves.toEqual(makeNewsletter());
-    expect(remove).toHaveBeenCalledWith('n1');
+    expect(removeNewsletter).toHaveBeenCalledWith('n1');
   });
 
   it('lists recommended newsletters for the requested merchants in a stable order', async () => {

@@ -6,20 +6,20 @@ export function trackingPrefServiceFactory({
 }: {
   trackingPrefRepository: TrackingPrefRepository;
 }): TrackingPrefService {
-  function list() {
-    return trackingPrefRepository.list();
+  function listPrefs() {
+    return trackingPrefRepository.listPrefs();
   }
 
-  function add(input: AddPrefInput) {
-    return trackingPrefRepository.add(input);
+  function addPref(input: AddPrefInput) {
+    return trackingPrefRepository.addPref(input);
   }
 
-  function remove(id: string) {
-    return trackingPrefRepository.remove(id);
+  function removePref(id: string) {
+    return trackingPrefRepository.removePref(id);
   }
 
   async function mutedValues() {
-    const muted = await trackingPrefRepository.listByKind(PrefKind.MUTE);
+    const muted = await trackingPrefRepository.listPrefsByKind(PrefKind.MUTE);
     const items = new Set<string>();
     const categories = new Set<string>();
     for (const pref of muted) {
@@ -29,5 +29,5 @@ export function trackingPrefServiceFactory({
     return { items, categories };
   }
 
-  return { list, add, remove, mutedValues };
+  return { listPrefs, addPref, removePref, mutedValues };
 }

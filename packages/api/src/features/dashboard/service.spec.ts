@@ -29,16 +29,19 @@ function makeService(
   over: { active?: Deal[]; total?: number; merchants?: number; lastIngestAt?: Date | null } = {},
 ) {
   const active = over.active ?? [makeDeal({ id: 'a' }), makeDeal({ id: 'b' })];
-  const dealService = {
+  // @ts-expect-error partial mock: only listDeals and countDeals are used
+  const dealService: DealService = {
     listDeals: () => Promise.resolve(active),
-    count: () => Promise.resolve(over.total ?? active.length),
-  } as unknown as DealService;
-  const merchantService = {
-    count: () => Promise.resolve(over.merchants ?? 3),
-  } as unknown as MerchantService;
-  const ingestRunService = {
-    lastCompletedAt: () => Promise.resolve(over.lastIngestAt ?? null),
-  } as unknown as IngestRunService;
+    countDeals: () => Promise.resolve(over.total ?? active.length),
+  };
+  // @ts-expect-error partial mock: only countMerchants is used
+  const merchantService: MerchantService = {
+    countMerchants: () => Promise.resolve(over.merchants ?? 3),
+  };
+  // @ts-expect-error partial mock: only lastIngestCompletedAt is used
+  const ingestRunService: IngestRunService = {
+    lastIngestCompletedAt: () => Promise.resolve(over.lastIngestAt ?? null),
+  };
   return dashboardServiceFactory({ dealService, merchantService, ingestRunService });
 }
 

@@ -17,14 +17,14 @@ function email(uid: number, from: string): FetchedEmail {
 function makeServices(): Services {
   return {
     ingestRunService: {
-      start: () => Promise.resolve('run-1'),
-      finish: () => Promise.resolve(),
+      startIngestRun: () => Promise.resolve('run-1'),
+      finishIngestRun: () => Promise.resolve(),
     },
     merchantService: {
-      getOrCreate: () => Promise.resolve({ id: 'm1', name: 'Shop', createdAt: new Date() }),
+      getOrCreateMerchant: () => Promise.resolve({ id: 'm1', name: 'Shop', createdAt: new Date() }),
     },
     dealService: {
-      add: () => Promise.resolve(true),
+      addDeal: () => Promise.resolve(true),
     },
   } as unknown as Services;
 }

@@ -82,7 +82,7 @@ mailbox — is a port implemented by an adapter.**
   ```ts
   // entities/location/types.ts
   export interface ZipCoordinateLookup {
-    lookup(zip: string): Promise<Coordinate>; // throws LocationLookupError on failure
+    lookup: (zip: string) => Promise<Coordinate>; // throws LocationLookupError on failure
   }
   ```
 
@@ -131,6 +131,31 @@ through a `repository.ts`; a slice with no DB table (e.g. `location`) instead de
 - **Every unit is a factory** taking its dependencies as one object and returning an object typed by
   an explicit port: `dealServiceFactory({ dealRepository }): DealService`. No DI container, no
   decorators, no module-level singletons (they break test isolation).
+- **Inject data & I/O ports (repositories and adapters) whole and first; destructure collaborator
+  services to the functions used.** A factory's ports — its `repository` and any injected adapter /
+  third-party port (e.g. `zipCoordinateLookup`) — are passed as whole objects, listed first (never
+  destructured). Every collaborator _service_ it depends on is destructured down to the functions it
+  calls, typed as the full service, so the header shows exactly what it consumes:
+
+  ```ts
+  export function dashboardServiceFactory({
+    dealService: { listDeals, countDeals },
+    merchantService: { countMerchants },
+    ingestRunService: { lastIngestCompletedAt },
+  }: {
+    dealService: DealService;
+    merchantService: MerchantService;
+    ingestRunService: IngestRunService;
+  }): DashboardService { … }
+  ```
+
+  A **unit test then mocks only those functions** — a partial object with a `// @ts-expect-error
+partial mock` above it (never mock the whole interface). If the code reaches an un-mocked function
+  the test fails because it is `undefined` — exactly the signal you want. **Declare port members as
+  function-typed properties** (`getDealById: (id: string) => Promise<Deal>`), not method shorthand
+  (`getDealById(id): Promise<Deal>`) — a property can be destructured without tripping
+  `@typescript-eslint/unbound-method`.
+
 - **Each top-level folder is a module with an `index.ts` that builds its own piece.**
   `entities/index.ts` → `getEntitiesServices(deps)`, `features/index.ts` → `getFeaturesServices(deps)`,
   `third-party/index.ts` → `getThirdPartyServices()`, and `common/index.ts` re-exports the kernel. A
@@ -174,7 +199,10 @@ through a `repository.ts`; a slice with no DB table (e.g. `location`) instead de
   - `get*` → throws `NotFoundError` (absence is exceptional),
   - `list*` → a collection.
 
-  Use `<verb><Entity>`: `getDeal`, `listDeals`, `createDeal`, `updateDealStatus`.
+  Use `<verb><Entity>`: `getDealById`, `listDeals`, `countDeals`, `addDeal`. **Every service _and_
+  repository method is entity-qualified and globally unique** — never a bare `get` / `count` / `add` /
+  `list`. That is what lets a factory destructure collaborators unambiguously and collision-free
+  (`countDeals` from one service + `countMerchants` from another, never two `count`s).
 
 - **Factory body, then a bare `return`.** Declare every method as a named `function` in the factory
   body; the `return { … }` only _lists_ them. Never define a function inline in the returned object,

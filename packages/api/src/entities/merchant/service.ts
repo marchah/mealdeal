@@ -6,22 +6,25 @@ export function merchantServiceFactory({
 }: {
   merchantRepository: MerchantRepository;
 }): MerchantService {
-  function findByIds(ids: readonly string[]) {
-    return merchantRepository.findByIds(ids);
+  function findMerchantsByIds(ids: readonly string[]) {
+    return merchantRepository.findMerchantsByIds(ids);
   }
 
-  function count() {
-    return merchantRepository.count();
+  function countMerchants() {
+    return merchantRepository.countMerchants();
   }
 
-  function updateLocation(id: string, args: { address?: string; lat?: number; lng?: number }) {
-    return merchantRepository.updateLocation(id, args);
+  function updateMerchantLocation(
+    id: string,
+    args: { address?: string; lat?: number; lng?: number },
+  ) {
+    return merchantRepository.updateMerchantLocation(id, args);
   }
 
-  async function getOrCreate(name: string) {
-    const existing = await merchantRepository.findByName(name);
-    return existing ?? merchantRepository.create(name);
+  async function getOrCreateMerchant(name: string) {
+    const existing = await merchantRepository.findMerchantByName(name);
+    return existing ?? merchantRepository.createMerchant(name);
   }
 
-  return { findByIds, count, updateLocation, getOrCreate };
+  return { findMerchantsByIds, countMerchants, updateMerchantLocation, getOrCreateMerchant };
 }

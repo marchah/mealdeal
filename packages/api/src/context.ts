@@ -22,7 +22,7 @@ export function createContext(): YogaContext {
     services,
     loaders: {
       merchantById: new DataLoader<string, Maybe<Merchant>>(async (ids) => {
-        const found = await services.merchantService.findByIds(ids);
+        const found = await services.merchantService.findMerchantsByIds(ids);
         const byId = new Map(found.map((m) => [m.id, m]));
         return ids.map((id) => byId.get(id) ?? null);
       }),
