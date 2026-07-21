@@ -1,6 +1,6 @@
 import { builder } from '../../../builder';
 import { NotFoundError } from '../../../common/errors';
-import { DealRef, StatsRef } from './type';
+import { DealRef } from './type';
 
 builder.queryFields((t) => ({
   deals: t.field({
@@ -21,9 +21,5 @@ builder.queryFields((t) => ({
     errors: { types: [NotFoundError] },
     args: { id: t.arg.id({ required: true }) },
     resolve: (_root, args, ctx) => ctx.services.dealService.getById(args.id),
-  }),
-  stats: t.field({
-    type: StatsRef,
-    resolve: (_root, _args, ctx) => ctx.services.dealService.getStats(),
   }),
 }));

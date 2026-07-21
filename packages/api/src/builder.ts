@@ -2,7 +2,15 @@ import SchemaBuilder from '@pothos/core';
 import ErrorsPlugin from '@pothos/plugin-errors';
 import ZodPlugin from '@pothos/plugin-zod';
 import { DateTimeResolver } from 'graphql-scalars';
-import { ConflictError, NotFoundError, ServerError, ValidationError } from './common/errors';
+import {
+  ConflictError,
+  LocationLookupError,
+  LocationNotConfiguredError,
+  LocationNotFoundError,
+  NotFoundError,
+  ServerError,
+  ValidationError,
+} from './common/errors';
 import type { YogaContext } from './context';
 
 // The single Pothos schema builder for the whole API. Modules import `builder` and
@@ -49,5 +57,17 @@ builder.objectType(ValidationError, {
 });
 builder.objectType(ConflictError, {
   name: 'ConflictError',
+  fields: (t) => ({ message: t.exposeString('message'), status: t.exposeInt('status') }),
+});
+builder.objectType(LocationNotConfiguredError, {
+  name: 'LocationNotConfiguredError',
+  fields: (t) => ({ message: t.exposeString('message'), status: t.exposeInt('status') }),
+});
+builder.objectType(LocationNotFoundError, {
+  name: 'LocationNotFoundError',
+  fields: (t) => ({ message: t.exposeString('message'), status: t.exposeInt('status') }),
+});
+builder.objectType(LocationLookupError, {
+  name: 'LocationLookupError',
   fields: (t) => ({ message: t.exposeString('message'), status: t.exposeInt('status') }),
 });

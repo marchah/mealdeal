@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import type { Maybe } from '../../common/types';
 import type { Db } from '../../db/client';
 import { newsletters } from '../../db/schema';
@@ -11,6 +11,15 @@ export function newsletterRepositoryFactory({ db }: { db: Db }): NewsletterRepos
     async findById(id: string): Promise<Maybe<Newsletter>> {
       const rows = await db.select().from(newsletters).where(eq(newsletters.id, id)).limit(1);
       return rows[0] ?? null;
+    },
+    async listRecommendedByMerchantIds(merchantIds) {
+      if (merchantIds.length === 0) return [];
+      return db
+        .select()
+        .from(newsletters)
+        .where(
+          and(eq(newsletters.recommended, true), inArray(newsletters.merchantId, [...merchantIds])),
+        );
     },
     async create(input: AddNewsletterInput): Promise<Newsletter> {
       const newsletter: Newsletter = { id: randomUUID(), ...input };

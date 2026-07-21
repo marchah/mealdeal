@@ -16,6 +16,12 @@ export function newsletterServiceFactory({
       if (!newsletter) throw new NotFoundError(`No newsletter with id ${id}`);
       return newsletter;
     },
+    async listRecommendedByMerchantIds(merchantIds) {
+      const newsletters = await newsletterRepository.listRecommendedByMerchantIds(merchantIds);
+      return newsletters.sort(
+        (left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id),
+      );
+    },
     async addNewsletter(input: AddNewsletterInput) {
       const merchants = await merchantService.findByIds([input.merchantId]);
       if (merchants.length === 0)

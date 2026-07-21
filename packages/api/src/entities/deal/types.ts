@@ -51,13 +51,6 @@ export interface NewDeal {
   dedupHash: string;
 }
 
-export interface Stats {
-  totalDeals: number;
-  activeDeals: number;
-  merchants: number;
-  lastIngestAt: Maybe<Date>;
-}
-
 export interface DealRepository {
   listAll(input: ListDealsInput): Promise<Deal[]>;
   findByIds(ids: readonly string[]): Promise<Deal[]>;
@@ -70,7 +63,7 @@ export interface DealService {
   listDeals(input: ListDealsInput): Promise<Deal[]>;
   getById(id: string): Promise<Deal>;
   getCouponType(deal: Deal): Promise<Maybe<CouponType>>;
-  getStats(): Promise<Stats>;
+  count(): Promise<number>;
   /** Persist a deal produced by ingest; returns false if it was a dedup no-op. */
   add(deal: NewDeal): Promise<boolean>;
 }

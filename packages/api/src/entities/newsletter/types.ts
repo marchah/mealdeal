@@ -18,12 +18,14 @@ export interface AddNewsletterInput {
 
 export interface NewsletterRepository {
   findById(id: string): Promise<Maybe<Newsletter>>;
+  listRecommendedByMerchantIds(merchantIds: readonly string[]): Promise<Newsletter[]>;
   create(input: AddNewsletterInput): Promise<Newsletter>;
   remove(id: string): Promise<boolean>;
 }
 
 export interface NewsletterService {
   getNewsletter(id: string): Promise<Newsletter>;
+  listRecommendedByMerchantIds(merchantIds: readonly string[]): Promise<Newsletter[]>;
   addNewsletter(input: AddNewsletterInput): Promise<Newsletter>;
   removeNewsletter(id: string): Promise<Newsletter>;
 }

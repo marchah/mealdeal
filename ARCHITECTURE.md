@@ -140,9 +140,18 @@ through a `repository.ts`; a slice with no DB table (e.g. `location`) instead de
   another module's _implementations_ (`repository.ts` / `service.ts` / `adapter.ts`) or its runtime
   values — not its types. A **type-only** import of another slice's port or domain type (from its
   `types.ts`, §2/§3) is allowed and expected: it's how an adapter names the port it implements
-  (`third-party/index.ts` → `ZipCoordinateLookup`) and how a composition names an injected
-  cross-module dependency (`entities/index.ts` → `IngestRunService`). Ports are the shared contract —
-  referencing them across modules is dependency inversion, not a boundary breach.
+  (`third-party/index.ts` → `ZipCoordinateLookup`) and how a higher
+  module names the lower-module services it composes (`features/index.ts` → `DealService`). Ports are the
+  shared contract — referencing them across modules is dependency inversion, not a boundary breach.
+- **Dependencies flow one way — higher-level modules depend on lower-level ones, never the reverse.** The
+  layering is `common` < `entities` < `features`, with `third-party` a leaf (adapters implementing
+  entity-owned ports) and `services.ts` the root that wires them. A `feature` may compose `entities`, and
+  anything may use `common`, but a lower-level module must never import a higher one: `entities` must not
+  depend on `features`, and `common` must not depend on either. When a low-level module finds itself reaching
+  _up_ the stack, don't invert the arrow to make it compile — read it as a design signal that the behaviour
+  lives in the wrong layer, and lift it there. (Example: the app-overview `stats` read model once sat on the
+  `deal` entity and had to reach up into the `ingestRun` feature for the last-ingest time; the fix was to move
+  it into a `dashboard` feature that legitimately composes both — not to keep the entity's upward dependency.)
 - **`services.ts` is the one composition root.** It calls each module's `get*Services`, injects the
   cross-module deps (a feature service, a third-party port), memoizes once, and exposes the combined
   typed `Services` registry reached through `ctx.services`. It is the only place modules are wired
