@@ -15,9 +15,9 @@ export interface NearbyDealGroup {
 }
 
 export interface NearMeService {
-  storesNearMe(input: NearMeInput): Promise<Store[]>;
-  dealsNearMe(input: NearMeInput): Promise<NearbyDealGroup[]>;
-  recommendedNewsletters(input: NearMeInput): Promise<Newsletter[]>;
+  storesNearMe: (input: NearMeInput) => Promise<Store[]>;
+  dealsNearMe: (input: NearMeInput) => Promise<NearbyDealGroup[]>;
+  recommendedNewsletters: (input: NearMeInput) => Promise<Newsletter[]>;
 }
 
 export interface NearMeDependencies {

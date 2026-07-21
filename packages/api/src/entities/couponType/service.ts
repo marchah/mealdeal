@@ -20,25 +20,25 @@ export function couponTypeServiceFactory({
   couponTypeRepository: CouponTypeRepository;
 }): CouponTypeService {
   async function getCouponTypes() {
-    return couponTypeRepository.listAll();
+    return couponTypeRepository.listCouponTypes();
   }
 
-  async function findById(id: string) {
-    return couponTypeRepository.findById(id);
+  async function findCouponTypeById(id: string) {
+    return couponTypeRepository.findCouponTypeById(id);
   }
 
   async function getCouponTypeByKey(key: string) {
-    return couponTypeRepository.findByKey(key);
+    return couponTypeRepository.findCouponTypeByKey(key);
   }
 
   // Upsert every default by key. Unlike a count-then-skip guard, a nonzero count no longer
   // suppresses missing rows, so an interrupted seed is repaired on the next run. Each upsert is
   // atomic (INSERT ... ON CONFLICT DO NOTHING), making repeated seeding a safe no-op.
-  async function seed() {
+  async function seedCouponTypes() {
     for (const couponType of DEFAULT_COUPON_TYPES) {
-      await couponTypeRepository.upsertByKey(couponType);
+      await couponTypeRepository.upsertCouponTypeByKey(couponType);
     }
   }
 
-  return { getCouponTypes, findById, getCouponTypeByKey, seed };
+  return { getCouponTypes, findCouponTypeById, getCouponTypeByKey, seedCouponTypes };
 }

@@ -8,7 +8,7 @@ type LocationUpdate = { address?: string; lat?: number; lng?: number };
 
 // The ONLY layer that imports the db. Composes Drizzle queries into the MerchantRepository port.
 export function merchantRepositoryFactory({ db }: { db: Db }): MerchantRepository {
-  async function findByIds(ids: readonly string[]) {
+  async function findMerchantsByIds(ids: readonly string[]) {
     if (ids.length === 0) return [];
     return db
       .select()
@@ -16,17 +16,17 @@ export function merchantRepositoryFactory({ db }: { db: Db }): MerchantRepositor
       .where(inArray(merchants.id, [...ids]));
   }
 
-  async function findByName(name: string) {
+  async function findMerchantByName(name: string) {
     const rows = await db.select().from(merchants).where(eq(merchants.name, name)).limit(1);
     return rows[0] ?? null;
   }
 
-  async function count() {
+  async function countMerchants() {
     const rows = await db.select({ value: sqlCount() }).from(merchants);
     return rows[0]?.value ?? 0;
   }
 
-  async function create(name: string) {
+  async function createMerchant(name: string) {
     const row: Merchant = {
       id: randomUUID(),
       name,
@@ -39,7 +39,7 @@ export function merchantRepositoryFactory({ db }: { db: Db }): MerchantRepositor
     return row;
   }
 
-  async function updateLocation(id: string, args: LocationUpdate) {
+  async function updateMerchantLocation(id: string, args: LocationUpdate) {
     if (args.address === undefined && args.lat === undefined && args.lng === undefined) return;
     await db
       .update(merchants)
@@ -51,5 +51,11 @@ export function merchantRepositoryFactory({ db }: { db: Db }): MerchantRepositor
       .where(eq(merchants.id, id));
   }
 
-  return { findByIds, findByName, count, create, updateLocation };
+  return {
+    findMerchantsByIds,
+    findMerchantByName,
+    countMerchants,
+    createMerchant,
+    updateMerchantLocation,
+  };
 }

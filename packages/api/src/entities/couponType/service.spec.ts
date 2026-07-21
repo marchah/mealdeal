@@ -4,8 +4,9 @@ import type { CouponType, CouponTypeRepository, NewCouponType } from './types';
 
 // Reference test for the factory-DI pattern: build the service with a hand-mocked PORT — a plain
 // in-memory object satisfying CouponTypeRepository (no database, no framework). The fake models the
-// real `upsertByKey` contract (unique key, no-op on conflict) so seed() behaviour is exercised
-// against a faithful stand-in rather than a lookup that always agrees with itself.
+// real `upsertCouponTypeByKey` contract (unique key, no-op on conflict) so seedCouponTypes()
+// behaviour is exercised against a faithful stand-in rather than a lookup that always agrees with
+// itself.
 
 function makeService(seed: NewCouponType[] = []) {
   const rows = new Map<string, CouponType>();
@@ -21,12 +22,12 @@ function makeService(seed: NewCouponType[] = []) {
   };
   for (const ct of seed) put(ct);
 
+  // @ts-expect-error partial mock: only the functions used are provided
   const couponTypeRepository: CouponTypeRepository = {
-    listAll: () => Promise.resolve([...rows.values()]),
-    findById: (id) => Promise.resolve([...rows.values()].find((ct) => ct.id === id) ?? null),
-    findByKey: (key) => Promise.resolve(rows.get(key) ?? null),
+    listCouponTypes: () => Promise.resolve([...rows.values()]),
+    findCouponTypeByKey: (key) => Promise.resolve(rows.get(key) ?? null),
     // Atomic no-op on an existing key — the real ON CONFLICT DO NOTHING contract.
-    upsertByKey: (ct) => {
+    upsertCouponTypeByKey: (ct) => {
       if (!rows.has(ct.key)) put(ct);
       return Promise.resolve();
     },
@@ -57,28 +58,28 @@ describe('couponTypeService', () => {
     expect(await service.getCouponTypeByKey('nonexistent')).toBeNull();
   });
 
-  it('seed() inserts every default when the table is empty', async () => {
+  it('seedCouponTypes() inserts every default when the table is empty', async () => {
     const { service, rows } = makeService([]);
-    await service.seed();
+    await service.seedCouponTypes();
     expect(rows.size).toBe(DEFAULT_COUPON_TYPES.length);
     expect([...rows.keys()].sort()).toEqual(DEFAULT_COUPON_TYPES.map((c) => c.key).sort());
   });
 
-  it('seed() is idempotent — a second pass inserts nothing new', async () => {
+  it('seedCouponTypes() is idempotent — a second pass inserts nothing new', async () => {
     const { service, rows } = makeService([]);
-    await service.seed();
+    await service.seedCouponTypes();
     const afterFirst = new Map(rows);
-    await service.seed();
+    await service.seedCouponTypes();
     expect(rows.size).toBe(afterFirst.size);
     // Ids are unchanged → no rows were re-inserted on the second pass.
     expect([...rows.values()].map((c) => c.id)).toEqual([...afterFirst.values()].map((c) => c.id));
   });
 
-  it('seed() repairs a partial taxonomy left by an interrupted seed', async () => {
+  it('seedCouponTypes() repairs a partial taxonomy left by an interrupted seed', async () => {
     // Only one default present (an earlier seed died mid-loop). count-then-skip would leave it
     // broken forever; upsert-by-key must fill the missing rows without duplicating 'food'.
     const { service, rows } = makeService([{ key: 'food', label: 'Food' }]);
-    await service.seed();
+    await service.seedCouponTypes();
     expect(rows.size).toBe(DEFAULT_COUPON_TYPES.length);
     expect([...rows.keys()].filter((k) => k === 'food')).toHaveLength(1);
   });

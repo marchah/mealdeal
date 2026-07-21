@@ -8,7 +8,7 @@ const DEGREES_TO_RADIANS = Math.PI / 180;
 
 // The SQLite/libsql-specific location filter and Haversine calculation belong in this repository.
 export function storeRepositoryFactory({ db }: { db: Db }): StoreRepository {
-  async function listWithLocation(input: StoresNearLocationInput) {
+  async function listStoresWithLocation(input: StoresNearLocationInput) {
     const latitudeDelta = sql<number>`
       (${merchants.lat} - ${input.lat}) * ${DEGREES_TO_RADIANS}
     `;
@@ -42,5 +42,5 @@ export function storeRepositoryFactory({ db }: { db: Db }): StoreRepository {
     return rows.filter((store): store is Store => store.lat !== null && store.lng !== null);
   }
 
-  return { listWithLocation };
+  return { listStoresWithLocation };
 }

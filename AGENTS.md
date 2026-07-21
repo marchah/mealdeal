@@ -82,6 +82,12 @@ request `ctx` (`ctx.services.dealService…`). This works with Node's runtime (n
 build magic) and makes unit tests trivial: build a service with hand-mocked ports (see
 `entities/deal/service.spec.ts` — the reference test).
 
+**Inject the repository (or the slice's own data port, e.g. `zipCoordinateLookup`) whole and first;
+destructure every _other_ collaborator service to the functions used** — typed as the full service,
+`dealService: { listDeals, countDeals }` — so the factory header shows exactly what it consumes. In
+the unit test, **mock only those functions** (a partial object with `// @ts-expect-error partial mock`
+above it); a missing-but-called mock makes the test fail, which is the point.
+
 ## How to add a feature / entity — copy the `deal` entity
 
 `entities/deal/` is the **canonical reference**. Most features are **entities** (low-level data slices);
@@ -180,6 +186,9 @@ A PR missing a required test tier for new behavior is a blocker.
   reads → writes → the rest: `get`/`find` → `list` → `count` → `create`/`add` → `update` → `delete`,
   then composed/complex logic last (the SDL is sorted, so reordering graphql fields never drifts).
   Matches `entities/deal/`.
+- **Explicit method names:** every service **and repository** method is entity-qualified and globally
+  unique (`getDealById`, `countDeals`, `addDeal`, `findCouponTypeById`) — never a bare
+  `get`/`count`/`add`/`list`. Keeps destructured collaborators unambiguous and collision-free.
 - **Latest stable versions** of dependencies; commit the lockfile; bump deliberately.
 - **Config:** every environment variable is read + validated (Zod) in `common/settings.ts` — the single
   source of truth. Import `settings`; **never read `process.env` elsewhere** (ESLint enforces this).

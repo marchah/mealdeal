@@ -42,7 +42,7 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
   const imap = deps.imap ?? (settings.IMAP ? imapClientFactory({ config: settings.IMAP }) : null);
   const extractor = deps.extractor ?? llmExtractorFactory({ config: settings });
 
-  const runId = await services.ingestRunService.start();
+  const runId = await services.ingestRunService.startIngestRun();
   let messagesSeen = 0;
   let dealsAdded = 0;
   let messagesFailed = 0;
@@ -61,7 +61,7 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
       try {
         const extracted = await extractor.extract(email);
         for (const deal of extracted) {
-          const merchant = await services.merchantService.getOrCreate(deal.merchant);
+          const merchant = await services.merchantService.getOrCreateMerchant(deal.merchant);
           const newDeal: NewDeal = {
             merchantId: merchant.id,
             couponTypeId: null,
@@ -81,7 +81,7 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
             rawExcerpt: email.text.slice(0, 500),
             dedupHash: dedupHash(deal.merchant, deal),
           };
-          if (await services.dealService.add(newDeal)) dealsAdded += 1;
+          if (await services.dealService.addDeal(newDeal)) dealsAdded += 1;
         }
         processedUids.push(email.uid);
       } catch (messageError) {
@@ -93,7 +93,7 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
     await imap.markSeen(processedUids);
 
     // Partial failures are recorded (not fatal) so operators can see a pass needs attention.
-    await services.ingestRunService.finish(runId, {
+    await services.ingestRunService.finishIngestRun(runId, {
       messagesSeen,
       dealsAdded,
       messagesFailed,
@@ -105,7 +105,7 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
     return { messagesSeen, dealsAdded, messagesFailed };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    await services.ingestRunService.finish(runId, {
+    await services.ingestRunService.finishIngestRun(runId, {
       messagesSeen,
       dealsAdded,
       messagesFailed,

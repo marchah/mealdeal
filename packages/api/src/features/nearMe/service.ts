@@ -7,24 +7,28 @@ function compareDeals(left: Deal, right: Deal): number {
 
 // Coordinates come exclusively from LocationService and distances exclusively from StoreService.
 // This orchestration keeps each underlying concern reusable while defining the near-me contract.
-export function nearMeServiceFactory(dependencies: NearMeDependencies): NearMeService {
+export function nearMeServiceFactory({
+  locationService: { getUserLocation },
+  storeService: { storesNearLocation },
+  dealService: { listDeals },
+  couponTypeService: { getCouponTypes },
+  newsletterService: { listRecommendedByMerchantIds },
+}: NearMeDependencies): NearMeService {
   async function storesNearMe({ radiusMiles }: { radiusMiles: number }) {
-    const coordinates = await dependencies.locationService.getUserLocation();
-    return dependencies.storeService.storesNearLocation({ ...coordinates, radiusMiles });
+    const coordinates = await getUserLocation();
+    return storesNearLocation({ ...coordinates, radiusMiles });
   }
 
   async function recommendedNewsletters(input: NearMeInput) {
     const stores = await storesNearMe(input);
-    return dependencies.newsletterService.listRecommendedByMerchantIds(
-      stores.map((store) => store.id),
-    );
+    return listRecommendedByMerchantIds(stores.map((store) => store.id));
   }
 
   async function dealsNearMe(input: NearMeInput) {
     const [stores, deals, couponTypes] = await Promise.all([
       storesNearMe(input),
-      dependencies.dealService.listDeals({ activeOnly: true, category: null }),
-      dependencies.couponTypeService.getCouponTypes(),
+      listDeals({ activeOnly: true, category: null }),
+      getCouponTypes(),
     ]);
     const nearbyMerchantIds = new Set(stores.map((store) => store.id));
     const couponTypesById = new Map(couponTypes.map((couponType) => [couponType.id, couponType]));

@@ -17,9 +17,9 @@ export interface StoresNearLocationInput {
 }
 
 export interface StoreRepository {
-  listWithLocation(input: StoresNearLocationInput): Promise<Store[]>;
+  listStoresWithLocation: (input: StoresNearLocationInput) => Promise<Store[]>;
 }
 
 export interface StoreService {
-  storesNearLocation(input: StoresNearLocationInput): Promise<Store[]>;
+  storesNearLocation: (input: StoresNearLocationInput) => Promise<Store[]>;
 }

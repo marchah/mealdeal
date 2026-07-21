@@ -26,16 +26,16 @@ export interface AddPrefInput {
 }
 
 export interface TrackingPrefRepository {
-  list(): Promise<TrackingPref[]>;
-  listByKind(kind: PrefKind): Promise<TrackingPref[]>;
-  add(input: AddPrefInput): Promise<TrackingPref>;
-  remove(id: string): Promise<boolean>;
+  listPrefs: () => Promise<TrackingPref[]>;
+  listPrefsByKind: (kind: PrefKind) => Promise<TrackingPref[]>;
+  addPref: (input: AddPrefInput) => Promise<TrackingPref>;
+  removePref: (id: string) => Promise<boolean>;
 }
 
 export interface TrackingPrefService {
-  list(): Promise<TrackingPref[]>;
-  add(input: AddPrefInput): Promise<TrackingPref>;
-  remove(id: string): Promise<boolean>;
+  listPrefs: () => Promise<TrackingPref[]>;
+  addPref: (input: AddPrefInput) => Promise<TrackingPref>;
+  removePref: (id: string) => Promise<boolean>;
   /** Lowercased mute values, split by scope — used to filter active deals. */
-  mutedValues(): Promise<{ items: Set<string>; categories: Set<string> }>;
+  mutedValues: () => Promise<{ items: Set<string>; categories: Set<string> }>;
 }

@@ -5,7 +5,7 @@ import type { Db } from '../../db/client';
 import type { FinishIngestInput, IngestRun, IngestRunRepository } from './types';
 
 export function ingestRunRepositoryFactory({ db }: { db: Db }): IngestRunRepository {
-  async function lastCompletedAt() {
+  async function lastIngestCompletedAt() {
     const rows = await db
       .select({ finishedAt: ingestRuns.finishedAt })
       .from(ingestRuns)
@@ -15,12 +15,12 @@ export function ingestRunRepositoryFactory({ db }: { db: Db }): IngestRunReposit
     return rows[0]?.finishedAt ?? null;
   }
 
-  async function count() {
+  async function countIngestRuns() {
     const rows = await db.select({ value: sqlCount() }).from(ingestRuns);
     return rows[0]?.value ?? 0;
   }
 
-  async function create() {
+  async function createIngestRun() {
     const row: IngestRun = {
       id: randomUUID(),
       startedAt: new Date(),
@@ -34,7 +34,7 @@ export function ingestRunRepositoryFactory({ db }: { db: Db }): IngestRunReposit
     return row;
   }
 
-  async function finish(id: string, input: FinishIngestInput) {
+  async function finishIngestRun(id: string, input: FinishIngestInput) {
     await db
       .update(ingestRuns)
       .set({
@@ -47,5 +47,5 @@ export function ingestRunRepositoryFactory({ db }: { db: Db }): IngestRunReposit
       .where(eq(ingestRuns.id, id));
   }
 
-  return { lastCompletedAt, count, create, finish };
+  return { lastIngestCompletedAt, countIngestRuns, createIngestRun, finishIngestRun };
 }

@@ -5,22 +5,22 @@ export function ingestRunServiceFactory({
 }: {
   ingestRunRepository: IngestRunRepository;
 }): IngestRunService {
-  function lastCompletedAt() {
-    return ingestRunRepository.lastCompletedAt();
+  function lastIngestCompletedAt() {
+    return ingestRunRepository.lastIngestCompletedAt();
   }
 
-  function count() {
-    return ingestRunRepository.count();
+  function countIngestRuns() {
+    return ingestRunRepository.countIngestRuns();
   }
 
-  async function start() {
-    const run = await ingestRunRepository.create();
+  async function startIngestRun() {
+    const run = await ingestRunRepository.createIngestRun();
     return run.id;
   }
 
-  function finish(id: string, input: FinishIngestInput) {
-    return ingestRunRepository.finish(id, input);
+  function finishIngestRun(id: string, input: FinishIngestInput) {
+    return ingestRunRepository.finishIngestRun(id, input);
   }
 
-  return { lastCompletedAt, count, start, finish };
+  return { lastIngestCompletedAt, countIngestRuns, startIngestRun, finishIngestRun };
 }

@@ -4,8 +4,10 @@ import type { TrackingPrefService } from '../trackingPref/types';
 import { dealServiceFactory } from './service';
 import type { Deal, DealRepository } from './types';
 
-// Reference test for the factory-DI pattern: build the service with hand-mocked PORTS
-// (plain objects satisfying the interface) — no database, no framework.
+// Reference test for the factory-DI pattern. The repository is injected whole; each collaborator is a
+// PARTIAL mock — only the functions this suite exercises — with `@ts-expect-error partial mock` above
+// it to accept the intentionally-incomplete object. If the code reaches an un-mocked function the test
+// fails (it is `undefined`), which is exactly the signal we want.
 
 const makeDeal = (over: Partial<Deal> = {}): Deal => ({
   id: 'd1',
@@ -36,33 +38,30 @@ function makeService(
   } = {},
 ) {
   const rows = over.deals ?? [makeDeal()];
+  // @ts-expect-error partial mock: only the repository functions used are provided
   const dealRepository: DealRepository = {
-    listAll: () => Promise.resolve(rows),
-    findByIds: () => Promise.resolve(rows),
-    findById: (id) => Promise.resolve(rows.find((d) => d.id === id) ?? null),
-    insertIfNew: () => Promise.resolve(true),
-    count: () => Promise.resolve(rows.length),
+    findDealById: (id) => Promise.resolve(rows.find((d) => d.id === id) ?? null),
+    listDeals: () => Promise.resolve(rows),
+    countDeals: () => Promise.resolve(rows.length),
   };
-  const trackingPrefService = {
+  // @ts-expect-error partial mock: only mutedValues is used
+  const trackingPrefService: TrackingPrefService = {
     mutedValues: () =>
       Promise.resolve(over.muted ?? { items: new Set<string>(), categories: new Set<string>() }),
-  } as unknown as TrackingPrefService;
-  const couponTypeService = {
-    findById: (id: string) =>
+  };
+  // @ts-expect-error partial mock: only findCouponTypeById is used
+  const couponTypeService: CouponTypeService = {
+    findCouponTypeById: (id: string) =>
       Promise.resolve(over.couponTypes?.find((couponType) => couponType.id === id) ?? null),
-  } as unknown as CouponTypeService;
+  };
 
-  return dealServiceFactory({
-    dealRepository,
-    trackingPrefService,
-    couponTypeService,
-  });
+  return dealServiceFactory({ dealRepository, trackingPrefService, couponTypeService });
 }
 
 describe('dealService', () => {
-  it('count returns the total number of deals', async () => {
+  it('countDeals returns the total number of deals', async () => {
     const service = makeService({ deals: [makeDeal({ id: 'a' }), makeDeal({ id: 'b' })] });
-    await expect(service.count()).resolves.toBe(2);
+    await expect(service.countDeals()).resolves.toBe(2);
   });
 
   it('filters muted categories out of the active list', async () => {
@@ -76,7 +75,7 @@ describe('dealService', () => {
 
   it('throws NotFoundError for a missing id', async () => {
     const service = makeService({ deals: [] });
-    await expect(service.getById('nope')).rejects.toThrow('No deal with id nope');
+    await expect(service.getDealById('nope')).rejects.toThrow('No deal with id nope');
   });
 
   it('loads coupon types through the injected service and tolerates missing classifications', async () => {
@@ -88,10 +87,12 @@ describe('dealService', () => {
     };
     const service = makeService({ couponTypes: [couponType] });
 
-    await expect(service.getCouponType(makeDeal({ couponTypeId: couponType.id }))).resolves.toEqual(
-      couponType,
-    );
-    await expect(service.getCouponType(makeDeal({ couponTypeId: 'missing' }))).resolves.toBeNull();
-    await expect(service.getCouponType(makeDeal({ couponTypeId: null }))).resolves.toBeNull();
+    await expect(
+      service.getDealCouponType(makeDeal({ couponTypeId: couponType.id })),
+    ).resolves.toEqual(couponType);
+    await expect(
+      service.getDealCouponType(makeDeal({ couponTypeId: 'missing' })),
+    ).resolves.toBeNull();
+    await expect(service.getDealCouponType(makeDeal({ couponTypeId: null }))).resolves.toBeNull();
   });
 });

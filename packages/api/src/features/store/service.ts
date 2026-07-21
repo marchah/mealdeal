@@ -8,7 +8,7 @@ export function storeServiceFactory({
   storeRepository: StoreRepository;
 }): StoreService {
   async function storesNearLocation(input: StoresNearLocationInput) {
-    const stores = await storeRepository.listWithLocation(input);
+    const stores = await storeRepository.listStoresWithLocation(input);
     return stores
       .filter((store) => store.distanceMiles <= input.radiusMiles)
       .sort(

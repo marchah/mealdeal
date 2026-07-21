@@ -9,12 +9,12 @@ const notExpired = () => or(isNull(deals.expiresAt), gt(deals.expiresAt, new Dat
 
 // The ONLY layer that imports the db. Composes Drizzle queries into the DealRepository port.
 export function dealRepositoryFactory({ db }: { db: Db }): DealRepository {
-  async function findById(id: string) {
+  async function findDealById(id: string) {
     const rows = await db.select().from(deals).where(eq(deals.id, id)).limit(1);
     return rows[0] ?? null;
   }
 
-  async function findByIds(ids: readonly string[]) {
+  async function findDealsByIds(ids: readonly string[]) {
     if (ids.length === 0) return [];
     return db
       .select()
@@ -22,7 +22,7 @@ export function dealRepositoryFactory({ db }: { db: Db }): DealRepository {
       .where(inArray(deals.id, [...ids]));
   }
 
-  async function listAll(input: ListDealsInput) {
+  async function listDeals(input: ListDealsInput) {
     return db
       .select()
       .from(deals)
@@ -34,12 +34,12 @@ export function dealRepositoryFactory({ db }: { db: Db }): DealRepository {
       );
   }
 
-  async function count() {
+  async function countDeals() {
     const rows = await db.select({ value: sqlCount() }).from(deals);
     return rows[0]?.value ?? 0;
   }
 
-  async function insertIfNew(deal: NewDeal) {
+  async function insertDealIfNew(deal: NewDeal) {
     const result = await db
       .insert(deals)
       .values({ id: randomUUID(), ...deal })
@@ -47,5 +47,5 @@ export function dealRepositoryFactory({ db }: { db: Db }): DealRepository {
     return (result.rowsAffected ?? 0) > 0;
   }
 
-  return { findById, findByIds, listAll, count, insertIfNew };
+  return { findDealById, findDealsByIds, listDeals, countDeals, insertDealIfNew };
 }

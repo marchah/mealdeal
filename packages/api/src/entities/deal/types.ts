@@ -51,19 +51,21 @@ export interface NewDeal {
   dedupHash: string;
 }
 
+// Method names are entity-qualified (never a bare find/list/count/insert) so a factory can
+// destructure them from an injected service without collisions.
 export interface DealRepository {
-  listAll(input: ListDealsInput): Promise<Deal[]>;
-  findByIds(ids: readonly string[]): Promise<Deal[]>;
-  findById(id: string): Promise<Maybe<Deal>>;
-  insertIfNew(deal: NewDeal): Promise<boolean>;
-  count(): Promise<number>;
+  findDealById: (id: string) => Promise<Maybe<Deal>>;
+  findDealsByIds: (ids: readonly string[]) => Promise<Deal[]>;
+  listDeals: (input: ListDealsInput) => Promise<Deal[]>;
+  countDeals: () => Promise<number>;
+  insertDealIfNew: (deal: NewDeal) => Promise<boolean>;
 }
 
 export interface DealService {
-  listDeals(input: ListDealsInput): Promise<Deal[]>;
-  getById(id: string): Promise<Deal>;
-  getCouponType(deal: Deal): Promise<Maybe<CouponType>>;
-  count(): Promise<number>;
+  getDealById: (id: string) => Promise<Deal>;
+  listDeals: (input: ListDealsInput) => Promise<Deal[]>;
+  countDeals: () => Promise<number>;
   /** Persist a deal produced by ingest; returns false if it was a dedup no-op. */
-  add(deal: NewDeal): Promise<boolean>;
+  addDeal: (deal: NewDeal) => Promise<boolean>;
+  getDealCouponType: (deal: Deal) => Promise<Maybe<CouponType>>;
 }

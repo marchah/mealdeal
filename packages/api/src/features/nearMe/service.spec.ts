@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { CouponTypeService } from '../../entities/couponType/types';
 import type { Deal, DealService } from '../../entities/deal/types';
+import type { LocationService } from '../../entities/location/types';
 import type { Newsletter, NewsletterService } from '../../entities/newsletter/types';
-import type { Store } from '../store/types';
+import type { Store, StoreService } from '../store/types';
 import { nearMeServiceFactory } from './service';
 
 const makeDeal = (over: Partial<Deal> = {}): Deal => ({
@@ -60,12 +61,22 @@ function makeService({
   const storesNearLocation = vi.fn().mockResolvedValue(stores);
   const listDeals = vi.fn().mockResolvedValue(deals);
   const listRecommendedByMerchantIds = vi.fn().mockResolvedValue(newsletters);
+  const locationService: LocationService = { getUserLocation };
+  const storeService: StoreService = { storesNearLocation };
+  // @ts-expect-error partial mock: only listDeals is used
+  const dealService: DealService = { listDeals };
+  // @ts-expect-error partial mock: only getCouponTypes is used
+  const couponTypeService: CouponTypeService = {
+    getCouponTypes: () => Promise.resolve(couponTypes),
+  };
+  // @ts-expect-error partial mock: only listRecommendedByMerchantIds is used
+  const newsletterService: NewsletterService = { listRecommendedByMerchantIds };
   const service = nearMeServiceFactory({
-    locationService: { getUserLocation },
-    storeService: { storesNearLocation },
-    dealService: { listDeals } as unknown as DealService,
-    couponTypeService: { getCouponTypes: () => Promise.resolve(couponTypes) } as CouponTypeService,
-    newsletterService: { listRecommendedByMerchantIds } as unknown as NewsletterService,
+    locationService,
+    storeService,
+    dealService,
+    couponTypeService,
+    newsletterService,
   });
   return { service, getUserLocation, storesNearLocation, listDeals, listRecommendedByMerchantIds };
 }

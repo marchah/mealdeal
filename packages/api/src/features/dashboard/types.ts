@@ -10,5 +10,5 @@ export interface Stats {
 }
 
 export interface DashboardService {
-  getStats(): Promise<Stats>;
+  getStats: () => Promise<Stats>;
 }

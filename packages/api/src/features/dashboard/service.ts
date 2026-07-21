@@ -6,9 +6,9 @@ import type { DashboardService } from './types';
 // Composes the app-overview read model from lower-level entities (deal, merchant) and the
 // ingestRun feature. A feature may depend on entities; it uses their PORTS, never a repository.
 export function dashboardServiceFactory({
-  dealService,
-  merchantService,
-  ingestRunService,
+  dealService: { listDeals, countDeals },
+  merchantService: { countMerchants },
+  ingestRunService: { lastIngestCompletedAt },
 }: {
   dealService: DealService;
   merchantService: MerchantService;
@@ -18,10 +18,10 @@ export function dashboardServiceFactory({
     // activeDeals reuses dealService.listDeals so it stays consistent with the rendered list
     // (both exclude muted items/categories).
     const [active, totalDeals, merchants, lastIngestAt] = await Promise.all([
-      dealService.listDeals({ activeOnly: true, category: null }),
-      dealService.count(),
-      merchantService.count(),
-      ingestRunService.lastCompletedAt(),
+      listDeals({ activeOnly: true, category: null }),
+      countDeals(),
+      countMerchants(),
+      lastIngestCompletedAt(),
     ]);
     return { activeDeals: active.length, totalDeals, merchants, lastIngestAt };
   }

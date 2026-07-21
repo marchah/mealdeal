@@ -13,7 +13,9 @@ const makeStore = (over: Partial<Store> = {}): Store => ({
 });
 
 function makeService(stores: Store[]) {
-  const storeRepository: StoreRepository = { listWithLocation: () => Promise.resolve(stores) };
+  const storeRepository: StoreRepository = {
+    listStoresWithLocation: () => Promise.resolve(stores),
+  };
   return storeServiceFactory({ storeRepository });
 }
 
