@@ -82,11 +82,12 @@ request `ctx` (`ctx.services.dealService…`). This works with Node's runtime (n
 build magic) and makes unit tests trivial: build a service with hand-mocked ports (see
 `entities/deal/service.spec.ts` — the reference test).
 
-**Inject the repository (or the slice's own data port, e.g. `zipCoordinateLookup`) whole and first;
-destructure every _other_ collaborator service to the functions used** — typed as the full service,
-`dealService: { listDeals, countDeals }` — so the factory header shows exactly what it consumes. In
-the unit test, **mock only those functions** (a partial object with `// @ts-expect-error partial mock`
-above it); a missing-but-called mock makes the test fail, which is the point.
+**Inject data & I/O ports — the `repository` and any adapter / third-party port (e.g.
+`zipCoordinateLookup`) — whole and first (never destructured); destructure every collaborator
+service to the functions used** — typed as the full service, `dealService: { listDeals, countDeals }` —
+so the factory header shows exactly what it consumes. In the unit test, **mock only those functions**
+(a partial object with `// @ts-expect-error partial mock` above it); a missing-but-called mock makes
+the test fail, which is the point.
 
 ## How to add a feature / entity — copy the `deal` entity
 

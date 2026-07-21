@@ -131,11 +131,11 @@ through a `repository.ts`; a slice with no DB table (e.g. `location`) instead de
 - **Every unit is a factory** taking its dependencies as one object and returning an object typed by
   an explicit port: `dealServiceFactory({ dealRepository }): DealService`. No DI container, no
   decorators, no module-level singletons (they break test isolation).
-- **Inject the repository whole and first; destructure collaborator services to the functions used.**
-  A factory's own data port — its `repository` (or the adapter that stands in for one, e.g.
-  `zipCoordinateLookup`) — is passed as a whole object, listed first. Every _other_ service it depends
-  on is destructured down to the functions it calls, typed as the full service, so the header shows
-  exactly what it consumes:
+- **Inject data & I/O ports (repositories and adapters) whole and first; destructure collaborator
+  services to the functions used.** A factory's ports — its `repository` and any injected adapter /
+  third-party port (e.g. `zipCoordinateLookup`) — are passed as whole objects, listed first (never
+  destructured). Every collaborator _service_ it depends on is destructured down to the functions it
+  calls, typed as the full service, so the header shows exactly what it consumes:
 
   ```ts
   export function dashboardServiceFactory({
