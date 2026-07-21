@@ -36,6 +36,13 @@
       "when": 1784391915094,
       "tag": "0004_broken_doomsday",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1784586905428,
+      "tag": "0005_broken_makkari",
+      "breakpoints": true
     }
   ]
 }

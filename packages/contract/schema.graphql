@@ -44,8 +44,30 @@ type Merchant {
 }
 
 type Mutation {
+  addNewsletter(merchantId: ID!, name: String!, recommended: Boolean = false, signupUrl: String!): MutationAddNewsletterResult!
   addPref(kind: PrefKind!, scope: PrefScope!, value: String!): TrackingPref!
+  removeNewsletter(id: ID!): MutationRemoveNewsletterResult!
   removePref(id: ID!): Boolean!
+}
+
+union MutationAddNewsletterResult = MutationAddNewsletterSuccess | NotFoundError | ServerError | ValidationError
+
+type MutationAddNewsletterSuccess {
+  data: Newsletter!
+}
+
+union MutationRemoveNewsletterResult = MutationRemoveNewsletterSuccess | NotFoundError | ServerError
+
+type MutationRemoveNewsletterSuccess {
+  data: Newsletter!
+}
+
+type Newsletter {
+  id: ID!
+  merchantId: ID!
+  name: String!
+  recommended: Boolean!
+  signupUrl: String!
 }
 
 type NotFoundError {
@@ -67,6 +89,7 @@ type Query {
   deal(id: ID!): QueryDealResult!
   deals(activeOnly: Boolean = true, category: String): [Deal!]!
   getCouponTypes: [CouponType!]!
+  newsletter(id: ID!): QueryNewsletterResult!
   prefs: [TrackingPref!]!
   stats: Stats!
 }
@@ -75,6 +98,12 @@ union QueryDealResult = NotFoundError | QueryDealSuccess | ServerError
 
 type QueryDealSuccess {
   data: Deal!
+}
+
+union QueryNewsletterResult = NotFoundError | QueryNewsletterSuccess | ServerError
+
+type QueryNewsletterSuccess {
+  data: Newsletter!
 }
 
 type ServerError {
