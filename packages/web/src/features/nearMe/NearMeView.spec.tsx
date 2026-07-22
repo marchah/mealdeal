@@ -59,6 +59,72 @@ describe('NearMeView', () => {
     expect(container.textContent).toContain('USER_LOCATION');
   });
 
+  it('distinguishes an unknown ZIP code from a missing configuration', () => {
+    queryResult([
+      {
+        data: {
+          storesNearMe: {
+            __typename: 'LocationNotFoundError',
+            message: 'No place found for this ZIP code',
+            status: 404,
+          },
+          dealsNearMe: {
+            __typename: 'LocationNotFoundError',
+            message: 'No place found for this ZIP code',
+            status: 404,
+          },
+          recommendedNewsletters: {
+            __typename: 'LocationNotFoundError',
+            message: 'No place found for this ZIP code',
+            status: 404,
+          },
+        },
+        fetching: false,
+        error: undefined,
+      },
+      vi.fn(),
+    ]);
+
+    const container = renderNearMe();
+
+    expect(container.textContent).toContain('could not find that USER_LOCATION ZIP code');
+    expect(container.textContent).not.toContain('Set a valid USER_LOCATION');
+  });
+
+  it('shows typed service failures as an alert with the server message', () => {
+    queryResult([
+      {
+        data: {
+          storesNearMe: {
+            __typename: 'ServerError',
+            message: 'The location service timed out',
+            status: 500,
+          },
+          dealsNearMe: {
+            __typename: 'ServerError',
+            message: 'The location service timed out',
+            status: 500,
+          },
+          recommendedNewsletters: {
+            __typename: 'ServerError',
+            message: 'The location service timed out',
+            status: 500,
+          },
+        },
+        fetching: false,
+        error: undefined,
+      },
+      vi.fn(),
+    ]);
+
+    const container = renderNearMe();
+
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      'The location service timed out',
+    );
+    expect(container.textContent).not.toContain('Set a valid USER_LOCATION');
+  });
+
   it('shows useful empty states for a configured location with no nearby data', () => {
     queryResult([
       {

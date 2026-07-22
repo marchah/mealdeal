@@ -14,6 +14,26 @@ const NearMeQuery = graphql(`
           distanceMiles
         }
       }
+      ... on LocationLookupError {
+        message
+        status
+      }
+      ... on LocationNotConfiguredError {
+        message
+        status
+      }
+      ... on LocationNotFoundError {
+        message
+        status
+      }
+      ... on ServerError {
+        message
+        status
+      }
+      ... on ValidationError {
+        message
+        status
+      }
     }
     dealsNearMe {
       __typename
@@ -34,6 +54,26 @@ const NearMeQuery = graphql(`
           }
         }
       }
+      ... on LocationLookupError {
+        message
+        status
+      }
+      ... on LocationNotConfiguredError {
+        message
+        status
+      }
+      ... on LocationNotFoundError {
+        message
+        status
+      }
+      ... on ServerError {
+        message
+        status
+      }
+      ... on ValidationError {
+        message
+        status
+      }
     }
     recommendedNewsletters {
       __typename
@@ -44,6 +84,26 @@ const NearMeQuery = graphql(`
           signupUrl
         }
       }
+      ... on LocationLookupError {
+        message
+        status
+      }
+      ... on LocationNotConfiguredError {
+        message
+        status
+      }
+      ... on LocationNotFoundError {
+        message
+        status
+      }
+      ... on ServerError {
+        message
+        status
+      }
+      ... on ValidationError {
+        message
+        status
+      }
     }
   }
 `);
@@ -52,6 +112,14 @@ type NearMeData = ResultOf<typeof NearMeQuery>;
 type StoresResult = NearMeData['storesNearMe'];
 type DealsResult = NearMeData['dealsNearMe'];
 type NewslettersResult = NearMeData['recommendedNewsletters'];
+type NearMeResult = StoresResult | DealsResult | NewslettersResult;
+type NearMeFailure = Exclude<
+  NearMeResult,
+  {
+    __typename:
+      'QueryStoresNearMeSuccess' | 'QueryDealsNearMeSuccess' | 'QueryRecommendedNewslettersSuccess';
+  }
+>;
 
 function hasStores(
   result: StoresResult,
@@ -71,6 +139,40 @@ function hasNewsletters(
   return result.__typename === 'QueryRecommendedNewslettersSuccess';
 }
 
+function NearMeFailureState({ result }: { result: NearMeFailure }) {
+  if (result.__typename === 'LocationNotConfiguredError') {
+    return (
+      <section className="mt-6 space-y-2" aria-labelledby="near-me-unavailable">
+        <h2 id="near-me-unavailable" className="text-lg font-semibold">
+          Near me is unavailable
+        </h2>
+        <p className="text-muted-foreground">
+          Set a valid USER_LOCATION ZIP code to see stores and deals near you, then try again.
+        </p>
+      </section>
+    );
+  }
+
+  if (result.__typename === 'LocationNotFoundError') {
+    return (
+      <section className="mt-6 space-y-2" aria-labelledby="near-me-unavailable">
+        <h2 id="near-me-unavailable" className="text-lg font-semibold">
+          Near me is unavailable
+        </h2>
+        <p className="text-muted-foreground">
+          We could not find that USER_LOCATION ZIP code. Update it and try again.
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <p className="mt-6 text-destructive" role="alert">
+      Failed to load nearby deals: {result.message}
+    </p>
+  );
+}
+
 export function NearMeView() {
   const [{ data, fetching, error }] = useQuery({ query: NearMeQuery });
 
@@ -88,22 +190,10 @@ export function NearMeView() {
     );
   if (!data) return null;
 
-  if (
-    !hasStores(data.storesNearMe) ||
-    !hasDeals(data.dealsNearMe) ||
-    !hasNewsletters(data.recommendedNewsletters)
-  ) {
-    return (
-      <section className="mt-6 space-y-2" aria-labelledby="near-me-unavailable">
-        <h2 id="near-me-unavailable" className="text-lg font-semibold">
-          Near me is unavailable
-        </h2>
-        <p className="text-muted-foreground">
-          Set a valid USER_LOCATION ZIP code to see stores and deals near you, then try again.
-        </p>
-      </section>
-    );
-  }
+  if (!hasStores(data.storesNearMe)) return <NearMeFailureState result={data.storesNearMe} />;
+  if (!hasDeals(data.dealsNearMe)) return <NearMeFailureState result={data.dealsNearMe} />;
+  if (!hasNewsletters(data.recommendedNewsletters))
+    return <NearMeFailureState result={data.recommendedNewsletters} />;
 
   const stores = data.storesNearMe.data;
   const dealGroups = data.dealsNearMe.data;
