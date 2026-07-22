@@ -1,0 +1,148 @@
+import { act } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { useQuery } from 'urql';
+import { NearMeView } from './NearMeView';
+
+vi.mock('urql', () => ({ useQuery: vi.fn() }));
+
+let root: Root | null = null;
+
+function renderNearMe() {
+  const container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+  act(() => root?.render(<NearMeView />));
+  return container;
+}
+
+function queryResult(result: unknown) {
+  vi.mocked(useQuery).mockReturnValue(result as never);
+}
+
+afterEach(() => {
+  act(() => root?.unmount());
+  root = null;
+  document.body.replaceChildren();
+  vi.clearAllMocks();
+});
+
+describe('NearMeView', () => {
+  it('communicates loading and network-error states', () => {
+    queryResult([{ data: undefined, fetching: true, error: undefined }, vi.fn()]);
+    const loading = renderNearMe();
+    expect(loading.querySelector('[role="status"]')?.textContent).toContain('Finding nearby deals');
+    act(() => root?.unmount());
+
+    queryResult([{ data: undefined, fetching: false, error: new Error('Network down') }, vi.fn()]);
+    const failed = renderNearMe();
+    expect(failed.querySelector('[role="alert"]')?.textContent).toContain('Network down');
+  });
+
+  it('explains when the configured location cannot be used', () => {
+    queryResult([
+      {
+        data: {
+          storesNearMe: { __typename: 'LocationNotConfiguredError' },
+          dealsNearMe: { __typename: 'LocationNotConfiguredError' },
+          recommendedNewsletters: { __typename: 'LocationNotConfiguredError' },
+        },
+        fetching: false,
+        error: undefined,
+      },
+      vi.fn(),
+    ]);
+
+    const container = renderNearMe();
+
+    expect(container.textContent).toContain('Near me is unavailable');
+    expect(container.textContent).toContain('USER_LOCATION');
+  });
+
+  it('distinguishes an unknown ZIP code from a missing configuration', () => {
+    queryResult([
+      {
+        data: {
+          storesNearMe: {
+            __typename: 'LocationNotFoundError',
+            message: 'No place found for this ZIP code',
+            status: 404,
+          },
+          dealsNearMe: {
+            __typename: 'LocationNotFoundError',
+            message: 'No place found for this ZIP code',
+            status: 404,
+          },
+          recommendedNewsletters: {
+            __typename: 'LocationNotFoundError',
+            message: 'No place found for this ZIP code',
+            status: 404,
+          },
+        },
+        fetching: false,
+        error: undefined,
+      },
+      vi.fn(),
+    ]);
+
+    const container = renderNearMe();
+
+    expect(container.textContent).toContain('could not find that USER_LOCATION ZIP code');
+    expect(container.textContent).not.toContain('Set a valid USER_LOCATION');
+  });
+
+  it('shows typed service failures as an alert with the server message', () => {
+    queryResult([
+      {
+        data: {
+          storesNearMe: {
+            __typename: 'ServerError',
+            message: 'The location service timed out',
+            status: 500,
+          },
+          dealsNearMe: {
+            __typename: 'ServerError',
+            message: 'The location service timed out',
+            status: 500,
+          },
+          recommendedNewsletters: {
+            __typename: 'ServerError',
+            message: 'The location service timed out',
+            status: 500,
+          },
+        },
+        fetching: false,
+        error: undefined,
+      },
+      vi.fn(),
+    ]);
+
+    const container = renderNearMe();
+
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      'The location service timed out',
+    );
+    expect(container.textContent).not.toContain('Set a valid USER_LOCATION');
+  });
+
+  it('shows useful empty states for a configured location with no nearby data', () => {
+    queryResult([
+      {
+        data: {
+          storesNearMe: { __typename: 'QueryStoresNearMeSuccess', data: [] },
+          dealsNearMe: { __typename: 'QueryDealsNearMeSuccess', data: [] },
+          recommendedNewsletters: { __typename: 'QueryRecommendedNewslettersSuccess', data: [] },
+        },
+        fetching: false,
+        error: undefined,
+      },
+      vi.fn(),
+    ]);
+
+    const container = renderNearMe();
+
+    expect(container.textContent).toContain('No stores found within 25 miles.');
+    expect(container.textContent).toContain('No active deals found at nearby stores.');
+    expect(container.textContent).toContain('No newsletter recommendations for nearby stores.');
+  });
+});
