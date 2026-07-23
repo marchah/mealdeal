@@ -1,6 +1,7 @@
 import type { Settings } from '../common/settings';
+import type { EmailSource } from './email';
 import { folderEmailSourceFactory } from './folder';
-import { imapClientFactory, type EmailSource } from './imap';
+import { imapClientFactory } from './imap';
 
 /** Select the configured email adapter exactly once at the ingest composition boundary. */
 export function emailSourceFactory({ config }: { config: Settings }): EmailSource | null {

@@ -1,23 +1,7 @@
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 import type { ImapSettings } from '../common/settings';
-
-export interface FetchedEmail {
-  uid: number;
-  from: string;
-  subject: string;
-  date: Date;
-  text: string;
-  html: string | null;
-}
-
-/** Acknowledged only after the email's deals have been durably processed. */
-export interface EmailSource {
-  fetchUnseen(limit: number): Promise<FetchedEmail[]>;
-  /** Acknowledge messages (\Seen). Call ONLY after their deals are durably stored, so a
-   *  failed pass leaves them unseen for the next retry (at-least-once ingest). */
-  markSeen(uids: readonly number[]): Promise<void>;
-}
+import type { EmailSource, FetchedEmail } from './email';
 
 /** Mailparser represents a missing HTML part as `undefined` or `false`. Keep that detail at
  * the IMAP boundary so the rest of ingest only has to distinguish HTML from no HTML. */

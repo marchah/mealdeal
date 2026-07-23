@@ -5,8 +5,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { logWarning } from '../common/logger';
 import type { NewDeal } from '../entities/deal/types';
 import type { Services } from '../services';
+import type { EmailSource, FetchedEmail } from './email';
 import type { DealExtractor } from './extractor';
-import type { EmailSource, FetchedEmail } from './imap';
 import { canonicalEmailBody, ingestOnce, MAX_CANONICAL_BODY_LENGTH } from './run';
 
 vi.mock('../common/logger', () => ({

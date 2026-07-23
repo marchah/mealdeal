@@ -8,7 +8,7 @@ import { getServices, type Services } from '../services';
 import type { NewDeal } from '../entities/deal/types';
 import { llmExtractorFactory, type DealExtractor } from './extractor';
 import { archiveCanonicalMarkdown } from './archive';
-import type { EmailSource } from './imap';
+import type { EmailSource } from './email';
 import { mdreamHtmlToMarkdownConverterFactory, type HtmlToMarkdownConverter } from './markdown';
 import { emailSourceFactory } from './source';
 

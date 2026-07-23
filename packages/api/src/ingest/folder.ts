@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, readdir, rename, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
-import type { EmailSource, FetchedEmail } from './imap';
+import type { EmailSource, FetchedEmail } from './email';
 
 /** A deterministic, offline email source. Only top-level Markdown files are eligible. */
 export function folderEmailSourceFactory({ directory }: { directory: string }): EmailSource {
