@@ -9,7 +9,19 @@ builder.mutationFields((t) => ({
     args: {
       merchantId: t.arg.id({ required: true }),
       name: t.arg.string({ required: true, validate: { minLength: 1, maxLength: 200 } }),
-      signupUrl: t.arg.string({ required: true, validate: { url: true, maxLength: 2_000 } }),
+      // `url: true` accepts any parseable URL — including `javascript:`/`data:`. Since the web
+      // renders signupUrl as an <a href>, restrict it to http(s) so a stored link can't be a script.
+      signupUrl: t.arg.string({
+        required: true,
+        validate: {
+          maxLength: 2_000,
+          url: true,
+          refine: [
+            (value) => /^https?:\/\//i.test(value),
+            { message: 'signupUrl must be an http(s) URL' },
+          ],
+        },
+      }),
       recommended: t.arg.boolean({ defaultValue: false }),
     },
     resolve: (_root, args, ctx) =>

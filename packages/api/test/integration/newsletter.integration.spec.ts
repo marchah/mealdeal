@@ -114,6 +114,18 @@ test('addNewsletter validates the signup URL before invoking the service', async
   expect(await createDb().select().from(newsletters)).toEqual([]);
 });
 
+test('addNewsletter rejects a non-http(s) signup URL scheme (e.g. javascript:)', async () => {
+  const merchantId = await seedMerchant();
+  // `javascript:alert(1)` is a valid URL per z.string().url(), so only the scheme refinement blocks it.
+  const body = await runOperation(
+    `mutation { addNewsletter(merchantId: "${merchantId}", name: "Offers", signupUrl: "javascript:alert(1)") { __typename ... on ValidationError { message status } } }`,
+  );
+  expect(body).toMatchObject({
+    data: { addNewsletter: { __typename: 'ValidationError', status: 422 } },
+  });
+  expect(await createDb().select().from(newsletters)).toEqual([]);
+});
+
 test('newsletter and removeNewsletter report typed not-found errors for a missing newsletter', async () => {
   const query = await runOperation(
     '{ newsletter(id: "missing") { __typename ... on NotFoundError { message status } } }',
