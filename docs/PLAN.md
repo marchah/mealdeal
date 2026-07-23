@@ -134,3 +134,22 @@ code is correct, it's just starved of inputs:
     another lib tomorrow) and guard output length as today. Deps: [] — isolated to ingest, no schema
     change. (Ideally lands **before** features 9–10, since a richer markdown body also makes merchant
     addresses and deal categories easier to extract.)
+
+12. **Offline ingest testing — save emails as markdown + a folder-backed mock IMAP** — Iterate on
+    extraction (and on features 9–10) without a live inbox:
+    - **Save the markdown.** During a real pass, also write each converted email's markdown to a
+      configurable local folder (e.g. `INGEST_ARCHIVE_DIR`), building a corpus of real deal emails.
+    - **Mock-IMAP flag.** Add an email-source flag (e.g. `INGEST_SOURCE=folder` + `INGEST_LOCAL_DIR`)
+      that, at the composition root, swaps the real `imapClientFactory` for a **folder-backed source**
+      implementing the same `fetchUnseen` / `markSeen` interface. It replays the saved `.md` files as
+      the (already-markdown) email bodies straight to the extractor, so a full ingest runs entirely
+      offline. `markSeen` for the folder source is a no-op (or moves the file to a `processed/` subdir
+      so re-runs are idempotent).
+    - **Trigger already exists.** `POST /internal/ingest` (token-gated, calls `ingestOnce`) runs a pass
+      on demand against whichever source the flag selects; add a thin `pnpm ingest` script as a
+      convenience wrapper.
+
+    **Public-repo note:** real saved emails can carry PII, so the archive dir is **gitignored**; commit
+    only a small **synthetic / anonymized** fixture set (a handful of `.md`) for CI + examples. This
+    also makes the ingest pipeline testable end-to-end with a stable corpus (unit/integration fixtures).
+    Deps: [email-markdown-preprocessing].
