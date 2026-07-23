@@ -4,7 +4,7 @@ import type { NewDeal } from '../entities/deal/types';
 import type { Services } from '../services';
 import type { DealExtractor } from './extractor';
 import type { FetchedEmail, ImapClient } from './imap';
-import { ingestOnce } from './run';
+import { canonicalEmailBody, ingestOnce, MAX_CANONICAL_BODY_LENGTH } from './run';
 
 vi.mock('../common/logger', () => ({
   logInfo: vi.fn(),
@@ -20,6 +20,7 @@ function email(uid: number, from: string): FetchedEmail {
     subject: 'Weekly deals',
     date: new Date('2026-01-01T00:00:00Z'),
     text: 'body',
+    html: null,
   };
 }
 
@@ -43,6 +44,43 @@ function makeServices(recordAdded?: NewDeal[]): Services {
 }
 
 describe('ingestOnce', () => {
+  it('uses converted Markdown as the extractor input and raw excerpt source', async () => {
+    const added: NewDeal[] = [];
+    const extract = vi.fn(() => Promise.resolve([{ merchant: 'Shop', title: 'Cheese' }]));
+    const imap: ImapClient = {
+      fetchUnseen: () =>
+        Promise.resolve([
+          { ...email(1, 'shop@example.com'), text: 'plain text', html: '<h1>Offer</h1>' },
+        ]),
+      markSeen: () => Promise.resolve(),
+    };
+    const htmlToMarkdown = { convert: vi.fn(() => '# Offer\n\nCheese for $2.99') };
+
+    await ingestOnce({
+      imap,
+      extractor: { extract },
+      htmlToMarkdown,
+      services: makeServices(added),
+    });
+
+    expect(extract).toHaveBeenCalledWith({
+      subject: 'Weekly deals',
+      from: 'shop@example.com',
+      body: '# Offer\n\nCheese for $2.99',
+    });
+    expect(added[0]?.rawExcerpt).toBe('# Offer\n\nCheese for $2.99');
+  });
+
+  it('falls back to plain text and bounds the canonical extraction body', () => {
+    const plainText = 'a'.repeat(MAX_CANONICAL_BODY_LENGTH + 1);
+    const convert = vi.fn();
+
+    const body = canonicalEmailBody({ html: null, text: plainText }, { convert });
+
+    expect(body).toHaveLength(MAX_CANONICAL_BODY_LENGTH);
+    expect(convert).not.toHaveBeenCalled();
+  });
+
   it('acknowledges only messages whose deals were stored; failed ones stay unseen for retry', async () => {
     const markSeen = vi.fn((_uids: readonly number[]): Promise<void> => Promise.resolve());
     const imap: ImapClient = {
