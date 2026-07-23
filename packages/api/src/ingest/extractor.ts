@@ -3,12 +3,14 @@ import { z } from 'zod';
 import { ServerError } from '../common/errors';
 import type { LlmSettings } from '../common/settings';
 import type { Maybe } from '../common/types';
+import type { CouponType } from '../entities/couponType/types';
 
 // The LLM returns free-form JSON; we NEVER trust its shape — every field is validated by
 // this Zod schema before it reaches the domain. Extra/malformed fields are dropped.
 export const ExtractedDealSchema = z.object({
   merchant: z.string().min(1),
   title: z.string().min(1),
+  couponTypeKey: z.string().nullish(),
   category: z.string().nullish(),
   item: z.string().nullish(),
   discountText: z.string().nullish(),
@@ -25,16 +27,24 @@ export type ExtractedDeal = z.infer<typeof ExtractedDealSchema>;
 
 const ResponseSchema = z.object({ deals: z.array(ExtractedDealSchema) });
 
+export interface ExtractionInput {
+  subject: string;
+  from: string;
+  body: string;
+  couponTypes: readonly Pick<CouponType, 'key' | 'label'>[];
+}
+
 export interface DealExtractor {
-  extract(email: { subject: string; from: string; body: string }): Promise<ExtractedDeal[]>;
+  extract: (input: ExtractionInput) => Promise<ExtractedDeal[]>;
 }
 
 const SYSTEM_PROMPT = [
   'You extract grocery/retail deals from one marketing email.',
   'Return ONLY JSON of the form {"deals":[...]} where each deal has:',
-  'merchant, title, category, item, discountText, discountPct (number), price (number),',
+  'merchant, title, couponTypeKey, category, item, discountText, discountPct (number), price (number),',
   'currency, code, minSpend (number), url, startsAt (ISO date), expiresAt (ISO date).',
-  'Include only real, current offers. Use null for unknown fields. Empty array if none.',
+  'couponTypeKey must be one of the supplied coupon-type keys. Include only real, current offers.',
+  'Use null for unknown fields. Empty array if none.',
 ].join(' ');
 
 /**
@@ -69,7 +79,12 @@ export function llmExtractorFactory({ config }: { config: LlmSettings }): DealEx
         temperature: 0,
         response_format: { type: 'json_object' },
         messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
+          {
+            role: 'system',
+            content: `${SYSTEM_PROMPT}\nCoupon types: ${JSON.stringify(
+              email.couponTypes.map(({ key, label }) => ({ key, label })),
+            )}`,
+          },
           {
             role: 'user',
             content: `Subject: ${email.subject}\nFrom: ${email.from}\n\n${email.body}`,

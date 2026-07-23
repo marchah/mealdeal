@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { logWarning } from '../common/logger';
+import type { CouponType } from '../entities/couponType/types';
 import type { NewDeal } from '../entities/deal/types';
 import type { Services } from '../services';
 import type { EmailSource, FetchedEmail } from './email';
@@ -27,8 +28,13 @@ function email(uid: number, from: string): FetchedEmail {
   };
 }
 
+const couponTypes: CouponType[] = [
+  { id: 'coupon-food', key: 'food', label: 'Food', createdAt: new Date('2026-01-01T00:00:00Z') },
+  { id: 'coupon-other', key: 'other', label: 'Other', createdAt: new Date('2026-01-01T00:00:00Z') },
+];
+
 // Records every NewDeal handed to addDeal so tests can assert what was stored.
-function makeServices(recordAdded?: NewDeal[]): Services {
+function makeServices(recordAdded?: NewDeal[], types: CouponType[] = couponTypes): Services {
   return {
     ingestRunService: {
       startIngestRun: () => Promise.resolve('run-1'),
@@ -42,6 +48,11 @@ function makeServices(recordAdded?: NewDeal[]): Services {
         recordAdded?.push(deal);
         return Promise.resolve(true);
       },
+    },
+    couponTypeService: {
+      getCouponTypes: () => Promise.resolve(types),
+      getCouponTypeByKey: (key: string) =>
+        Promise.resolve(types.find((type) => type.key === key) ?? null),
     },
   } as unknown as Services;
 }
@@ -70,8 +81,94 @@ describe('ingestOnce', () => {
       subject: 'Weekly deals',
       from: 'shop@example.com',
       body: '# Offer\n\nCheese for $2.99',
+      couponTypes,
     });
     expect(added[0]?.rawExcerpt).toBe('# Offer\n\nCheese for $2.99');
+  });
+
+  it('stores a recognized couponTypeKey as the matching coupon type ID', async () => {
+    const added: NewDeal[] = [];
+    const emailSource: EmailSource = {
+      fetchUnseen: () => Promise.resolve([email(1, 'shop@example.com')]),
+      markSeen: () => Promise.resolve(),
+    };
+
+    await ingestOnce({
+      emailSource,
+      extractor: {
+        extract: () =>
+          Promise.resolve([{ merchant: 'Shop', title: 'Cheese', couponTypeKey: 'food' }]),
+      },
+      services: makeServices(added),
+    });
+
+    expect(added[0]?.couponTypeId).toBe('coupon-food');
+  });
+
+  it.each([
+    { name: 'missing', couponTypeKey: undefined },
+    { name: 'blank', couponTypeKey: '   ' },
+  ])('falls back to other when the couponTypeKey is $name', async ({ couponTypeKey }) => {
+    const added: NewDeal[] = [];
+    const emailSource: EmailSource = {
+      fetchUnseen: () => Promise.resolve([email(1, 'shop@example.com')]),
+      markSeen: () => Promise.resolve(),
+    };
+
+    await ingestOnce({
+      emailSource,
+      extractor: {
+        extract: () => Promise.resolve([{ merchant: 'Shop', title: 'Cheese', couponTypeKey }]),
+      },
+      services: makeServices(added),
+    });
+
+    expect(added[0]?.couponTypeId).toBe('coupon-other');
+  });
+
+  it('warns and falls back to other for an unknown couponTypeKey', async () => {
+    const added: NewDeal[] = [];
+    const emailSource: EmailSource = {
+      fetchUnseen: () => Promise.resolve([email(7, 'shop@example.com')]),
+      markSeen: () => Promise.resolve(),
+    };
+
+    await ingestOnce({
+      emailSource,
+      extractor: {
+        extract: () =>
+          Promise.resolve([{ merchant: 'Shop', title: 'Cheese', couponTypeKey: 'seasonal' }]),
+      },
+      services: makeServices(added),
+    });
+
+    expect(added[0]?.couponTypeId).toBe('coupon-other');
+    expect(logWarning).toHaveBeenCalledWith(
+      'unknown couponTypeKey "seasonal"; falling back to "other"',
+      expect.objectContaining({ tag: 'INGEST', extra: { uid: 7, couponTypeKey: 'seasonal' } }),
+    );
+  });
+
+  it('fails the message instead of inserting a deal when the required other type is unavailable', async () => {
+    const added: NewDeal[] = [];
+    const markSeen = vi.fn((_uids: readonly number[]): Promise<void> => Promise.resolve());
+    const emailSource: EmailSource = {
+      fetchUnseen: () => Promise.resolve([email(1, 'shop@example.com')]),
+      markSeen,
+    };
+
+    const result = await ingestOnce({
+      emailSource,
+      extractor: {
+        extract: () =>
+          Promise.resolve([{ merchant: 'Shop', title: 'Cheese', couponTypeKey: 'food' }]),
+      },
+      services: makeServices(added, [couponTypes[0]!]),
+    });
+
+    expect(result).toEqual({ messagesSeen: 1, dealsAdded: 0, messagesFailed: 1 });
+    expect(added).toEqual([]);
+    expect(markSeen).toHaveBeenCalledWith([]);
   });
 
   it('falls back to plain text and bounds the canonical extraction body', () => {
