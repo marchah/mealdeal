@@ -18,7 +18,11 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-}
       INGEST_CRON: ${INGEST_CRON:-*/30 * * * *}
+      INGEST_BATCH: ${INGEST_BATCH:-25}
       INGEST_TOKEN: ${INGEST_TOKEN:-}
+      INGEST_SOURCE: ${INGEST_SOURCE:-imap}
+      INGEST_LOCAL_DIR: ${INGEST_LOCAL_DIR:-}
+      INGEST_ARCHIVE_DIR: ${INGEST_ARCHIVE_DIR:-}
       USER_LOCATION: ${USER_LOCATION:-}
     volumes:
       - mealdeal-data:/data

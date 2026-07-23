@@ -11,7 +11,8 @@ export interface FetchedEmail {
   html: string | null;
 }
 
-export interface ImapClient {
+/** Acknowledged only after the email's deals have been durably processed. */
+export interface EmailSource {
   fetchUnseen(limit: number): Promise<FetchedEmail[]>;
   /** Acknowledge messages (\Seen). Call ONLY after their deals are durably stored, so a
    *  failed pass leaves them unseen for the next retry (at-least-once ingest). */
@@ -25,7 +26,7 @@ export function normalizeHtmlPart(html: string | false | undefined): string | nu
   return html;
 }
 
-export function imapClientFactory({ config }: { config: ImapSettings }): ImapClient {
+export function imapClientFactory({ config }: { config: ImapSettings }): EmailSource {
   // Connect, lock the mailbox, run fn, then always release + logout.
   async function withMailbox<T>(fn: (client: ImapFlow) => Promise<T>): Promise<T> {
     const client = new ImapFlow({

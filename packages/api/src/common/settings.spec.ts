@@ -19,4 +19,31 @@ describe('parseSettings', () => {
       'USER_LOCATION must be a five-digit US ZIP code',
     );
   });
+
+  it('requires a local directory for the folder email source', () => {
+    expect(() => parseSettings({ INGEST_SOURCE: 'folder' })).toThrow(
+      'INGEST_LOCAL_DIR is required when INGEST_SOURCE=folder',
+    );
+  });
+
+  it('accepts the folder email source with its required directory', () => {
+    const settings = parseSettings({ INGEST_SOURCE: 'folder', INGEST_LOCAL_DIR: './ingest-input' });
+
+    expect(settings.INGEST_SOURCE).toBe('folder');
+    expect(settings.INGEST_LOCAL_DIR).toBe('./ingest-input');
+    expect(settings.IMAP).toBeNull();
+  });
+
+  it('allows an archive only in IMAP mode', () => {
+    expect(parseSettings({ INGEST_ARCHIVE_DIR: './ingest-archive' }).INGEST_ARCHIVE_DIR).toBe(
+      './ingest-archive',
+    );
+    expect(() =>
+      parseSettings({
+        INGEST_SOURCE: 'folder',
+        INGEST_LOCAL_DIR: './ingest-input',
+        INGEST_ARCHIVE_DIR: './ingest-archive',
+      }),
+    ).toThrow('INGEST_ARCHIVE_DIR is only supported when INGEST_SOURCE=imap');
+  });
 });
