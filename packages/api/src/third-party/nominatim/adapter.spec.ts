@@ -41,7 +41,8 @@ describe('nominatimAdapter', () => {
     expect(url ? urlString(url) : '').toBe(
       'https://geocoder.example.test/nominatim/search?q=12+Main+St+%234%2C+New+York&format=jsonv2&limit=1',
     );
-    expect(options).toEqual({ headers: { 'User-Agent': 'MealDeal test operator' } });
+    expect(options?.headers).toEqual({ 'User-Agent': 'MealDeal test operator' });
+    expect(options?.signal).toBeInstanceOf(AbortSignal);
   });
 
   it('serializes requests and enforces the four-per-minute interval', async () => {

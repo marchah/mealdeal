@@ -27,7 +27,10 @@ describe('zippopotamAdapter', () => {
       lat: 42.3648,
       lng: -71.1043,
     });
-    expect(fetchMock).toHaveBeenCalledWith('https://api.zippopotam.us/us/02139');
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.zippopotam.us/us/02139',
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
   });
 
   it('maps provider failures to a stable adapter error', async () => {

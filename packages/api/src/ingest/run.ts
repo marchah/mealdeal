@@ -4,7 +4,6 @@ import { ServerError } from '../common/errors';
 import { logException, logInfo, logWarning } from '../common/logger';
 import { settings } from '../common/settings';
 import type { Maybe } from '../common/types';
-import type { CouponTypeService } from '../entities/couponType/types';
 import { getServices, type Services } from '../services';
 import type { NewDeal } from '../entities/deal/types';
 import { llmExtractorFactory, type DealExtractor } from './extractor';
@@ -59,36 +58,33 @@ function hasCompleteCoordinates(merchant: { lat: Maybe<number>; lng: Maybe<numbe
   return merchant.lat !== null && merchant.lng !== null;
 }
 
-async function resolveCouponTypeId({
+// Resolve a deal's coupon type from the taxonomy already loaded for the pass (no per-deal query).
+// A recognized key wins outright; an unknown/blank key falls back to "other". Only that fallback
+// path needs "other" to exist, so a deal carrying a valid key still classifies if "other" is absent.
+function resolveCouponTypeId({
   couponTypeKey,
-  hasOtherCouponType,
-  getCouponTypeByKey,
+  couponTypeIdsByKey,
   uid,
 }: {
   couponTypeKey: Maybe<string> | undefined;
-  hasOtherCouponType: boolean;
-  getCouponTypeByKey: CouponTypeService['getCouponTypeByKey'];
+  couponTypeIdsByKey: ReadonlyMap<string, string>;
   uid: number;
-}): Promise<string> {
-  if (!hasOtherCouponType) {
-    throw new ServerError('Coupon type taxonomy is unavailable: missing required "other" type');
-  }
-
+}): string {
   const key = couponTypeKey?.trim();
   if (key) {
-    const couponType = await getCouponTypeByKey(key);
-    if (couponType) return couponType.id;
+    const id = couponTypeIdsByKey.get(key);
+    if (id) return id;
     logWarning(`unknown couponTypeKey "${key}"; falling back to "other"`, {
       tag: 'INGEST',
       extra: { uid, couponTypeKey: key },
     });
   }
 
-  const otherCouponType = await getCouponTypeByKey('other');
-  if (!otherCouponType) {
+  const otherId = couponTypeIdsByKey.get('other');
+  if (!otherId) {
     throw new ServerError('Coupon type taxonomy is unavailable: missing required "other" type');
   }
-  return otherCouponType.id;
+  return otherId;
 }
 
 /** Prefer structured HTML converted to Markdown; otherwise retain the source plain-text part. */
@@ -106,7 +102,7 @@ export function canonicalEmailBody(
  */
 export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<IngestResult> {
   const services = deps.services ?? getServices();
-  const { getCouponTypes, getCouponTypeByKey } = services.couponTypeService;
+  const { getCouponTypes } = services.couponTypeService;
   const emailSource = deps.emailSource ?? emailSourceFactory({ config: settings });
   const extractor = deps.extractor ?? llmExtractorFactory({ config: settings });
   const htmlToMarkdown = deps.htmlToMarkdown ?? mdreamHtmlToMarkdownConverterFactory();
@@ -129,7 +125,9 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
     const emails = await emailSource.fetchUnseen(settings.INGEST_BATCH);
     messagesSeen = emails.length;
     const couponTypes = await getCouponTypes();
-    const hasOtherCouponType = couponTypes.some((couponType) => couponType.key === 'other');
+    const couponTypeIdsByKey = new Map<string, string>(
+      couponTypes.map((couponType) => [couponType.key, couponType.id]),
+    );
 
     // Process each message independently; collect only those whose deals were durably
     // stored so we can acknowledge exactly those. A failed message stays unseen and is
@@ -139,7 +137,18 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
       try {
         const body = canonicalEmailBody(email, htmlToMarkdown);
         if (archiveDirectory) {
-          await archiveCanonicalMarkdown({ directory: archiveDirectory, email, body });
+          try {
+            await archiveCanonicalMarkdown({ directory: archiveDirectory, email, body });
+          } catch (archiveError) {
+            // Archiving is a passive diagnostic — a write failure must never fail the pass.
+            logWarning('archiving canonical markdown failed; continuing ingest', {
+              tag: 'INGEST',
+              extra: {
+                uid: email.uid,
+                error: archiveError instanceof Error ? archiveError.name : 'UnknownError',
+              },
+            });
+          }
         }
         const extracted = await extractor.extract({
           subject: email.subject,
@@ -148,10 +157,9 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
           couponTypes,
         });
         for (const deal of extracted) {
-          const couponTypeId = await resolveCouponTypeId({
+          const couponTypeId = resolveCouponTypeId({
             couponTypeKey: deal.couponTypeKey,
-            hasOtherCouponType,
-            getCouponTypeByKey,
+            couponTypeIdsByKey,
             uid: email.uid,
           });
           let merchant = await services.merchantService.getOrCreateMerchant(deal.merchant);

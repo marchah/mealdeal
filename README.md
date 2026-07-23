@@ -59,6 +59,23 @@ pnpm dev        # API on :4000 + the Vite dev server
 pnpm check      # the gate: typecheck + lint (+ layer boundaries) + prettier + tests + codegen drift
 ```
 
+## Local ingest testing (offline)
+
+Iterate on extraction without a live inbox. While ingesting real mail, set `INGEST_ARCHIVE_DIR` to
+save each email's converted Markdown to a folder (gitignored — it holds real email content). Replay
+that corpus offline by running the API against the folder source, then triggering a pass:
+
+```bash
+# run the API against a folder of .md emails instead of IMAP
+INGEST_SOURCE=folder INGEST_LOCAL_DIR=./ingest-input pnpm dev
+
+# then, in another shell, trigger one pass (token-gated POST /internal/ingest)
+pnpm ingest
+```
+
+Processed files move to `<dir>/processed/`, so re-runs are idempotent. A small synthetic fixture
+lives in `packages/api/test/fixtures/ingest/`.
+
 ## Architecture & contributing
 
 See **[AGENTS.md](./AGENTS.md)**. The backend is layered `resolver → service → repository → db`, and
