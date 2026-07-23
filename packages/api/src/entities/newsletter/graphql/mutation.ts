@@ -9,7 +9,17 @@ builder.mutationFields((t) => ({
     args: {
       merchantId: t.arg.id({ required: true }),
       name: t.arg.string({ required: true, validate: { minLength: 1, maxLength: 200 } }),
-      signupUrl: t.arg.string({ required: true, validate: { url: true, maxLength: 2_000 } }),
+      signupUrl: t.arg.string({
+        required: true,
+        validate: {
+          maxLength: 2_000,
+          url: true,
+          refine: [
+            (value) => /^https?:\/\//i.test(value),
+            { message: 'signupUrl must be an http(s) URL' },
+          ],
+        },
+      }),
       recommended: t.arg.boolean({ defaultValue: false }),
     },
     resolve: (_root, args, ctx) =>
