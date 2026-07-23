@@ -70,7 +70,6 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
         for (const deal of extracted) {
           const merchant = await services.merchantService.getOrCreateMerchant(deal.merchant);
           const expiresAt = toDate(deal.expiresAt);
-          // A provided-but-unparseable expiry would silently become a never-expiring deal — surface it.
           if (deal.expiresAt && !expiresAt) {
             logWarning(
               `unparseable expiresAt "${deal.expiresAt}" for "${deal.title}"; treating as no expiry`,
