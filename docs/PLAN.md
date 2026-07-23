@@ -106,3 +106,31 @@ code is correct, it's just starved of inputs:
     `CouponType` (LLM classification into the taxonomy, or a keyword→key mapping via
     `couponTypeService.getCouponTypeByKey`) and sets `couponTypeId` on the `NewDeal` before insert.
     Deps: [coupon-type-module, deal-couponTypeId-field].
+
+## Follow-up — ingestion quality
+
+11. **Convert emails to markdown before LLM extraction** — The extractor is currently fed the email's
+    plain-text part (`imap.ts` passes only `parsed.text`), which drops the structure marketing/deal
+    emails carry in HTML (offer tables, links, headings, prices). Add a preprocessing step: also
+    capture the HTML part (`mailparser`'s `simpleParser` already returns `parsed.html` alongside
+    `parsed.text`), convert it to clean **markdown**, and feed that to `extractor.extract`, falling back
+    to `parsed.text` when an email has no HTML. Markdown preserves the deal structure the model needs
+    while being far cheaper than raw HTML — meaningfully fewer tokens, which matters for the local
+    model's context budget.
+
+    **Tool — recommended: [`mdream`](https://github.com/harlan-zw/mdream)** (an HTML→markdown converter
+    built for LLMs). It is Node-native (Rust/NAPI binding **plus a pure-JS fallback**, so it runs
+    in-process in the single container — no second runtime), zero-dependency, ~37× faster than turndown
+    and **~2× fewer output tokens**, actively maintained, with a plugin API to **isolate main content**
+    (strip email header/footer/nav boilerplate) and customize table rendering. Alternatives:
+    [`node-html-markdown`](https://www.npmjs.com/package/node-html-markdown) (proven, fast, Node-native)
+    or [`turndown`](https://github.com/mixmark-io/turndown) + `turndown-plugin-gfm` (most battle-tested,
+    best table fidelity) if we favour maturity over token efficiency. **Rejected for this app:**
+    Microsoft **MarkItDown** and **trafilatura** — both capable (and already in our KB) but **Python**,
+    so they'd add a second runtime to the one-Node-container design; and since `mailparser` already
+    yields the HTML, their file/`.eml` parsing is redundant.
+
+    Keep the converter swappable behind a tiny interface in the `ingest/` pipeline (mdream today,
+    another lib tomorrow) and guard output length as today. Deps: [] — isolated to ingest, no schema
+    change. (Ideally lands **before** features 9–10, since a richer markdown body also makes merchant
+    addresses and deal categories easier to extract.)
