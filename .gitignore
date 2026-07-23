@@ -18,6 +18,10 @@ dist/
 *.db-*
 data/
 
+# Private email archives / offline inboxes (commit only synthetic test fixtures).
+ingest-archive/
+ingest-input/
+
 # env / secrets (public repo — never commit)
 .env
 .env.*

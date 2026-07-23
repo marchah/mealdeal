@@ -1,9 +1,12 @@
+import { access, mkdtemp, readdir, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { logWarning } from '../common/logger';
 import type { NewDeal } from '../entities/deal/types';
 import type { Services } from '../services';
+import type { EmailSource, FetchedEmail } from './email';
 import type { DealExtractor } from './extractor';
-import type { FetchedEmail, ImapClient } from './imap';
 import { canonicalEmailBody, ingestOnce, MAX_CANONICAL_BODY_LENGTH } from './run';
 
 vi.mock('../common/logger', () => ({
@@ -47,7 +50,7 @@ describe('ingestOnce', () => {
   it('uses converted Markdown as the extractor input and raw excerpt source', async () => {
     const added: NewDeal[] = [];
     const extract = vi.fn(() => Promise.resolve([{ merchant: 'Shop', title: 'Cheese' }]));
-    const imap: ImapClient = {
+    const emailSource: EmailSource = {
       fetchUnseen: () =>
         Promise.resolve([
           { ...email(1, 'shop@example.com'), text: 'plain text', html: '<h1>Offer</h1>' },
@@ -57,7 +60,7 @@ describe('ingestOnce', () => {
     const htmlToMarkdown = { convert: vi.fn(() => '# Offer\n\nCheese for $2.99') };
 
     await ingestOnce({
-      imap,
+      emailSource,
       extractor: { extract },
       htmlToMarkdown,
       services: makeServices(added),
@@ -83,7 +86,7 @@ describe('ingestOnce', () => {
 
   it('acknowledges only messages whose deals were stored; failed ones stay unseen for retry', async () => {
     const markSeen = vi.fn((_uids: readonly number[]): Promise<void> => Promise.resolve());
-    const imap: ImapClient = {
+    const emailSource: EmailSource = {
       fetchUnseen: () => Promise.resolve([email(1, 'good@shop.com'), email(2, 'bad@shop.com')]),
       markSeen,
     };
@@ -95,16 +98,62 @@ describe('ingestOnce', () => {
           : Promise.resolve([{ merchant: 'Shop', title: 'Cheese 2-for-1' }]),
     };
 
-    const result = await ingestOnce({ imap, extractor, services: makeServices() });
+    const result = await ingestOnce({ emailSource, extractor, services: makeServices() });
 
     expect(result).toEqual({ messagesSeen: 2, dealsAdded: 1, messagesFailed: 1 });
     expect(markSeen).toHaveBeenCalledTimes(1);
     expect(markSeen).toHaveBeenCalledWith([1]);
   });
 
+  it('has no archive filesystem side effect when archiving is disabled', async () => {
+    const parent = await mkdtemp(join(tmpdir(), 'mealdeal-no-archive-'));
+    const archiveDirectory = join(parent, 'archive');
+    const emailSource: EmailSource = {
+      fetchUnseen: () => Promise.resolve([email(1, 'shop@example.com')]),
+      markSeen: () => Promise.resolve(),
+    };
+    try {
+      await ingestOnce({
+        emailSource,
+        archiveDirectory: null,
+        extractor: { extract: () => Promise.resolve([]) },
+        services: makeServices(),
+      });
+
+      await expect(access(archiveDirectory)).rejects.toThrow();
+    } finally {
+      await rm(parent, { force: true, recursive: true });
+    }
+  });
+
+  it('archives canonical Markdown before extracting when enabled', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'mealdeal-archive-run-'));
+    const emailSource: EmailSource = {
+      fetchUnseen: () =>
+        Promise.resolve([
+          { ...email(1, 'shop@example.com'), html: '<h1>Deals</h1>', text: 'fallback' },
+        ]),
+      markSeen: () => Promise.resolve(),
+    };
+    try {
+      await ingestOnce({
+        emailSource,
+        archiveDirectory: directory,
+        extractor: { extract: () => Promise.resolve([]) },
+        htmlToMarkdown: { convert: () => '# Deals' },
+        services: makeServices(),
+      });
+
+      const files = await readdir(directory);
+      expect(files).toHaveLength(1);
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
   it('dedups on the normalized expiry, so equivalent date formats hash identically', async () => {
     const added: NewDeal[] = [];
-    const imap: ImapClient = {
+    const emailSource: EmailSource = {
       fetchUnseen: () => Promise.resolve([email(1, 'a@shop.com'), email(2, 'b@shop.com')]),
       markSeen: () => Promise.resolve(),
     };
@@ -120,7 +169,7 @@ describe('ingestOnce', () => {
         ]),
     };
 
-    await ingestOnce({ imap, extractor, services: makeServices(added) });
+    await ingestOnce({ emailSource, extractor, services: makeServices(added) });
 
     expect(added).toHaveLength(2);
     expect(added[0]?.expiresAt).toEqual(added[1]?.expiresAt);
@@ -129,7 +178,7 @@ describe('ingestOnce', () => {
 
   it('treats a provided-but-unparseable expiry as no expiry and warns', async () => {
     const added: NewDeal[] = [];
-    const imap: ImapClient = {
+    const emailSource: EmailSource = {
       fetchUnseen: () => Promise.resolve([email(1, 'a@shop.com')]),
       markSeen: () => Promise.resolve(),
     };
@@ -138,7 +187,7 @@ describe('ingestOnce', () => {
         Promise.resolve([{ merchant: 'Shop', title: 'Cheese', expiresAt: 'next Friday' }]),
     };
 
-    await ingestOnce({ imap, extractor, services: makeServices(added) });
+    await ingestOnce({ emailSource, extractor, services: makeServices(added) });
 
     expect(added[0]?.expiresAt).toBeNull();
     expect(logWarning).toHaveBeenCalledWith(

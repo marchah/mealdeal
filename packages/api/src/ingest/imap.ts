@@ -1,22 +1,7 @@
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 import type { ImapSettings } from '../common/settings';
-
-export interface FetchedEmail {
-  uid: number;
-  from: string;
-  subject: string;
-  date: Date;
-  text: string;
-  html: string | null;
-}
-
-export interface ImapClient {
-  fetchUnseen(limit: number): Promise<FetchedEmail[]>;
-  /** Acknowledge messages (\Seen). Call ONLY after their deals are durably stored, so a
-   *  failed pass leaves them unseen for the next retry (at-least-once ingest). */
-  markSeen(uids: readonly number[]): Promise<void>;
-}
+import type { EmailSource, FetchedEmail } from './email';
 
 /** Mailparser represents a missing HTML part as `undefined` or `false`. Keep that detail at
  * the IMAP boundary so the rest of ingest only has to distinguish HTML from no HTML. */
@@ -25,7 +10,7 @@ export function normalizeHtmlPart(html: string | false | undefined): string | nu
   return html;
 }
 
-export function imapClientFactory({ config }: { config: ImapSettings }): ImapClient {
+export function imapClientFactory({ config }: { config: ImapSettings }): EmailSource {
   // Connect, lock the mailbox, run fn, then always release + logout.
   async function withMailbox<T>(fn: (client: ImapFlow) => Promise<T>): Promise<T> {
     const client = new ImapFlow({

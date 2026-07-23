@@ -21,6 +21,7 @@
     "format:check": "prettier --check .",
     "test": "pnpm -r --if-present test",
     "test:integration": "pnpm --filter @mealdeal/api test:integration",
+    "ingest": "node --env-file-if-exists=.env scripts/ingest.mjs",
     "check:drift": "node scripts/check-drift.mjs",
     "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test && pnpm check:drift",
     "db:generate": "pnpm --filter @mealdeal/api db:generate",

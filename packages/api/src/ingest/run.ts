@@ -7,17 +7,20 @@ import type { Maybe } from '../common/types';
 import { getServices, type Services } from '../services';
 import type { NewDeal } from '../entities/deal/types';
 import { llmExtractorFactory, type DealExtractor } from './extractor';
-import { imapClientFactory, type ImapClient } from './imap';
+import { archiveCanonicalMarkdown } from './archive';
+import type { EmailSource } from './email';
 import { mdreamHtmlToMarkdownConverterFactory, type HtmlToMarkdownConverter } from './markdown';
+import { emailSourceFactory } from './source';
 
 /** Keep a single email within the local model's context budget before extraction. */
 export const MAX_CANONICAL_BODY_LENGTH = 20_000;
 
 export interface IngestDeps {
-  imap: ImapClient;
+  emailSource: EmailSource;
   extractor: DealExtractor;
   htmlToMarkdown: HtmlToMarkdownConverter;
   services: Services;
+  archiveDirectory: string | null;
 }
 
 export interface IngestResult {
@@ -60,19 +63,22 @@ export function canonicalEmailBody(
  */
 export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<IngestResult> {
   const services = deps.services ?? getServices();
-  const imap = deps.imap ?? (settings.IMAP ? imapClientFactory({ config: settings.IMAP }) : null);
+  const emailSource = deps.emailSource ?? emailSourceFactory({ config: settings });
   const extractor = deps.extractor ?? llmExtractorFactory({ config: settings });
   const htmlToMarkdown = deps.htmlToMarkdown ?? mdreamHtmlToMarkdownConverterFactory();
+  const archiveDirectory =
+    deps.archiveDirectory ??
+    (settings.INGEST_SOURCE === 'imap' ? settings.INGEST_ARCHIVE_DIR : null);
 
   const runId = await services.ingestRunService.startIngestRun();
   let messagesSeen = 0;
   let dealsAdded = 0;
   let messagesFailed = 0;
   try {
-    if (!imap) {
+    if (!emailSource) {
       throw new ServerError('IMAP is not configured (set IMAP_HOST / IMAP_USER / IMAP_PASSWORD)');
     }
-    const emails = await imap.fetchUnseen(settings.INGEST_BATCH);
+    const emails = await emailSource.fetchUnseen(settings.INGEST_BATCH);
     messagesSeen = emails.length;
 
     // Process each message independently; collect only those whose deals were durably
@@ -82,6 +88,9 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
     for (const email of emails) {
       try {
         const body = canonicalEmailBody(email, htmlToMarkdown);
+        if (archiveDirectory) {
+          await archiveCanonicalMarkdown({ directory: archiveDirectory, email, body });
+        }
         const extracted = await extractor.extract({
           subject: email.subject,
           from: email.from,
@@ -124,7 +133,7 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
       }
     }
     // Acknowledge ONLY the messages we durably processed.
-    await imap.markSeen(processedUids);
+    await emailSource.markSeen(processedUids);
 
     // Partial failures are recorded (not fatal) so operators can see a pass needs attention.
     await services.ingestRunService.finishIngestRun(runId, {
