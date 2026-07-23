@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { logWarning } from '../common/logger';
 import type { CouponType } from '../entities/couponType/types';
 import type { NewDeal } from '../entities/deal/types';
+import type { Merchant } from '../entities/merchant/types';
 import type { Services } from '../services';
 import type { EmailSource, FetchedEmail } from './email';
 import type { DealExtractor } from './extractor';
@@ -34,7 +35,11 @@ const couponTypes: CouponType[] = [
 ];
 
 // Records every NewDeal handed to addDeal so tests can assert what was stored.
-function makeServices(recordAdded?: NewDeal[], types: CouponType[] = couponTypes): Services {
+function makeServices(
+  recordAdded?: NewDeal[],
+  types: CouponType[] = couponTypes,
+  merchantOverrides: Partial<Services['merchantService']> = {},
+): Services {
   return {
     ingestRunService: {
       startIngestRun: () => Promise.resolve('run-1'),
@@ -42,6 +47,8 @@ function makeServices(recordAdded?: NewDeal[], types: CouponType[] = couponTypes
     },
     merchantService: {
       getOrCreateMerchant: () => Promise.resolve({ id: 'm1', name: 'Shop', createdAt: new Date() }),
+      resolveMerchantLocation: (merchant: Merchant) => Promise.resolve(merchant),
+      ...merchantOverrides,
     },
     dealService: {
       addDeal: (deal: NewDeal) => {
@@ -289,6 +296,69 @@ describe('ingestOnce', () => {
     expect(added[0]?.expiresAt).toBeNull();
     expect(logWarning).toHaveBeenCalledWith(
       expect.stringContaining('unparseable expiresAt'),
+      expect.objectContaining({ tag: 'INGEST' }),
+    );
+  });
+
+  it('geocodes a normalized merchant/address once and stores its located merchant on every deal', async () => {
+    const added: NewDeal[] = [];
+    const resolveMerchantLocation = vi.fn((merchant, address: string) =>
+      Promise.resolve({ ...merchant, address, lat: 40, lng: -73 }),
+    );
+    const emailSource: EmailSource = {
+      fetchUnseen: () => Promise.resolve([email(1, 'shop@example.com')]),
+      markSeen: () => Promise.resolve(),
+    };
+
+    await ingestOnce({
+      emailSource,
+      extractor: {
+        extract: () =>
+          Promise.resolve([
+            { merchant: 'Shop', merchantAddress: '12  Market Street', title: 'Cheese' },
+            { merchant: 'shop', merchantAddress: ' 12 Market Street ', title: 'Bread' },
+          ]),
+      },
+      services: makeServices(added, couponTypes, { resolveMerchantLocation }),
+    });
+
+    expect(resolveMerchantLocation).toHaveBeenCalledTimes(1);
+    expect(resolveMerchantLocation).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'm1' }),
+      '12  Market Street',
+    );
+    expect(added).toHaveLength(2);
+    expect(added.every((deal) => deal.merchantId === 'm1')).toBe(true);
+  });
+
+  it('stores a deal when merchant enrichment fails or the newsletter has no address', async () => {
+    const added: NewDeal[] = [];
+    const resolveMerchantLocation = vi.fn(() => Promise.reject(new Error('geocoder unavailable')));
+    const emailSource: EmailSource = {
+      fetchUnseen: () => Promise.resolve([email(1, 'shop@example.com')]),
+      markSeen: () => Promise.resolve(),
+    };
+
+    const result = await ingestOnce({
+      emailSource,
+      extractor: {
+        extract: () =>
+          Promise.resolve([
+            { merchant: 'Shop', merchantAddress: '12 Market Street', title: 'Cheese' },
+            { merchant: 'Other Shop', merchantAddress: null, title: 'Bread' },
+          ]),
+      },
+      services: makeServices(added, couponTypes, { resolveMerchantLocation }),
+    });
+
+    expect(result).toMatchObject({ dealsAdded: 2, messagesFailed: 0 });
+    expect(added).toHaveLength(2);
+    expect(logWarning).toHaveBeenCalledWith(
+      'merchant location enrichment failed; continuing deal storage',
+      expect.objectContaining({ tag: 'INGEST' }),
+    );
+    expect(logWarning).toHaveBeenCalledWith(
+      'merchant address missing; skipping location enrichment',
       expect.objectContaining({ tag: 'INGEST' }),
     );
   });

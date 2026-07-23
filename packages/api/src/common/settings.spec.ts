@@ -10,6 +10,22 @@ describe('parseSettings', () => {
     expect(parseSettings({}).USER_LOCATION).toBeNull();
   });
 
+  it('validates an HTTP(S) geocoder endpoint and identifying user agent', () => {
+    const settings = parseSettings({
+      GEOCODER_BASE_URL: 'https://geocoder.example.test/nominatim',
+      GEOCODER_USER_AGENT: 'MealDeal test operator',
+    });
+
+    expect(settings.GEOCODER_BASE_URL).toBe('https://geocoder.example.test/nominatim');
+    expect(settings.GEOCODER_USER_AGENT).toBe('MealDeal test operator');
+    expect(
+      parseSettings({ GEOCODER_BASE_URL: 'http://localhost:8080/nominatim' }).GEOCODER_BASE_URL,
+    ).toBe('http://localhost:8080/nominatim');
+    expect(() => parseSettings({ GEOCODER_BASE_URL: 'ftp://geocoder.example.test' })).toThrow(
+      'GEOCODER_BASE_URL must use HTTP or HTTPS',
+    );
+  });
+
   it('treats Docker Compose’s empty USER_LOCATION value as unset', () => {
     expect(parseSettings({ USER_LOCATION: '' }).USER_LOCATION).toBeNull();
   });

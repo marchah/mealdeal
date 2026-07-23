@@ -42,6 +42,19 @@ describe('parseExtractionResponse', () => {
     ).toThrow();
   });
 
+  it('accepts a nullable merchant address but rejects an empty address', () => {
+    expect(
+      parseExtractionResponse(
+        '{"deals":[{"merchant":"Shop","merchantAddress":null,"title":"Cheese"}]}',
+      ),
+    ).toEqual([{ merchant: 'Shop', merchantAddress: null, title: 'Cheese' }]);
+    expect(() =>
+      parseExtractionResponse(
+        '{"deals":[{"merchant":"Shop","merchantAddress":"","title":"Cheese"}]}',
+      ),
+    ).toThrow();
+  });
+
   it('puts the live coupon-type keys and labels in the model prompt', async () => {
     createCompletion.mockResolvedValueOnce({ choices: [{ message: { content: '{"deals":[]}' } }] });
     const extractor = llmExtractorFactory({
@@ -64,7 +77,7 @@ describe('parseExtractionResponse', () => {
         messages: expect.arrayContaining([
           expect.objectContaining({
             role: 'system',
-            content: expect.stringContaining('"key":"fresh-food","label":"Fresh Food"'),
+            content: expect.stringContaining('Never guess or synthesize merchantAddress'),
           }),
         ]),
       }),

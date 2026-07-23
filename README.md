@@ -37,6 +37,20 @@ provider is isolated behind the `ZipCoordinateLookup` adapter port; near-me serv
 the injectable `LocationService` port (`services.locationService`, `getUserLocation()`) rather than
 import this adapter or read settings.
 
+## Merchant address geocoding
+
+Ingest can persist coordinates for a merchant only when the newsletter states an address; the extractor
+is instructed never to guess one. By default, those addresses are sent to the public
+[Nominatim](https://operations.osmfoundation.org/policies/nominatim/) search service with the identifying
+`GEOCODER_USER_AGENT`. That disclosure is a privacy consideration: configure a self-hosted or compatible
+geocoder with `GEOCODER_BASE_URL` if addresses must remain within your infrastructure.
+
+The public default is intentionally serialized in one process/thread and capped at four requests per
+minute; run only one MealDeal worker against it. Stored merchant coordinates are the lookup cache, so
+an already located merchant is not sent again. Higher-volume deployments must use a self-hosted/alternative endpoint, retain the required
+[OpenStreetMap attribution](https://www.openstreetmap.org/copyright), and comply with its data's
+[ODbL terms](https://opendatacommons.org/licenses/odbl/).
+
 ## Develop
 
 ```bash

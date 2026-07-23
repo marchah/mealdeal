@@ -18,8 +18,12 @@ let cached: Services | undefined;
 export function getServices(): Services {
   if (cached) return cached;
   const db = createDb();
-  const { zippopotamAdapter } = getThirdPartyServices();
-  const entities = getEntitiesServices({ db, zipCoordinateLookup: zippopotamAdapter });
+  const { zippopotamAdapter, nominatimAdapter } = getThirdPartyServices();
+  const entities = getEntitiesServices({
+    db,
+    zipCoordinateLookup: zippopotamAdapter,
+    addressCoordinateLookup: nominatimAdapter,
+  });
   const features = getFeaturesServices({ db, entities });
   cached = { ...entities, ...features };
   return cached;

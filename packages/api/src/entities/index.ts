@@ -24,7 +24,7 @@ import { locationServiceFactory } from './location/service';
 import type { LocationService, ZipCoordinateLookup } from './location/types';
 import { merchantRepositoryFactory } from './merchant/repository';
 import { merchantServiceFactory } from './merchant/service';
-import type { MerchantService } from './merchant/types';
+import type { AddressCoordinateLookup, MerchantService } from './merchant/types';
 import { newsletterRepositoryFactory } from './newsletter/repository';
 import { newsletterServiceFactory } from './newsletter/service';
 import type { NewsletterService } from './newsletter/types';
@@ -46,12 +46,15 @@ export interface EntitiesServices {
 export function getEntitiesServices({
   db,
   zipCoordinateLookup,
+  addressCoordinateLookup,
 }: {
   db: Db;
   zipCoordinateLookup: ZipCoordinateLookup;
+  addressCoordinateLookup: AddressCoordinateLookup;
 }): EntitiesServices {
   const merchantService = merchantServiceFactory({
     merchantRepository: merchantRepositoryFactory({ db }),
+    addressCoordinateLookup,
   });
   const trackingPrefService = trackingPrefServiceFactory({
     trackingPrefRepository: trackingPrefRepositoryFactory({ db }),

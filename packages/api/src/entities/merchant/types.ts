@@ -1,4 +1,5 @@
 import type { Maybe } from '../../common/types';
+import type { Coordinates } from '../location/types';
 
 // Ports for the merchant slice. Services depend on these interfaces, never on the db.
 export interface Merchant {
@@ -23,6 +24,11 @@ export interface MerchantRepository {
   ) => Promise<void>;
 }
 
+/** Adapter port: implementations resolve a supplied merchant address, or report no match. */
+export interface AddressCoordinateLookup {
+  lookupAddress: (address: string) => Promise<Maybe<Coordinates>>;
+}
+
 export interface MerchantService {
   findMerchantsByIds: (ids: readonly string[]) => Promise<Merchant[]>;
   getOrCreateMerchant: (name: string) => Promise<Merchant>;
@@ -31,4 +37,5 @@ export interface MerchantService {
     id: string,
     args: { address?: string; lat?: number; lng?: number },
   ) => Promise<void>;
+  resolveMerchantLocation: (merchant: Merchant, address: string) => Promise<Merchant>;
 }
