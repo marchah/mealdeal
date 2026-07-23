@@ -1,4 +1,4 @@
-import { access, mkdtemp, readdir, rm } from 'node:fs/promises';
+import { access, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
@@ -156,7 +156,28 @@ describe('ingestOnce', () => {
     );
   });
 
-  it('fails the message instead of inserting a deal when the required other type is unavailable', async () => {
+  it('classifies a recognized key even when the "other" fallback is absent', async () => {
+    const added: NewDeal[] = [];
+    const emailSource: EmailSource = {
+      fetchUnseen: () => Promise.resolve([email(1, 'shop@example.com')]),
+      markSeen: () => Promise.resolve(),
+    };
+
+    const result = await ingestOnce({
+      emailSource,
+      extractor: {
+        extract: () =>
+          Promise.resolve([{ merchant: 'Shop', title: 'Cheese', couponTypeKey: 'food' }]),
+      },
+      // Taxonomy without an "other" row — a valid key must still classify.
+      services: makeServices(added, [couponTypes[0]!]),
+    });
+
+    expect(result).toMatchObject({ dealsAdded: 1, messagesFailed: 0 });
+    expect(added[0]?.couponTypeId).toBe('coupon-food');
+  });
+
+  it('fails a message needing the "other" fallback when it is unavailable', async () => {
     const added: NewDeal[] = [];
     const markSeen = vi.fn((_uids: readonly number[]): Promise<void> => Promise.resolve());
     const emailSource: EmailSource = {
@@ -168,8 +189,9 @@ describe('ingestOnce', () => {
       emailSource,
       extractor: {
         extract: () =>
-          Promise.resolve([{ merchant: 'Shop', title: 'Cheese', couponTypeKey: 'food' }]),
+          Promise.resolve([{ merchant: 'Shop', title: 'Cheese', couponTypeKey: 'seasonal' }]),
       },
+      // Unknown key + no "other" row → the fallback can't resolve, so the message fails.
       services: makeServices(added, [couponTypes[0]!]),
     });
 
@@ -252,6 +274,40 @@ describe('ingestOnce', () => {
       expect(files).toHaveLength(1);
     } finally {
       await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  it('keeps ingesting when the archive write fails', async () => {
+    const parent = await mkdtemp(join(tmpdir(), 'mealdeal-archive-fail-'));
+    const blocker = join(parent, 'blocker');
+    await writeFile(blocker, 'not a directory');
+    // Nesting an archive dir under a regular file makes mkdir fail (ENOTDIR).
+    const archiveDirectory = join(blocker, 'archive');
+    const added: NewDeal[] = [];
+    const markSeen = vi.fn((_uids: readonly number[]): Promise<void> => Promise.resolve());
+    const emailSource: EmailSource = {
+      fetchUnseen: () =>
+        Promise.resolve([{ ...email(1, 'shop@example.com'), html: '<h1>Deals</h1>' }]),
+      markSeen,
+    };
+    try {
+      const result = await ingestOnce({
+        emailSource,
+        archiveDirectory,
+        extractor: { extract: () => Promise.resolve([{ merchant: 'Shop', title: 'Cheese' }]) },
+        htmlToMarkdown: { convert: () => '# Deals' },
+        services: makeServices(added),
+      });
+
+      expect(result).toMatchObject({ dealsAdded: 1, messagesFailed: 0 });
+      expect(added).toHaveLength(1);
+      expect(markSeen).toHaveBeenCalledWith([1]);
+      expect(logWarning).toHaveBeenCalledWith(
+        'archiving canonical markdown failed; continuing ingest',
+        expect.objectContaining({ tag: 'INGEST' }),
+      );
+    } finally {
+      await rm(parent, { force: true, recursive: true });
     }
   });
 

@@ -2,7 +2,7 @@ import { htmlToMarkdown } from 'mdream';
 
 /** Swappable conversion port for the HTML half of an email. */
 export interface HtmlToMarkdownConverter {
-  convert(html: string): string;
+  convert: (html: string) => string;
 }
 
 const EMAIL_BOILERPLATE_SELECTORS = [

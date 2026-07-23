@@ -13,6 +13,6 @@ export interface FetchedEmail {
  * a source keeps failed work available for a later retry.
  */
 export interface EmailSource {
-  fetchUnseen(limit: number): Promise<FetchedEmail[]>;
-  markSeen(uids: readonly number[]): Promise<void>;
+  fetchUnseen: (limit: number) => Promise<FetchedEmail[]>;
+  markSeen: (uids: readonly number[]) => Promise<void>;
 }

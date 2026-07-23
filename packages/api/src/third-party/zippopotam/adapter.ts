@@ -4,6 +4,7 @@ import type { Maybe } from '../../common/types';
 import type { Coordinates, ZipCoordinateLookup } from '../../entities/location/types';
 
 const ZIPPOTAM_BASE_URL = 'https://api.zippopotam.us';
+const REQUEST_TIMEOUT_MS = 10_000;
 
 const CoordinateSchema = z
   .union([z.number(), z.string().trim().min(1).transform(Number)])
@@ -29,7 +30,9 @@ export function zippopotamAdapterFactory(): ZipCoordinateLookup {
   async function lookup(zip: string): Promise<Maybe<Coordinates>> {
     let response: Awaited<ReturnType<typeof fetch>>;
     try {
-      response = await fetch(`${ZIPPOTAM_BASE_URL}/us/${encodeURIComponent(zip)}`);
+      response = await fetch(`${ZIPPOTAM_BASE_URL}/us/${encodeURIComponent(zip)}`, {
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
     } catch {
       throw new LocationLookupError();
     }

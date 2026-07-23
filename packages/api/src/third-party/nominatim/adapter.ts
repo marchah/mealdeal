@@ -6,6 +6,7 @@ import type { Coordinates } from '../../entities/location/types';
 import type { AddressCoordinateLookup } from '../../entities/merchant/types';
 
 const REQUEST_INTERVAL_MS = 15_000;
+const REQUEST_TIMEOUT_MS = 10_000;
 
 const CoordinateSchema = z
   .union([z.number(), z.string().trim().min(1).transform(Number)])
@@ -60,7 +61,10 @@ export function nominatimAdapterFactory({
 
       let response: Awaited<ReturnType<typeof fetch>>;
       try {
-        response = await fetch(url, { headers: { 'User-Agent': config.GEOCODER_USER_AGENT } });
+        response = await fetch(url, {
+          headers: { 'User-Agent': config.GEOCODER_USER_AGENT },
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        });
       } catch {
         throw new LocationLookupError();
       }
