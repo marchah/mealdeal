@@ -6,7 +6,7 @@ import { settings } from '../common/settings';
 import type { Maybe } from '../common/types';
 import { getServices, type Services } from '../services';
 import type { NewDeal } from '../entities/deal/types';
-import { llmExtractorFactory, type DealExtractor, type ExtractedDeal } from './extractor';
+import { llmExtractorFactory, type DealExtractor } from './extractor';
 import { imapClientFactory, type ImapClient } from './imap';
 
 export interface IngestDeps {
@@ -21,9 +21,16 @@ export interface IngestResult {
   messagesFailed: number;
 }
 
-// Stable dedup key so re-ingesting the same offer is a no-op (see deals.dedup_hash).
-function dedupHash(merchant: string, deal: ExtractedDeal): string {
-  const key = [merchant, deal.title, deal.expiresAt ?? '', deal.code ?? ''].join('|').toLowerCase();
+// Stable dedup key so re-ingesting the same offer is a no-op (see deals.dedup_hash). Keyed on the
+// NORMALIZED expiry (ISO), not the raw LLM string, so "2026-08-01" and "2026-08-01T00:00:00Z" hash
+// identically and don't slip past the dedup as two separate rows.
+function dedupHash(
+  merchant: string,
+  title: string,
+  expiresAt: Maybe<Date>,
+  code: Maybe<string>,
+): string {
+  const key = [merchant, title, expiresAt?.toISOString() ?? '', code ?? ''].join('|').toLowerCase();
   return createHash('sha256').update(key).digest('hex');
 }
 
@@ -62,6 +69,13 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
         const extracted = await extractor.extract(email);
         for (const deal of extracted) {
           const merchant = await services.merchantService.getOrCreateMerchant(deal.merchant);
+          const expiresAt = toDate(deal.expiresAt);
+          if (deal.expiresAt && !expiresAt) {
+            logWarning(
+              `unparseable expiresAt "${deal.expiresAt}" for "${deal.title}"; treating as no expiry`,
+              { tag: 'INGEST', extra: { uid: email.uid } },
+            );
+          }
           const newDeal: NewDeal = {
             merchantId: merchant.id,
             couponTypeId: null,
@@ -77,9 +91,9 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
             url: deal.url ?? null,
             sourceAlias: email.from,
             startsAt: toDate(deal.startsAt),
-            expiresAt: toDate(deal.expiresAt),
+            expiresAt,
             rawExcerpt: email.text.slice(0, 500),
-            dedupHash: dedupHash(deal.merchant, deal),
+            dedupHash: dedupHash(deal.merchant, deal.title, expiresAt, deal.code ?? null),
           };
           if (await services.dealService.addDeal(newDeal)) dealsAdded += 1;
         }
