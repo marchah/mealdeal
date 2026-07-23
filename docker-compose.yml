@@ -17,6 +17,8 @@ services:
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-}
+      GEOCODER_BASE_URL: ${GEOCODER_BASE_URL:-https://nominatim.openstreetmap.org}
+      GEOCODER_USER_AGENT: ${GEOCODER_USER_AGENT:-MealDeal/0.1 (+https://github.com/marchah/mealdeal)}
       INGEST_CRON: ${INGEST_CRON:-*/30 * * * *}
       INGEST_BATCH: ${INGEST_BATCH:-25}
       INGEST_TOKEN: ${INGEST_TOKEN:-}
