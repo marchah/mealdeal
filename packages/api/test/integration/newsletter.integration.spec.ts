@@ -116,7 +116,6 @@ test('addNewsletter validates the signup URL before invoking the service', async
 
 test('addNewsletter rejects a non-http(s) signup URL scheme (e.g. javascript:)', async () => {
   const merchantId = await seedMerchant();
-  // `javascript:alert(1)` is a valid URL per z.string().url(), so only the scheme refinement blocks it.
   const body = await runOperation(
     `mutation { addNewsletter(merchantId: "${merchantId}", name: "Offers", signupUrl: "javascript:alert(1)") { __typename ... on ValidationError { message status } } }`,
   );
