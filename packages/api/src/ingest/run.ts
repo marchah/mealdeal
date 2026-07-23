@@ -8,10 +8,15 @@ import { getServices, type Services } from '../services';
 import type { NewDeal } from '../entities/deal/types';
 import { llmExtractorFactory, type DealExtractor } from './extractor';
 import { imapClientFactory, type ImapClient } from './imap';
+import { mdreamHtmlToMarkdownConverterFactory, type HtmlToMarkdownConverter } from './markdown';
+
+/** Keep a single email within the local model's context budget before extraction. */
+export const MAX_CANONICAL_BODY_LENGTH = 20_000;
 
 export interface IngestDeps {
   imap: ImapClient;
   extractor: DealExtractor;
+  htmlToMarkdown: HtmlToMarkdownConverter;
   services: Services;
 }
 
@@ -40,6 +45,15 @@ function toDate(iso: Maybe<string> | undefined): Maybe<Date> {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+/** Prefer structured HTML converted to Markdown; otherwise retain the source plain-text part. */
+export function canonicalEmailBody(
+  email: { html: string | null; text: string },
+  htmlToMarkdown: HtmlToMarkdownConverter,
+): string {
+  const body = email.html === null ? email.text : htmlToMarkdown.convert(email.html);
+  return body.slice(0, MAX_CANONICAL_BODY_LENGTH);
+}
+
 /**
  * One ingest pass: fetch unseen mail → LLM-extract → dedup + store, recording an ingest_run.
  * Dependencies are injectable for tests / the /internal/ingest trigger.
@@ -48,6 +62,7 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
   const services = deps.services ?? getServices();
   const imap = deps.imap ?? (settings.IMAP ? imapClientFactory({ config: settings.IMAP }) : null);
   const extractor = deps.extractor ?? llmExtractorFactory({ config: settings });
+  const htmlToMarkdown = deps.htmlToMarkdown ?? mdreamHtmlToMarkdownConverterFactory();
 
   const runId = await services.ingestRunService.startIngestRun();
   let messagesSeen = 0;
@@ -66,7 +81,12 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
     const processedUids: number[] = [];
     for (const email of emails) {
       try {
-        const extracted = await extractor.extract(email);
+        const body = canonicalEmailBody(email, htmlToMarkdown);
+        const extracted = await extractor.extract({
+          subject: email.subject,
+          from: email.from,
+          body,
+        });
         for (const deal of extracted) {
           const merchant = await services.merchantService.getOrCreateMerchant(deal.merchant);
           const expiresAt = toDate(deal.expiresAt);
@@ -92,7 +112,7 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
             sourceAlias: email.from,
             startsAt: toDate(deal.startsAt),
             expiresAt,
-            rawExcerpt: email.text.slice(0, 500),
+            rawExcerpt: body.slice(0, 500),
             dedupHash: dedupHash(deal.merchant, deal.title, expiresAt, deal.code ?? null),
           };
           if (await services.dealService.addDeal(newDeal)) dealsAdded += 1;

@@ -8,6 +8,7 @@ export interface FetchedEmail {
   subject: string;
   date: Date;
   text: string;
+  html: string | null;
 }
 
 export interface ImapClient {
@@ -15,6 +16,13 @@ export interface ImapClient {
   /** Acknowledge messages (\Seen). Call ONLY after their deals are durably stored, so a
    *  failed pass leaves them unseen for the next retry (at-least-once ingest). */
   markSeen(uids: readonly number[]): Promise<void>;
+}
+
+/** Mailparser represents a missing HTML part as `undefined` or `false`. Keep that detail at
+ * the IMAP boundary so the rest of ingest only has to distinguish HTML from no HTML. */
+export function normalizeHtmlPart(html: string | false | undefined): string | null {
+  if (typeof html !== 'string' || html.trim() === '') return null;
+  return html;
 }
 
 export function imapClientFactory({ config }: { config: ImapSettings }): ImapClient {
@@ -60,6 +68,7 @@ export function imapClientFactory({ config }: { config: ImapSettings }): ImapCli
             subject: parsed.subject ?? '',
             date: parsed.date ?? new Date(),
             text: parsed.text ?? '',
+            html: normalizeHtmlPart(parsed.html),
           });
         }
         return emails;

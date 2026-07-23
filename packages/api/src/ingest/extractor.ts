@@ -26,7 +26,7 @@ export type ExtractedDeal = z.infer<typeof ExtractedDealSchema>;
 const ResponseSchema = z.object({ deals: z.array(ExtractedDealSchema) });
 
 export interface DealExtractor {
-  extract(email: { subject: string; from: string; text: string }): Promise<ExtractedDeal[]>;
+  extract(email: { subject: string; from: string; body: string }): Promise<ExtractedDeal[]>;
 }
 
 const SYSTEM_PROMPT = [
@@ -72,7 +72,7 @@ export function llmExtractorFactory({ config }: { config: LlmSettings }): DealEx
           { role: 'system', content: SYSTEM_PROMPT },
           {
             role: 'user',
-            content: `Subject: ${email.subject}\nFrom: ${email.from}\n\n${email.text}`,
+            content: `Subject: ${email.subject}\nFrom: ${email.from}\n\n${email.body}`,
           },
         ],
       });
