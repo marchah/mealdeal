@@ -1,10 +1,17 @@
-import type { MerchantRepository, MerchantService } from './types';
+import type {
+  AddressCoordinateLookup,
+  Merchant,
+  MerchantRepository,
+  MerchantService,
+} from './types';
 
 // Business logic. Depends on the repository PORT type only.
 export function merchantServiceFactory({
   merchantRepository,
+  addressCoordinateLookup,
 }: {
   merchantRepository: MerchantRepository;
+  addressCoordinateLookup: AddressCoordinateLookup;
 }): MerchantService {
   function findMerchantsByIds(ids: readonly string[]) {
     return merchantRepository.findMerchantsByIds(ids);
@@ -26,5 +33,19 @@ export function merchantServiceFactory({
     return existing ?? merchantRepository.createMerchant(name);
   }
 
-  return { findMerchantsByIds, countMerchants, updateMerchantLocation, getOrCreateMerchant };
+  async function resolveMerchantLocation(merchant: Merchant, address: string) {
+    if (merchant.lat !== null && merchant.lng !== null) return merchant;
+    const coordinates = await addressCoordinateLookup.lookupAddress(address);
+    if (!coordinates) return merchant;
+    await merchantRepository.updateMerchantLocation(merchant.id, { address, ...coordinates });
+    return { ...merchant, address, ...coordinates };
+  }
+
+  return {
+    findMerchantsByIds,
+    countMerchants,
+    updateMerchantLocation,
+    getOrCreateMerchant,
+    resolveMerchantLocation,
+  };
 }

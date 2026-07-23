@@ -41,6 +41,20 @@ const EnvSchema = z
     OPENAI_API_KEY: z.string().default('not-needed'),
     OPENAI_MODEL: z.string().default('qwen3.6-35b-a3b'),
 
+    GEOCODER_BASE_URL: z
+      .string()
+      .url()
+      .refine(
+        (value) => ['http:', 'https:'].includes(new URL(value).protocol),
+        'GEOCODER_BASE_URL must use HTTP or HTTPS',
+      )
+      .default('https://nominatim.openstreetmap.org'),
+    GEOCODER_USER_AGENT: z
+      .string()
+      .trim()
+      .min(1, 'GEOCODER_USER_AGENT must identify this MealDeal installation')
+      .default('MealDeal/0.1 (+https://github.com/marchah/mealdeal)'),
+
     // A five-digit US ZIP code. It is optional until a near-me feature needs it.
     USER_LOCATION: z.preprocess(
       (value) => (value === '' ? undefined : value),
@@ -84,6 +98,12 @@ export interface LlmSettings {
   OPENAI_MODEL: string;
 }
 
+/** Address-geocoding settings. Kept separate so adapters do not need all application settings. */
+export interface GeocoderSettings {
+  GEOCODER_BASE_URL: string;
+  GEOCODER_USER_AGENT: string;
+}
+
 /** Parse environment variables for startup and unit tests without another process.env reader. */
 export function parseSettings(env: NodeJS.ProcessEnv) {
   const ENV = EnvSchema.parse(env);
@@ -121,6 +141,8 @@ export function parseSettings(env: NodeJS.ProcessEnv) {
     OPENAI_BASE_URL: ENV.OPENAI_BASE_URL,
     OPENAI_API_KEY: ENV.OPENAI_API_KEY,
     OPENAI_MODEL: ENV.OPENAI_MODEL,
+    GEOCODER_BASE_URL: ENV.GEOCODER_BASE_URL,
+    GEOCODER_USER_AGENT: ENV.GEOCODER_USER_AGENT,
     USER_LOCATION: ENV.USER_LOCATION ?? null,
   };
 }

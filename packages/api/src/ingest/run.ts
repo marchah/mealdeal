@@ -49,6 +49,16 @@ function toDate(iso: Maybe<string> | undefined): Maybe<Date> {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function merchantAddressLookupKey(merchant: string, address: string): string {
+  return [merchant, address]
+    .map((value) => value.trim().replaceAll(/\s+/g, ' ').toLocaleLowerCase())
+    .join('|');
+}
+
+function hasCompleteCoordinates(merchant: { lat: Maybe<number>; lng: Maybe<number> }): boolean {
+  return merchant.lat !== null && merchant.lng !== null;
+}
+
 async function resolveCouponTypeId({
   couponTypeKey,
   hasOtherCouponType,
@@ -108,6 +118,10 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
   let messagesSeen = 0;
   let dealsAdded = 0;
   let messagesFailed = 0;
+  const locationLookups = new Map<
+    string,
+    Promise<Awaited<ReturnType<Services['merchantService']['resolveMerchantLocation']>>>
+  >();
   try {
     if (!emailSource) {
       throw new ServerError('IMAP is not configured (set IMAP_HOST / IMAP_USER / IMAP_PASSWORD)');
@@ -140,7 +154,46 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
             getCouponTypeByKey,
             uid: email.uid,
           });
-          const merchant = await services.merchantService.getOrCreateMerchant(deal.merchant);
+          let merchant = await services.merchantService.getOrCreateMerchant(deal.merchant);
+          const address = deal.merchantAddress?.trim();
+          if (!address) {
+            logWarning('merchant address missing; skipping location enrichment', {
+              tag: 'INGEST',
+              extra: { uid: email.uid, merchant: deal.merchant },
+            });
+          } else {
+            const key = merchantAddressLookupKey(deal.merchant, address);
+            let locationLookup = locationLookups.get(key);
+            if (!locationLookup) {
+              locationLookup = services.merchantService
+                .resolveMerchantLocation(merchant, address)
+                .then((locatedMerchant) => {
+                  if (
+                    !hasCompleteCoordinates(merchant) &&
+                    !hasCompleteCoordinates(locatedMerchant)
+                  ) {
+                    logWarning('merchant address did not resolve; continuing deal storage', {
+                      tag: 'INGEST',
+                      extra: { uid: email.uid, merchant: deal.merchant },
+                    });
+                  }
+                  return locatedMerchant;
+                })
+                .catch((error: unknown) => {
+                  logWarning('merchant location enrichment failed; continuing deal storage', {
+                    tag: 'INGEST',
+                    extra: {
+                      uid: email.uid,
+                      merchant: deal.merchant,
+                      error: error instanceof Error ? error.name : 'UnknownError',
+                    },
+                  });
+                  return merchant;
+                });
+              locationLookups.set(key, locationLookup);
+            }
+            merchant = await locationLookup;
+          }
           const expiresAt = toDate(deal.expiresAt);
           if (deal.expiresAt && !expiresAt) {
             logWarning(

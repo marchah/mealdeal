@@ -9,6 +9,7 @@ import type { CouponType } from '../entities/couponType/types';
 // this Zod schema before it reaches the domain. Extra/malformed fields are dropped.
 export const ExtractedDealSchema = z.object({
   merchant: z.string().min(1),
+  merchantAddress: z.string().trim().min(1).nullish(),
   title: z.string().min(1),
   couponTypeKey: z.string().nullish(),
   category: z.string().nullish(),
@@ -41,10 +42,10 @@ export interface DealExtractor {
 const SYSTEM_PROMPT = [
   'You extract grocery/retail deals from one marketing email.',
   'Return ONLY JSON of the form {"deals":[...]} where each deal has:',
-  'merchant, title, couponTypeKey, category, item, discountText, discountPct (number), price (number),',
+  'merchant, merchantAddress (only when the newsletter states a full address), title, couponTypeKey, category, item, discountText, discountPct (number), price (number),',
   'currency, code, minSpend (number), url, startsAt (ISO date), expiresAt (ISO date).',
   'couponTypeKey must be one of the supplied coupon-type keys. Include only real, current offers.',
-  'Use null for unknown fields. Empty array if none.',
+  'Never guess or synthesize merchantAddress. Use null for unknown fields. Empty array if none.',
 ].join(' ');
 
 /**

@@ -2,10 +2,11 @@ import { cp, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createYoga } from 'graphql-yoga';
-import { beforeEach, expect, test } from 'vitest';
+import { beforeEach, expect, test, vi } from 'vitest';
+import { settings } from '../../src/common/settings';
 import { createContext } from '../../src/context';
 import { createDb } from '../../src/db/client';
-import { deals, merchants } from '../../src/db/schema';
+import { deals, merchants, newsletters } from '../../src/db/schema';
 import type { EmailSource } from '../../src/ingest/email';
 import type { DealExtractor } from '../../src/ingest/extractor';
 import { folderEmailSourceFactory } from '../../src/ingest/folder';
@@ -16,9 +17,15 @@ import { getServices } from '../../src/services';
 const fixtureDirectory = new URL('../fixtures/ingest/', import.meta.url);
 const yoga = createYoga({ schema, context: createContext });
 
+function urlString(input: RequestInfo | URL): string {
+  if (typeof input === 'string') return input;
+  return input instanceof URL ? input.href : input.url;
+}
+
 beforeEach(async () => {
   const db = createDb();
   await db.delete(deals);
+  await db.delete(newsletters);
   await db.delete(merchants);
   await getServices().couponTypeService.seedCouponTypes();
 });
@@ -104,4 +111,86 @@ test('ingest persists a seeded coupon type that resolves through the Deal GraphQ
   expect(body.data?.deals).toEqual([
     { title: 'Pasta special', couponTypeId: food?.id, couponType: { key: 'food' } },
   ]);
+});
+
+test('ingest geocodes an extracted merchant address for the real near-me query', async () => {
+  settings.USER_LOCATION = '02139';
+  const fetchMock = vi.fn((input: RequestInfo | URL) => {
+    const url = urlString(input);
+    if (url.includes('/search?')) {
+      return Promise.resolve(
+        new Response(JSON.stringify([{ lat: '40', lon: '-73' }]), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      );
+    }
+    return Promise.resolve(
+      new Response(JSON.stringify({ places: [{ latitude: '40', longitude: '-73' }] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  const source: EmailSource = {
+    fetchUnseen: () =>
+      Promise.resolve([
+        {
+          uid: 1,
+          from: 'market@example.com',
+          subject: 'Grocery deals',
+          date: new Date('2026-01-01T00:00:00Z'),
+          text: 'Pasta on sale',
+          html: null,
+        },
+      ]),
+    markSeen: () => Promise.resolve(),
+  };
+  const extractor: DealExtractor = {
+    extract: () =>
+      Promise.resolve([
+        {
+          merchant: 'Fixture Market',
+          merchantAddress: '12 Market Street, Exampleville',
+          title: 'Pasta special',
+          couponTypeKey: 'food',
+        },
+      ]),
+  };
+
+  try {
+    await ingestOnce({ emailSource: source, extractor, services: getServices() });
+    const [merchant] = await createDb().select().from(merchants);
+    const body = await runQuery(
+      '{ storesNearMe(radiusMiles: 0) { __typename ... on QueryStoresNearMeSuccess { data { name lat lng } } } }',
+    );
+
+    expect(merchant).toMatchObject({
+      name: 'Fixture Market',
+      address: '12 Market Street, Exampleville',
+      lat: 40,
+      lng: -73,
+    });
+    expect(body).toMatchObject({
+      data: {
+        storesNearMe: {
+          __typename: 'QueryStoresNearMeSuccess',
+          data: [{ name: 'Fixture Market', lat: 40, lng: -73 }],
+        },
+      },
+    });
+    const geocoderCall = (
+      fetchMock.mock.calls as unknown as [RequestInfo | URL, RequestInit?][]
+    ).find(([input]) => urlString(input).includes('/search?'));
+    expect(geocoderCall).toEqual([
+      expect.any(URL),
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'User-Agent': expect.any(String) }),
+      }),
+    ]);
+  } finally {
+    settings.USER_LOCATION = null;
+    vi.unstubAllGlobals();
+  }
 });
