@@ -4,6 +4,7 @@ import { ServerError } from '../common/errors';
 import { logException, logInfo, logWarning } from '../common/logger';
 import { settings } from '../common/settings';
 import type { Maybe } from '../common/types';
+import type { CouponTypeService } from '../entities/couponType/types';
 import { getServices, type Services } from '../services';
 import type { NewDeal } from '../entities/deal/types';
 import { llmExtractorFactory, type DealExtractor } from './extractor';
@@ -48,6 +49,38 @@ function toDate(iso: Maybe<string> | undefined): Maybe<Date> {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+async function resolveCouponTypeId({
+  couponTypeKey,
+  hasOtherCouponType,
+  getCouponTypeByKey,
+  uid,
+}: {
+  couponTypeKey: Maybe<string> | undefined;
+  hasOtherCouponType: boolean;
+  getCouponTypeByKey: CouponTypeService['getCouponTypeByKey'];
+  uid: number;
+}): Promise<string> {
+  if (!hasOtherCouponType) {
+    throw new ServerError('Coupon type taxonomy is unavailable: missing required "other" type');
+  }
+
+  const key = couponTypeKey?.trim();
+  if (key) {
+    const couponType = await getCouponTypeByKey(key);
+    if (couponType) return couponType.id;
+    logWarning(`unknown couponTypeKey "${key}"; falling back to "other"`, {
+      tag: 'INGEST',
+      extra: { uid, couponTypeKey: key },
+    });
+  }
+
+  const otherCouponType = await getCouponTypeByKey('other');
+  if (!otherCouponType) {
+    throw new ServerError('Coupon type taxonomy is unavailable: missing required "other" type');
+  }
+  return otherCouponType.id;
+}
+
 /** Prefer structured HTML converted to Markdown; otherwise retain the source plain-text part. */
 export function canonicalEmailBody(
   email: { html: string | null; text: string },
@@ -63,6 +96,7 @@ export function canonicalEmailBody(
  */
 export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<IngestResult> {
   const services = deps.services ?? getServices();
+  const { getCouponTypes, getCouponTypeByKey } = services.couponTypeService;
   const emailSource = deps.emailSource ?? emailSourceFactory({ config: settings });
   const extractor = deps.extractor ?? llmExtractorFactory({ config: settings });
   const htmlToMarkdown = deps.htmlToMarkdown ?? mdreamHtmlToMarkdownConverterFactory();
@@ -80,6 +114,8 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
     }
     const emails = await emailSource.fetchUnseen(settings.INGEST_BATCH);
     messagesSeen = emails.length;
+    const couponTypes = await getCouponTypes();
+    const hasOtherCouponType = couponTypes.some((couponType) => couponType.key === 'other');
 
     // Process each message independently; collect only those whose deals were durably
     // stored so we can acknowledge exactly those. A failed message stays unseen and is
@@ -95,8 +131,15 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
           subject: email.subject,
           from: email.from,
           body,
+          couponTypes,
         });
         for (const deal of extracted) {
+          const couponTypeId = await resolveCouponTypeId({
+            couponTypeKey: deal.couponTypeKey,
+            hasOtherCouponType,
+            getCouponTypeByKey,
+            uid: email.uid,
+          });
           const merchant = await services.merchantService.getOrCreateMerchant(deal.merchant);
           const expiresAt = toDate(deal.expiresAt);
           if (deal.expiresAt && !expiresAt) {
@@ -107,7 +150,7 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
           }
           const newDeal: NewDeal = {
             merchantId: merchant.id,
-            couponTypeId: null,
+            couponTypeId,
             title: deal.title,
             category: deal.category ?? null,
             item: deal.item ?? null,
