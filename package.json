@@ -25,7 +25,8 @@
     "check:drift": "node scripts/check-drift.mjs",
     "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test && pnpm check:drift",
     "db:generate": "pnpm --filter @mealdeal/api db:generate",
-    "db:migrate": "pnpm --filter @mealdeal/api db:migrate"
+    "db:migrate": "pnpm --filter @mealdeal/api db:migrate",
+    "doctor": "npx react-doctor@latest"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
@@ -37,6 +38,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.7.0",
     "prettier": "^3.9.5",
+    "react-doctor": "^0.9.1",
     "tsx": "^4.23.1",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.64.0"
