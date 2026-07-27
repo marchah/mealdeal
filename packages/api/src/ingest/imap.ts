@@ -1,5 +1,7 @@
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
+import { EmailSourceError } from '../common/errors';
+import { logWarning } from '../common/logger';
 import type { ImapSettings } from '../common/settings';
 import type { EmailSource, FetchedEmail } from './email';
 
@@ -8,6 +10,39 @@ import type { EmailSource, FetchedEmail } from './email';
 export function normalizeHtmlPart(html: string | false | undefined): string | null {
   if (typeof html !== 'string' || html.trim() === '') return null;
   return html;
+}
+
+function readProperty(source: unknown, key: string): unknown {
+  if (typeof source !== 'object' || source === null) return undefined;
+  return (source as Record<string, unknown>)[key];
+}
+
+function readStringProperty(source: unknown, key: string): string | undefined {
+  const value = readProperty(source, key);
+  return typeof value === 'string' && value !== '' ? value : undefined;
+}
+
+export function toEmailSourceError(error: unknown, host: string): EmailSourceError {
+  if (error instanceof EmailSourceError) return error;
+
+  const authenticationFailed = readProperty(error, 'authenticationFailed') === true;
+  const serverResponseCode = readStringProperty(error, 'serverResponseCode');
+  const responseText = readStringProperty(error, 'responseText');
+  const fallback = error instanceof Error ? error.message : 'unknown error';
+  const detail = responseText ?? fallback;
+
+  // Credentials are the common cause and the remedy is provider-specific, so name it rather than
+  // leaving the operator to reach for a packet capture.
+  const message = authenticationFailed
+    ? `IMAP authentication failed for ${host}: ${detail}. Check IMAP_USER (most providers, Gmail and Zoho included, require the full email address) and IMAP_PASSWORD (an app-specific password is required when 2FA is enabled).`
+    : `IMAP request to ${host} failed: ${detail}`;
+
+  return new EmailSourceError(message, {
+    host,
+    authenticationFailed,
+    serverResponseCode,
+    responseText,
+  });
 }
 
 export function imapClientFactory({ config }: { config: ImapSettings }): EmailSource {
@@ -20,7 +55,11 @@ export function imapClientFactory({ config }: { config: ImapSettings }): EmailSo
       auth: { user: config.IMAP_USER, pass: config.IMAP_PASSWORD },
       logger: false,
     });
-    await client.connect();
+    try {
+      await client.connect();
+    } catch (error) {
+      throw toEmailSourceError(error, config.IMAP_HOST);
+    }
     try {
       const lock = await client.getMailboxLock(config.IMAP_MAILBOX);
       try {
@@ -28,8 +67,17 @@ export function imapClientFactory({ config }: { config: ImapSettings }): EmailSo
       } finally {
         lock.release();
       }
+    } catch (error) {
+      throw toEmailSourceError(error, config.IMAP_HOST);
     } finally {
-      await client.logout();
+      try {
+        await client.logout();
+      } catch (logoutError) {
+        logWarning('IMAP logout failed; the session will time out server-side', {
+          tag: 'INGEST',
+          extra: { host: config.IMAP_HOST, error: logoutError },
+        });
+      }
     }
   }
 

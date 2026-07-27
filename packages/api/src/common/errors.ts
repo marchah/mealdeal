@@ -97,3 +97,18 @@ export class LocationLookupError extends ServerError {
     this.name = 'LocationLookupError';
   }
 }
+
+export interface EmailSourceErrorData {
+  host: string;
+  authenticationFailed: boolean;
+  serverResponseCode?: string;
+  responseText?: string;
+}
+
+export class EmailSourceError extends ServerError<EmailSourceErrorData> {
+  constructor(message: string, data: EmailSourceErrorData) {
+    super(message, data);
+    this.status = 502;
+    this.name = 'EmailSourceError';
+  }
+}

@@ -28,6 +28,10 @@ async function handleInternalIngest(req: IncomingMessage, res: ServerResponse): 
     res.setHeader('content-type', 'application/json');
     res.end(JSON.stringify(result));
   } catch (error) {
+    logException(error, {
+      tag: ['SERVER', 'INGEST'],
+      extra: error instanceof ServerError ? error.data : undefined,
+    });
     res.statusCode = error instanceof ServerError ? error.status : 500;
     res.end(JSON.stringify({ error: error instanceof Error ? error.message : 'ingest failed' }));
   }
