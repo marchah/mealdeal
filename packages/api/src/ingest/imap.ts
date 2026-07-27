@@ -55,8 +55,6 @@ export function imapClientFactory({ config }: { config: ImapSettings }): EmailSo
       auth: { user: config.IMAP_USER, pass: config.IMAP_PASSWORD },
       logger: false,
     });
-    // Connect is its own step: on failure there is no session to log out of, and the original
-    // code deliberately kept it outside the finally for that reason.
     try {
       await client.connect();
     } catch (error) {
@@ -72,8 +70,6 @@ export function imapClientFactory({ config }: { config: ImapSettings }): EmailSo
     } catch (error) {
       throw toEmailSourceError(error, config.IMAP_HOST);
     } finally {
-      // Best-effort: a logout that throws while unwinding would REPLACE the real failure with a
-      // misleading one, which is the same detail-loss bug this function exists to fix.
       try {
         await client.logout();
       } catch (logoutError) {
