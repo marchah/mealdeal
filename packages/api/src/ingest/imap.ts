@@ -22,14 +22,6 @@ function readStringProperty(source: unknown, key: string): string | undefined {
   return typeof value === 'string' && value !== '' ? value : undefined;
 }
 
-/** Translate an ImapFlow failure into an actionable typed error — the same "keep the provider's
- * detail at the boundary" idea as normalizeHtmlPart above.
- *
- * ImapFlow throws `Error('Command failed')` for everything from rejected credentials to a dropped
- * socket, and puts what actually happened on non-standard properties (`authenticationFailed`,
- * `serverResponseCode`, `responseText`). Reading only `error.message` discards all of it, which left
- * the token-gated `POST /internal/ingest` answering `{"error":"Command failed"}` with no way to tell
- * a wrong password from an unreachable host. */
 export function toEmailSourceError(error: unknown, host: string): EmailSourceError {
   if (error instanceof EmailSourceError) return error;
 

@@ -28,9 +28,6 @@ async function handleInternalIngest(req: IncomingMessage, res: ServerResponse): 
     res.setHeader('content-type', 'application/json');
     res.end(JSON.stringify(result));
   } catch (error) {
-    // Log as well as answer. This catch used to be silent, so a manually triggered pass that blew
-    // up left no server-side trace at all — only one line of JSON to the caller. Include the typed
-    // error's structured `data` (for EmailSourceError that is the provider's own response detail).
     logException(error, {
       tag: ['SERVER', 'INGEST'],
       extra: error instanceof ServerError ? error.data : undefined,
