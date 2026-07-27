@@ -25,6 +25,7 @@ services:
       INGEST_SOURCE: ${INGEST_SOURCE:-imap}
       INGEST_LOCAL_DIR: ${INGEST_LOCAL_DIR:-}
       INGEST_ARCHIVE_DIR: ${INGEST_ARCHIVE_DIR:-}
+      INGEST_MIN_BODY_LENGTH: ${INGEST_MIN_BODY_LENGTH:-0}
       USER_LOCATION: ${USER_LOCATION:-}
     volumes:
       - mealdeal-data:/data

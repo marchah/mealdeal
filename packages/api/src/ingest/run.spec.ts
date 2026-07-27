@@ -195,7 +195,12 @@ describe('ingestOnce', () => {
       services: makeServices(added, [couponTypes[0]!]),
     });
 
-    expect(result).toEqual({ messagesSeen: 1, dealsAdded: 0, messagesFailed: 1 });
+    expect(result).toEqual({
+      messagesSeen: 1,
+      dealsAdded: 0,
+      messagesFailed: 1,
+      messagesSkipped: 0,
+    });
     expect(added).toEqual([]);
     expect(markSeen).toHaveBeenCalledWith([]);
   });
@@ -226,9 +231,113 @@ describe('ingestOnce', () => {
 
     const result = await ingestOnce({ emailSource, extractor, services: makeServices() });
 
-    expect(result).toEqual({ messagesSeen: 2, dealsAdded: 1, messagesFailed: 1 });
+    expect(result).toEqual({
+      messagesSeen: 2,
+      dealsAdded: 1,
+      messagesFailed: 1,
+      messagesSkipped: 0,
+    });
     expect(markSeen).toHaveBeenCalledTimes(1);
     expect(markSeen).toHaveBeenCalledWith([1]);
+  });
+
+  it('skips extraction for a body under the minimum, acknowledging it so it is not re-fetched', async () => {
+    const extract = vi.fn(() => Promise.resolve([]));
+    const markSeen = vi.fn((_uids: readonly number[]): Promise<void> => Promise.resolve());
+    // An image-only blast: the HTML converts to nothing but chrome.
+    const emailSource: EmailSource = {
+      fetchUnseen: () =>
+        Promise.resolve([{ ...email(1, 'images@shop.com'), html: '<img src="ad.jpg">' }]),
+      markSeen,
+    };
+
+    const result = await ingestOnce({
+      emailSource,
+      minBodyLength: 200,
+      extractor: { extract },
+      htmlToMarkdown: { convert: () => 'View in browser' },
+      services: makeServices(),
+    });
+
+    expect(extract).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      messagesSeen: 1,
+      dealsAdded: 0,
+      messagesFailed: 0,
+      messagesSkipped: 1,
+    });
+    expect(markSeen).toHaveBeenCalledWith([1]);
+    expect(logWarning).toHaveBeenCalledWith(
+      'canonical body too short to hold an offer; skipping extraction',
+      expect.objectContaining({
+        tag: 'INGEST',
+        extra: expect.objectContaining({ uid: 1, from: 'images@shop.com', length: 15 }),
+      }),
+    );
+  });
+
+  it('extracts a body exactly at the minimum, and counts whitespace out of the measurement', async () => {
+    const extract = vi.fn(() => Promise.resolve([]));
+    const emailSource: EmailSource = {
+      fetchUnseen: () => Promise.resolve([{ ...email(1, 'shop@example.com'), html: '<p>x</p>' }]),
+      markSeen: () => Promise.resolve(),
+    };
+    // Ten characters of content inside padding that must not count toward the threshold.
+    const body = `\n\n  ${'x'.repeat(10)}  \n`;
+
+    const result = await ingestOnce({
+      emailSource,
+      minBodyLength: 10,
+      extractor: { extract },
+      htmlToMarkdown: { convert: () => body },
+      services: makeServices(),
+    });
+
+    expect(extract).toHaveBeenCalledWith(expect.objectContaining({ body }));
+    expect(result).toMatchObject({ messagesSkipped: 0 });
+  });
+
+  it('never skips while the guard is disabled, however short the body is', async () => {
+    const extract = vi.fn(() => Promise.resolve([]));
+    const emailSource: EmailSource = {
+      fetchUnseen: () => Promise.resolve([{ ...email(1, 'shop@example.com'), html: '<p></p>' }]),
+      markSeen: () => Promise.resolve(),
+    };
+
+    const result = await ingestOnce({
+      emailSource,
+      minBodyLength: 0,
+      extractor: { extract },
+      htmlToMarkdown: { convert: () => '' },
+      services: makeServices(),
+    });
+
+    expect(extract).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ messagesSkipped: 0 });
+  });
+
+  it('still archives a skipped message, so the corpus shows what the threshold rejected', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'mealdeal-archive-skipped-'));
+    const emailSource: EmailSource = {
+      fetchUnseen: () =>
+        Promise.resolve([{ ...email(1, 'images@shop.com'), html: '<img src="ad.jpg">' }]),
+      markSeen: () => Promise.resolve(),
+    };
+    try {
+      const result = await ingestOnce({
+        emailSource,
+        archiveDirectory: directory,
+        minBodyLength: 200,
+        extractor: { extract: () => Promise.resolve([]) },
+        htmlToMarkdown: { convert: () => 'View in browser' },
+        services: makeServices(),
+      });
+
+      expect(result).toMatchObject({ messagesSkipped: 1 });
+      expect(await readdir(directory)).toHaveLength(1);
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
   });
 
   it('has no archive filesystem side effect when archiving is disabled', async () => {

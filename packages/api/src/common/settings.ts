@@ -29,6 +29,10 @@ const EnvSchema = z
       (value) => (value === '' ? undefined : value),
       z.string().optional(),
     ),
+    // Minimum canonical-body length (characters) an email must have before it is worth an LLM
+    // call. 0 disables the guard, which is the default so no deployment silently starts dropping
+    // mail; tune it from a real archive (see README) once you know your senders.
+    INGEST_MIN_BODY_LENGTH: z.coerce.number().int().nonnegative().default(0),
 
     IMAP_HOST: z.string().optional(),
     IMAP_PORT: z.coerce.number().int().positive().default(993),
@@ -135,6 +139,7 @@ export function parseSettings(env: NodeJS.ProcessEnv) {
     INGEST_SOURCE: ENV.INGEST_SOURCE,
     INGEST_LOCAL_DIR: ENV.INGEST_LOCAL_DIR ?? null,
     INGEST_ARCHIVE_DIR: ENV.INGEST_ARCHIVE_DIR ?? null,
+    INGEST_MIN_BODY_LENGTH: ENV.INGEST_MIN_BODY_LENGTH,
 
     IMAP,
 
