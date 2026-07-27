@@ -97,3 +97,22 @@ export class LocationLookupError extends ServerError {
     this.name = 'LocationLookupError';
   }
 }
+
+export interface EmailSourceErrorData {
+  host: string;
+  /** True when the provider rejected the credentials, rather than a transport/protocol failure. */
+  authenticationFailed: boolean;
+  serverResponseCode?: string;
+  responseText?: string;
+}
+
+/** A failure talking to the email source, raised at the IMAP adapter boundary. ImapFlow surfaces
+ * every failure as a bare `Error('Command failed')` and hangs the actionable detail off
+ * non-standard properties, so this carries that detail forward instead of discarding it. */
+export class EmailSourceError extends ServerError<EmailSourceErrorData> {
+  constructor(message: string, data: EmailSourceErrorData) {
+    super(message, data);
+    this.status = 502;
+    this.name = 'EmailSourceError';
+  }
+}
