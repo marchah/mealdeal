@@ -76,6 +76,23 @@ pnpm ingest
 Processed files move to `<dir>/processed/`, so re-runs are idempotent. A small synthetic fixture
 lives in `packages/api/test/fixtures/ingest/`.
 
+## Skipping dead emails (`INGEST_MIN_BODY_LENGTH`)
+
+An image-only marketing blast converts to a canonical body of almost nothing, so extracting it is a
+guaranteed-empty inference. Set `INGEST_MIN_BODY_LENGTH` to skip the model when an email's converted
+body (whitespace excluded) is shorter than that many characters. Skipped messages are still archived,
+are acknowledged so they are not re-fetched every pass, are logged with the sender and the measured
+length, and are counted as `messagesSkipped` in the pass result.
+
+It defaults to `0` (disabled), because too high a value silently drops real offers. Pick a value from
+evidence rather than guessing: run with `INGEST_ARCHIVE_DIR` set for a week, then measure the corpus —
+
+```bash
+wc -c "$INGEST_ARCHIVE_DIR"/*.md | sort -n | head -20
+```
+
+— and choose a threshold below your shortest genuine deal email.
+
 ## Architecture & contributing
 
 See **[AGENTS.md](./AGENTS.md)**. The backend is layered `resolver → service → repository → db`, and

@@ -62,4 +62,15 @@ describe('parseSettings', () => {
       }),
     ).toThrow('INGEST_ARCHIVE_DIR is only supported when INGEST_SOURCE=imap');
   });
+
+  it('leaves the short-body guard disabled unless a positive length is configured', () => {
+    expect(parseSettings({}).INGEST_MIN_BODY_LENGTH).toBe(0);
+    expect(parseSettings({ INGEST_MIN_BODY_LENGTH: '' }).INGEST_MIN_BODY_LENGTH).toBe(0);
+    expect(parseSettings({ INGEST_MIN_BODY_LENGTH: '300' }).INGEST_MIN_BODY_LENGTH).toBe(300);
+  });
+
+  it('rejects a negative or fractional short-body threshold', () => {
+    expect(() => parseSettings({ INGEST_MIN_BODY_LENGTH: '-1' })).toThrow();
+    expect(() => parseSettings({ INGEST_MIN_BODY_LENGTH: '1.5' })).toThrow();
+  });
 });

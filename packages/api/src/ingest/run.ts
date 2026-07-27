@@ -21,12 +21,25 @@ export interface IngestDeps {
   htmlToMarkdown: HtmlToMarkdownConverter;
   services: Services;
   archiveDirectory: string | null;
+  minBodyLength: number;
 }
 
 export interface IngestResult {
   messagesSeen: number;
   dealsAdded: number;
   messagesFailed: number;
+  /** Subset of messagesSeen that never reached the model (see isBodyTooShortToExtract). */
+  messagesSkipped: number;
+}
+
+/**
+ * An image-only marketing blast converts to a canonical body of almost nothing, so extracting it
+ * is a guaranteed-empty inference — costly against a local model and pure noise in the logs.
+ * The threshold is opt-in: 0 (the default) disables the guard, because the right cutoff depends on
+ * the senders in a given mailbox and a too-high value would silently drop real offers.
+ */
+export function isBodyTooShortToExtract(body: string, minBodyLength: number): boolean {
+  return minBodyLength > 0 && body.trim().length < minBodyLength;
 }
 
 // Stable dedup key so re-ingesting the same offer is a no-op (see deals.dedup_hash). Keyed on the
@@ -109,11 +122,13 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
   const archiveDirectory =
     deps.archiveDirectory ??
     (settings.INGEST_SOURCE === 'imap' ? settings.INGEST_ARCHIVE_DIR : null);
+  const minBodyLength = deps.minBodyLength ?? settings.INGEST_MIN_BODY_LENGTH;
 
   const runId = await services.ingestRunService.startIngestRun();
   let messagesSeen = 0;
   let dealsAdded = 0;
   let messagesFailed = 0;
+  let messagesSkipped = 0;
   const locationLookups = new Map<
     string,
     Promise<Awaited<ReturnType<Services['merchantService']['resolveMerchantLocation']>>>
@@ -149,6 +164,18 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
               },
             });
           }
+        }
+        // Archived first (above) so a skipped message still lands in the corpus — that is how the
+        // threshold gets tuned. Acknowledged like a processed message: nothing is pending for it,
+        // and leaving it unseen would re-fetch the same dead weight on every pass.
+        if (isBodyTooShortToExtract(body, minBodyLength)) {
+          messagesSkipped += 1;
+          logWarning('canonical body too short to hold an offer; skipping extraction', {
+            tag: 'INGEST',
+            extra: { uid: email.uid, from: email.from, length: body.trim().length, minBodyLength },
+          });
+          processedUids.push(email.uid);
+          continue;
         }
         const extracted = await extractor.extract({
           subject: email.subject,
@@ -249,7 +276,7 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
           ? `${String(messagesFailed)} of ${String(messagesSeen)} messages failed`
           : null,
     });
-    return { messagesSeen, dealsAdded, messagesFailed };
+    return { messagesSeen, dealsAdded, messagesFailed, messagesSkipped };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await services.ingestRunService.finishIngestRun(runId, {
@@ -273,7 +300,7 @@ export function scheduleIngest(): void {
     void ingestOnce()
       .then((result) => {
         logInfo(
-          `pass complete: ${String(result.messagesSeen)} seen, ${String(result.dealsAdded)} added`,
+          `pass complete: ${String(result.messagesSeen)} seen, ${String(result.dealsAdded)} added, ${String(result.messagesSkipped)} skipped`,
           { tag: 'INGEST' },
         );
       })
