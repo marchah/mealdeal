@@ -2,7 +2,7 @@ import { access, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { logWarning } from '../common/logger';
+import { logException, logWarning } from '../common/logger';
 import type { CouponType } from '../entities/couponType/types';
 import type { NewDeal } from '../entities/deal/types';
 import type { Merchant } from '../entities/merchant/types';
@@ -411,9 +411,12 @@ describe('ingestOnce', () => {
       expect(result).toMatchObject({ dealsAdded: 1, messagesFailed: 0 });
       expect(added).toHaveLength(1);
       expect(markSeen).toHaveBeenCalledWith([1]);
-      expect(logWarning).toHaveBeenCalledWith(
-        'archiving canonical markdown failed; continuing ingest',
-        expect.objectContaining({ tag: 'INGEST' }),
+      expect(logException).toHaveBeenCalledWith(
+        expect.any(Error),
+        expect.objectContaining({
+          tag: 'INGEST',
+          extra: expect.objectContaining({ during: 'archive-canonical-markdown' }),
+        }),
       );
     } finally {
       await rm(parent, { force: true, recursive: true });
@@ -518,9 +521,12 @@ describe('ingestOnce', () => {
 
     expect(result).toMatchObject({ dealsAdded: 2, messagesFailed: 0 });
     expect(added).toHaveLength(2);
-    expect(logWarning).toHaveBeenCalledWith(
-      'merchant location enrichment failed; continuing deal storage',
-      expect.objectContaining({ tag: 'INGEST' }),
+    expect(logException).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({
+        tag: 'INGEST',
+        extra: expect.objectContaining({ during: 'merchant-location-enrichment' }),
+      }),
     );
     expect(logWarning).toHaveBeenCalledWith(
       'merchant address missing; skipping location enrichment',

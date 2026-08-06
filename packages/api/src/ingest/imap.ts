@@ -1,7 +1,7 @@
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 import { EmailSourceError } from '../common/errors';
-import { logWarning } from '../common/logger';
+import { logException } from '../common/logger';
 import type { ImapSettings } from '../common/settings';
 import type { EmailSource, FetchedEmail } from './email';
 
@@ -73,9 +73,9 @@ export function imapClientFactory({ config }: { config: ImapSettings }): EmailSo
       try {
         await client.logout();
       } catch (logoutError) {
-        logWarning('IMAP logout failed; the session will time out server-side', {
+        logException(logoutError, {
           tag: 'INGEST',
-          extra: { host: config.IMAP_HOST, error: logoutError },
+          extra: { host: config.IMAP_HOST, during: 'imap-logout' },
         });
       }
     }
