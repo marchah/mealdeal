@@ -193,8 +193,20 @@ A PR missing a required test tier for new behavior is a blocker.
 - **Latest stable versions** of dependencies; commit the lockfile; bump deliberately.
 - **Config:** every environment variable is read + validated (Zod) in `common/settings.ts` — the single
   source of truth. Import `settings`; **never read `process.env` elsewhere** (ESLint enforces this).
+- **Comments:** default to none. Add one only for a *why* that cannot be read off the code — a
+  third-party quirk, a non-obvious framework behavior. One short line with `//`, matching the density
+  already in the file; never a JSDoc block that restates a signature. History belongs in git:
+  rationale, before/after notes and ticket references go in the commit message or PR, never in the
+  source. Migrations are where this slips — annotating a v2→v3 rewrite (`// v2 returned an array
+  here`) reads as helpful context and is still history.
 - **Logging:** use `common/logger.ts` (`logInfo` / `logWarning` / `logError` / `logException`, with a
-  `{ tag, extra }` option); **never `console.*`** (ESLint enforces this).
+  `{ tag, extra }` option); **never `console.*`** (ESLint enforces this). Holding a thrown value (any
+  `catch`, any rejected promise) → `logException(err, …)`, which keeps name/message/stack; `logError`
+  is only for a bad state you detect yourself with no Error object — unknown enum value, missing
+  record, failed invariant. Never pass an error through `logError`'s `extra`. There is no Sentry here
+  today; if it is added the rule matters more, not less — `logException` maps to `captureException`
+  (stack, grouped by exception type) while `logError` maps to a message event grouped by its string,
+  so an interpolated id spawns a fresh issue per occurrence.
 - **Errors:** throw the typed classes in `common/errors.ts`; list them in a field's `errors` to expose
   as union members.
 - **Enums:** a fixed value set is a TS `enum` (**SCREAMING_SNAKE_CASE** key **and** value, e.g.
