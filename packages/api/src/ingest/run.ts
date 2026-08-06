@@ -156,12 +156,9 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
             await archiveCanonicalMarkdown({ directory: archiveDirectory, email, body });
           } catch (archiveError) {
             // Archiving is a passive diagnostic — a write failure must never fail the pass.
-            logWarning('archiving canonical markdown failed; continuing ingest', {
+            logException(archiveError, {
               tag: 'INGEST',
-              extra: {
-                uid: email.uid,
-                error: archiveError instanceof Error ? archiveError.name : 'UnknownError',
-              },
+              extra: { uid: email.uid, during: 'archive-canonical-markdown' },
             });
           }
         }
@@ -215,12 +212,12 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
                   return locatedMerchant;
                 })
                 .catch((error: unknown) => {
-                  logWarning('merchant location enrichment failed; continuing deal storage', {
+                  logException(error, {
                     tag: 'INGEST',
                     extra: {
                       uid: email.uid,
                       merchant: deal.merchant,
-                      error: error instanceof Error ? error.name : 'UnknownError',
+                      during: 'merchant-location-enrichment',
                     },
                   });
                   return merchant;
