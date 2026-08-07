@@ -8,13 +8,19 @@ if (!token) {
   try {
     const response = await fetch(url, { method: 'POST', headers: { 'x-ingest-token': token } });
     const body = await response.text();
-    if (!response.ok) {
+    if (response.status === 409) {
+      console.error('A pass is already running; this request started nothing.');
+      process.exitCode = 1;
+    } else if (!response.ok) {
       console.error(
         `Ingest request failed (${String(response.status)}): ${body || response.statusText}`,
       );
       process.exitCode = 1;
     } else {
-      process.stdout.write(`${body}\n`);
+      // The server answers as soon as the pass STARTS, so there are no counts to print here.
+      process.stdout.write(
+        `${body}\nPass started; the server logs "pass complete" when it ends.\n`,
+      );
     }
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);

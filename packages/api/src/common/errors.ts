@@ -112,3 +112,17 @@ export class EmailSourceError extends ServerError<EmailSourceErrorData> {
     this.name = 'EmailSourceError';
   }
 }
+
+/**
+ * The model stopped at its output-token cap, leaving the JSON unterminated. Distinct from a
+ * merely malformed response because it is DETERMINISTIC: extraction runs at temperature 0, so
+ * re-sending the identical email truncates at the identical point. Retrying can only burn the
+ * same inference again, which is why the caller acknowledges the message instead of retrying.
+ */
+export class ExtractionTruncatedError extends ServerError {
+  constructor() {
+    super('LLM output was truncated at the model server output cap (finish_reason=length)');
+    this.status = 502;
+    this.name = 'ExtractionTruncatedError';
+  }
+}
