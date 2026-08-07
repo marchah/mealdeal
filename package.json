@@ -5,7 +5,7 @@
   "type": "module",
   "license": "MIT",
   "description": "Self-hosted grocery-deal ingester + web — a decoupled GraphQL API (Yoga + Pothos + Drizzle) and a Vite/React SPA, one container.",
-  "packageManager": "pnpm@11.13.1",
+  "packageManager": "pnpm@11.20.0",
   "engines": {
     "node": ">=22"
   },
@@ -38,7 +38,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.7.0",
     "prettier": "^3.9.5",
-    "react-doctor": "^0.9.1",
+    "react-doctor": "^0.9.6",
     "tsx": "^4.23.1",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.64.0"
