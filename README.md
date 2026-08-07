@@ -76,6 +76,11 @@ pnpm ingest
 Processed files move to `<dir>/processed/`, so re-runs are idempotent. A small synthetic fixture
 lives in `packages/api/test/fixtures/ingest/`.
 
+The trigger **starts** a pass and returns immediately — `202 {"status":"started"}`, or
+`409 {"status":"already-running"}` when one is still in flight. It does not wait for the outcome,
+because a full batch routinely outlives the HTTP request. Watch the logs for the closing
+`pass complete: N seen, N added, N skipped, N dropped` line instead.
+
 ## Skipping dead emails (`INGEST_MIN_BODY_LENGTH`)
 
 An image-only marketing blast converts to a canonical body of almost nothing, so extracting it is a

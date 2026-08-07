@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import cron from 'node-cron';
-import { ServerError } from '../common/errors';
+import { ExtractionTruncatedError, ServerError } from '../common/errors';
 import { logException, logInfo, logWarning } from '../common/logger';
 import { settings } from '../common/settings';
 import type { Maybe } from '../common/types';
@@ -30,6 +30,8 @@ export interface IngestResult {
   messagesFailed: number;
   /** Subset of messagesSeen that never reached the model (see isBodyTooShortToExtract). */
   messagesSkipped: number;
+  /** Reached the model but produced unusable output no retry can fix (see ExtractionTruncatedError). */
+  messagesDropped: number;
 }
 
 /**
@@ -129,6 +131,7 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
   let dealsAdded = 0;
   let messagesFailed = 0;
   let messagesSkipped = 0;
+  let messagesDropped = 0;
   const locationLookups = new Map<
     string,
     Promise<Awaited<ReturnType<Services['merchantService']['resolveMerchantLocation']>>>
@@ -256,6 +259,19 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
         }
         processedUids.push(email.uid);
       } catch (messageError) {
+        // A truncated response is deterministic (temperature 0), so leaving the message unseen
+        // would re-run the identical inference on every future pass — forever, and occupying an
+        // INGEST_BATCH slot each time. Acknowledge it instead; the canonical Markdown is already
+        // archived, so the message can be replayed once the output cap or the email is addressed.
+        if (messageError instanceof ExtractionTruncatedError) {
+          messagesDropped += 1;
+          logWarning('extraction truncated at the model output cap; dropping (retry cannot help)', {
+            tag: 'INGEST',
+            extra: { uid: email.uid, from: email.from, subject: email.subject },
+          });
+          processedUids.push(email.uid);
+          continue;
+        }
         messagesFailed += 1;
         logException(messageError, { tag: 'INGEST', extra: { uid: email.uid } });
       }
@@ -273,7 +289,7 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
           ? `${String(messagesFailed)} of ${String(messagesSeen)} messages failed`
           : null,
     });
-    return { messagesSeen, dealsAdded, messagesFailed, messagesSkipped };
+    return { messagesSeen, dealsAdded, messagesFailed, messagesSkipped, messagesDropped };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await services.ingestRunService.finishIngestRun(runId, {
@@ -286,6 +302,36 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
   }
 }
 
+/**
+ * The single in-flight pass, or null when idle. A pass acknowledges its messages only once the
+ * whole batch is done, so two overlapping passes both see the same unseen mail and extract it
+ * twice — wasted inference on a serialized local GPU, and duplicate work throughout. Passes are
+ * therefore mutually exclusive, which matters because one pass can outlast the cron interval.
+ */
+let activePass: Maybe<Promise<void>> = null;
+
+/**
+ * Start a pass and log its outcome, unless one is already running.
+ * Returns false when a pass was already in flight and nothing was started.
+ */
+export function startIngestPass(deps: Partial<IngestDeps> = {}): boolean {
+  if (activePass) return false;
+  activePass = ingestOnce(deps)
+    .then((result) => {
+      logInfo(
+        `pass complete: ${String(result.messagesSeen)} seen, ${String(result.dealsAdded)} added, ${String(result.messagesSkipped)} skipped, ${String(result.messagesDropped)} dropped`,
+        { tag: 'INGEST' },
+      );
+    })
+    .catch((error: unknown) => {
+      logException(error, { tag: 'INGEST' });
+    })
+    .finally(() => {
+      activePass = null;
+    });
+  return true;
+}
+
 /** Schedule recurring passes (node-cron). No-ops on an invalid cron expression. */
 export function scheduleIngest(): void {
   const expr = settings.INGEST_CRON;
@@ -294,16 +340,9 @@ export function scheduleIngest(): void {
     return;
   }
   cron.schedule(expr, () => {
-    void ingestOnce()
-      .then((result) => {
-        logInfo(
-          `pass complete: ${String(result.messagesSeen)} seen, ${String(result.dealsAdded)} added, ${String(result.messagesSkipped)} skipped`,
-          { tag: 'INGEST' },
-        );
-      })
-      .catch((error: unknown) => {
-        logException(error, { tag: 'INGEST' });
-      });
+    if (!startIngestPass()) {
+      logWarning('previous pass still running; skipping this tick', { tag: 'INGEST' });
+    }
   });
   logInfo(`scheduled (${expr})`, { tag: 'INGEST' });
 }

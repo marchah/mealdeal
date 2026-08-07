@@ -1,13 +1,12 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { createYoga } from 'graphql-yoga';
 import sirv from 'sirv';
-import { ServerError } from './common/errors';
 import { logException, logInfo } from './common/logger';
 import { settings } from './common/settings';
 import { createContext } from './context';
 import { runMigrations } from './db/migrate';
 import { getServices } from './services';
-import { ingestOnce, scheduleIngest } from './ingest/run';
+import { scheduleIngest, startIngestPass } from './ingest/run';
 import { schema } from './schema';
 
 // The built SPA. In Docker this is overridden to the copied build dir via WEB_DIR.
@@ -16,25 +15,27 @@ const WEB_DIR = settings.WEB_DIR ?? new URL('../../web/dist', import.meta.url).p
 const yoga = createYoga({ schema, context: createContext, graphqlEndpoint: '/graphql' });
 const serveStatic = sirv(WEB_DIR, { single: true, dev: false });
 
-async function handleInternalIngest(req: IncomingMessage, res: ServerResponse): Promise<void> {
+/**
+ * Trigger a pass and answer immediately rather than holding the connection until it finishes.
+ * A full batch routinely outlives Node's 300 s `server.requestTimeout`, which closed the socket
+ * mid-pass and reported a transport failure for a pass that was in fact running fine — so the
+ * outcome is logged (see startIngestPass) instead of returned.
+ */
+function handleInternalIngest(req: IncomingMessage, res: ServerResponse): void {
   const token = settings.INGEST_TOKEN;
   if (req.method !== 'POST' || !token || req.headers['x-ingest-token'] !== token) {
     res.statusCode = 401;
     res.end(JSON.stringify({ error: 'unauthorized' }));
     return;
   }
-  try {
-    const result = await ingestOnce();
-    res.setHeader('content-type', 'application/json');
-    res.end(JSON.stringify(result));
-  } catch (error) {
-    logException(error, {
-      tag: ['SERVER', 'INGEST'],
-      extra: error instanceof ServerError ? error.data : undefined,
-    });
-    res.statusCode = error instanceof ServerError ? error.status : 500;
-    res.end(JSON.stringify({ error: error instanceof Error ? error.message : 'ingest failed' }));
+  res.setHeader('content-type', 'application/json');
+  if (!startIngestPass()) {
+    res.statusCode = 409;
+    res.end(JSON.stringify({ status: 'already-running' }));
+    return;
   }
+  res.statusCode = 202;
+  res.end(JSON.stringify({ status: 'started' }));
 }
 
 async function main(): Promise<void> {
@@ -50,7 +51,7 @@ async function main(): Promise<void> {
       return;
     }
     if (url.startsWith('/internal/ingest')) {
-      void handleInternalIngest(req, res);
+      handleInternalIngest(req, res);
       return;
     }
     serveStatic(req, res, () => {

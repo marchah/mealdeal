@@ -8,6 +8,7 @@ vi.mock('openai', () => ({
   },
 }));
 
+import { ExtractionTruncatedError } from '../common/errors';
 import { llmExtractorFactory, parseExtractionResponse } from './extractor';
 
 describe('parseExtractionResponse', () => {
@@ -30,6 +31,24 @@ describe('parseExtractionResponse', () => {
 
   it('throws on non-JSON output', () => {
     expect(() => parseExtractionResponse('sorry, here are your deals: ...')).toThrow();
+  });
+
+  // Truncated output is JSON that simply stops, so without finish_reason it is indistinguishable
+  // from a malformed response — and the generic error sends the operator looking in the wrong place.
+  it('reports a length-capped response as truncation, not as malformed JSON', () => {
+    expect(() =>
+      parseExtractionResponse('{"deals":[{"merchant":"Shop","title":"Che', 'length'),
+    ).toThrow(ExtractionTruncatedError);
+  });
+
+  it('reports truncation even when the cut-off output happens to still parse', () => {
+    expect(() => parseExtractionResponse('{"deals":[]}', 'length')).toThrow(
+      ExtractionTruncatedError,
+    );
+  });
+
+  it('does not treat a normally-finished response as truncated', () => {
+    expect(parseExtractionResponse('{"deals":[]}', 'stop')).toEqual([]);
   });
 
   it('throws on a malformed shape (missing required fields)', () => {
@@ -82,5 +101,27 @@ describe('parseExtractionResponse', () => {
         ]),
       }),
     );
+  });
+  // The parser can only report truncation if the caller actually forwards finish_reason.
+  it('forwards the choice finish_reason so a capped response surfaces as truncation', async () => {
+    createCompletion.mockResolvedValueOnce({
+      choices: [{ message: { content: '{"deals":[{"merchant":"Shop"' }, finish_reason: 'length' }],
+    });
+    const extractor = llmExtractorFactory({
+      config: {
+        OPENAI_BASE_URL: 'http://localhost:1234/v1',
+        OPENAI_API_KEY: 'not-needed',
+        OPENAI_MODEL: 'test-model',
+      },
+    });
+
+    await expect(
+      extractor.extract({
+        subject: 'Weekly deals',
+        from: 'shop@example.com',
+        body: 'Cheese on sale',
+        couponTypes: [{ key: 'fresh-food', label: 'Fresh Food' }],
+      }),
+    ).rejects.toThrow(ExtractionTruncatedError);
   });
 });

@@ -1,15 +1,16 @@
 import { access, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it, vi } from 'vitest';
-import { logException, logWarning } from '../common/logger';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ExtractionTruncatedError, ServerError } from '../common/errors';
+import { logException, logInfo, logWarning } from '../common/logger';
 import type { CouponType } from '../entities/couponType/types';
 import type { NewDeal } from '../entities/deal/types';
 import type { Merchant } from '../entities/merchant/types';
 import type { Services } from '../services';
 import type { EmailSource, FetchedEmail } from './email';
 import type { DealExtractor } from './extractor';
-import { canonicalEmailBody, ingestOnce, MAX_CANONICAL_BODY_LENGTH } from './run';
+import { canonicalEmailBody, ingestOnce, MAX_CANONICAL_BODY_LENGTH, startIngestPass } from './run';
 
 vi.mock('../common/logger', () => ({
   logInfo: vi.fn(),
@@ -200,6 +201,7 @@ describe('ingestOnce', () => {
       dealsAdded: 0,
       messagesFailed: 1,
       messagesSkipped: 0,
+      messagesDropped: 0,
     });
     expect(added).toEqual([]);
     expect(markSeen).toHaveBeenCalledWith([]);
@@ -236,9 +238,53 @@ describe('ingestOnce', () => {
       dealsAdded: 1,
       messagesFailed: 1,
       messagesSkipped: 0,
+      messagesDropped: 0,
     });
     expect(markSeen).toHaveBeenCalledTimes(1);
     expect(markSeen).toHaveBeenCalledWith([1]);
+  });
+
+  it('acknowledges a truncated extraction, because retrying it would repeat the same failure', async () => {
+    const markSeen = vi.fn((_uids: readonly number[]): Promise<void> => Promise.resolve());
+    const emailSource: EmailSource = {
+      fetchUnseen: () => Promise.resolve([email(1, 'huge@shop.com'), email(2, 'good@shop.com')]),
+      markSeen,
+    };
+    const extractor: DealExtractor = {
+      extract: (e) =>
+        e.from === 'huge@shop.com'
+          ? Promise.reject(new ExtractionTruncatedError())
+          : Promise.resolve([{ merchant: 'Shop', title: 'Cheese 2-for-1' }]),
+    };
+
+    const result = await ingestOnce({ emailSource, extractor, services: makeServices() });
+
+    // Counted apart from a retryable failure, and acknowledged alongside the message that worked
+    // — otherwise it occupies an INGEST_BATCH slot on every future pass, forever.
+    expect(result).toEqual({
+      messagesSeen: 2,
+      dealsAdded: 1,
+      messagesFailed: 0,
+      messagesSkipped: 0,
+      messagesDropped: 1,
+    });
+    expect(markSeen).toHaveBeenCalledWith([1, 2]);
+  });
+
+  it('leaves a non-truncation extraction failure unseen, so a transient outage still retries', async () => {
+    const markSeen = vi.fn((_uids: readonly number[]): Promise<void> => Promise.resolve());
+    const emailSource: EmailSource = {
+      fetchUnseen: () => Promise.resolve([email(1, 'bad@shop.com')]),
+      markSeen,
+    };
+    const extractor: DealExtractor = {
+      extract: () => Promise.reject(new ServerError('LLM returned non-JSON output')),
+    };
+
+    const result = await ingestOnce({ emailSource, extractor, services: makeServices() });
+
+    expect(result).toMatchObject({ messagesFailed: 1, messagesDropped: 0 });
+    expect(markSeen).toHaveBeenCalledWith([]);
   });
 
   it('skips extraction for a body under the minimum, acknowledging it so it is not re-fetched', async () => {
@@ -265,6 +311,7 @@ describe('ingestOnce', () => {
       dealsAdded: 0,
       messagesFailed: 0,
       messagesSkipped: 1,
+      messagesDropped: 0,
     });
     expect(markSeen).toHaveBeenCalledWith([1]);
     expect(logWarning).toHaveBeenCalledWith(
@@ -532,5 +579,77 @@ describe('ingestOnce', () => {
       'merchant address missing; skipping location enrichment',
       expect.objectContaining({ tag: 'INGEST' }),
     );
+  });
+});
+
+describe('startIngestPass', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // A pass acknowledges its messages only at the end, so an overlapping pass re-fetches and
+  // re-extracts the very mail the first one is still working through.
+  function gatedDeps(): { deps: Parameters<typeof startIngestPass>[0]; release: () => void } {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const emailSource: EmailSource = {
+      fetchUnseen: async () => {
+        await gate;
+        return [];
+      },
+      markSeen: () => Promise.resolve(),
+    };
+    return {
+      deps: {
+        emailSource,
+        extractor: { extract: () => Promise.resolve([]) },
+        services: makeServices(),
+      },
+      release,
+    };
+  }
+
+  it('refuses to start a second pass while one is in flight', () => {
+    const { deps, release } = gatedDeps();
+
+    expect(startIngestPass(deps)).toBe(true);
+    expect(startIngestPass(deps)).toBe(false);
+
+    release();
+  });
+
+  it('accepts a new pass once the previous one finishes', async () => {
+    const { deps, release } = gatedDeps();
+    expect(startIngestPass(deps)).toBe(true);
+    release();
+
+    // The guard clears in a `finally`, so poll rather than assuming a fixed microtask depth.
+    await vi.waitFor(() => {
+      expect(startIngestPass(deps)).toBe(true);
+    });
+    await vi.waitFor(() => {
+      expect(logInfo).toHaveBeenCalledWith(
+        expect.stringContaining('pass complete'),
+        expect.objectContaining({ tag: 'INGEST' }),
+      );
+    });
+  });
+
+  it('logs a failed pass instead of rejecting, so a cron tick never goes unhandled', async () => {
+    const emailSource: EmailSource = {
+      fetchUnseen: () => Promise.reject(new ServerError('IMAP down')),
+      markSeen: () => Promise.resolve(),
+    };
+
+    expect(startIngestPass({ emailSource, services: makeServices() })).toBe(true);
+
+    await vi.waitFor(() => {
+      expect(logException).toHaveBeenCalledWith(
+        expect.objectContaining({ message: 'IMAP down' }),
+        expect.objectContaining({ tag: 'INGEST' }),
+      );
+    });
   });
 });
