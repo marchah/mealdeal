@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "license": "MIT",
-  "description": "Self-hosted grocery-deal ingester + web — a decoupled GraphQL API (Yoga + Pothos + Drizzle) and a Vite/React SPA, one container.",
+  "description": "Self-hosted grocery-deal ingester + web \u2014 a decoupled GraphQL API (Yoga + Pothos + Drizzle) and a Vite/React SPA, one container.",
   "packageManager": "pnpm@11.20.0",
   "engines": {
     "node": ">=22"
@@ -29,18 +29,18 @@
     "doctor": "npx react-doctor@latest"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.5",
-    "@types/node": "^26.1.1",
-    "eslint": "^9.39.5",
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.1.2",
+    "eslint": "^10.8.0",
     "eslint-import-resolver-typescript": "^4.4.5",
-    "eslint-plugin-boundaries": "^7.0.2",
+    "eslint-plugin-boundaries": "^7.1.0",
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "eslint-plugin-react-hooks": "^7.1.1",
-    "globals": "^17.7.0",
-    "prettier": "^3.9.5",
+    "globals": "^17.9.0",
+    "prettier": "^3.9.6",
     "react-doctor": "^0.9.6",
-    "tsx": "^4.23.1",
+    "tsx": "^4.23.9",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.64.0"
+    "typescript-eslint": "^8.66.0"
   }
 }
