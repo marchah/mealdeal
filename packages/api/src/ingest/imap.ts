@@ -4,10 +4,11 @@ import { EmailSourceError } from '../common/errors';
 import { logException } from '../common/logger';
 import type { ImapSettings } from '../common/settings';
 import type { EmailSource, FetchedEmail } from './email';
+import type { Maybe } from '../common/types';
 
 /** Mailparser represents a missing HTML part as `undefined` or `false`. Keep that detail at
  * the IMAP boundary so the rest of ingest only has to distinguish HTML from no HTML. */
-export function normalizeHtmlPart(html: string | false | undefined): string | null {
+export function normalizeHtmlPart(html: string | false | undefined): Maybe<string> {
   if (typeof html !== 'string' || html.trim() === '') return null;
   return html;
 }

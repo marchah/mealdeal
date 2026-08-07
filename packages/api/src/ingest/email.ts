@@ -1,3 +1,4 @@
+import type { Maybe } from '../common/types';
 /** Canonical email data consumed by the ingest pipeline, independent of its source adapter. */
 export interface FetchedEmail {
   uid: number;
@@ -5,7 +6,7 @@ export interface FetchedEmail {
   subject: string;
   date: Date;
   text: string;
-  html: string | null;
+  html: Maybe<string>;
 }
 
 /**

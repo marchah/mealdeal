@@ -3,10 +3,11 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useQuery } from 'urql';
 import { NearMeView } from './NearMeView';
+import type { Maybe } from '../../lib/types';
 
 vi.mock('urql', () => ({ useQuery: vi.fn() }));
 
-let root: Root | null = null;
+let root: Maybe<Root> = null;
 
 function renderNearMe() {
   const container = document.createElement('div');

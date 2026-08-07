@@ -160,6 +160,26 @@ export default tseslint.config(
     },
   },
 
+  // ---- Absence is Maybe<T> — every package ----
+  // `[types.length=2]` is the whole rule: a union of exactly T and null IS Maybe<T>, so write it
+  // that way. A richer union (`string | false | undefined`, mirroring a library's own shape) is
+  // left alone because Maybe<T> cannot express it — no judgement call, no carve-outs.
+  // Each package defines Maybe once — those two files are exempt, since the alias IS `T | null`.
+  {
+    files: ['packages/{api,web}/src/**/*.{ts,tsx}'],
+    ignores: ['packages/api/src/common/types.ts', 'packages/web/src/lib/types.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'TSUnionType[types.length=2] > TSNullKeyword',
+          message:
+            "A union of exactly T and null is Maybe<T> — import it from this package's types module and write Maybe<T>.",
+        },
+      ],
+    },
+  },
+
   // ---- Web (React SPA) ----
   {
     files: ['packages/web/**/*.{ts,tsx}'],
