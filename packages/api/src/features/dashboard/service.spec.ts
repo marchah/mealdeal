@@ -3,6 +3,7 @@ import type { Deal, DealService } from '../../entities/deal/types';
 import type { MerchantService } from '../../entities/merchant/types';
 import type { IngestRunService } from '../ingestRun/types';
 import { dashboardServiceFactory } from './service';
+import type { Maybe } from '../../common/types';
 
 const makeDeal = (over: Partial<Deal> = {}): Deal => ({
   id: 'd1',
@@ -26,7 +27,7 @@ const makeDeal = (over: Partial<Deal> = {}): Deal => ({
 });
 
 function makeService(
-  over: { active?: Deal[]; total?: number; merchants?: number; lastIngestAt?: Date | null } = {},
+  over: { active?: Deal[]; total?: number; merchants?: number; lastIngestAt?: Maybe<Date> } = {},
 ) {
   const active = over.active ?? [makeDeal({ id: 'a' }), makeDeal({ id: 'b' })];
   // @ts-expect-error partial mock: only listDeals and countDeals are used

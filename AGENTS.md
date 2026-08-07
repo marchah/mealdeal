@@ -209,6 +209,11 @@ here`) reads as helpful context and is still history.
   so an interpolated id spawns a fresh issue per occurrence.
 - **Errors:** throw the typed classes in `common/errors.ts`; list them in a field's `errors` to expose
   as union members.
+- **Absence (every package):** a union of exactly `T` and `null` **is** `Maybe<T>` — write it that
+  way, and prefer `null` over `undefined`. A richer union stays as it is, because `Maybe<T>` cannot
+  express it: `string | false | undefined` mirroring mailparser's own shape is correct as written.
+  Each package defines the alias once — `api/src/common/types.ts`, `web/src/lib/types.ts` — since it
+  is one line with nothing to drift. ESLint enforces exactly this in both packages.
 - **Enums:** a fixed value set is a TS `enum` (**SCREAMING_SNAKE_CASE** key **and** value, e.g.
   `MUTE = 'MUTE'`) in the slice's `types.ts`, reused by the Drizzle column (`.$type<Enum>()`) and the
   GraphQL enum (`builder.enumType(Enum, { name })`) — one source of truth, not a string-union + a

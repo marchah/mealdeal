@@ -1,3 +1,4 @@
+import type { Maybe } from '../../common/types';
 import type { Deal } from '../../entities/deal/types';
 import type { NearMeDependencies, NearMeInput, NearMeService } from './types';
 
@@ -32,7 +33,7 @@ export function nearMeServiceFactory({
     ]);
     const nearbyMerchantIds = new Set(stores.map((store) => store.id));
     const couponTypesById = new Map(couponTypes.map((couponType) => [couponType.id, couponType]));
-    const groups = new Map<string | null, Deal[]>();
+    const groups = new Map<Maybe<string>, Deal[]>();
 
     for (const deal of deals) {
       if (!nearbyMerchantIds.has(deal.merchantId)) continue;

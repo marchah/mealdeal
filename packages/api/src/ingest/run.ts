@@ -20,7 +20,7 @@ export interface IngestDeps {
   extractor: DealExtractor;
   htmlToMarkdown: HtmlToMarkdownConverter;
   services: Services;
-  archiveDirectory: string | null;
+  archiveDirectory: Maybe<string>;
   minBodyLength: number;
 }
 
@@ -102,7 +102,7 @@ function resolveCouponTypeId({
 
 /** Prefer structured HTML converted to Markdown; otherwise retain the source plain-text part. */
 export function canonicalEmailBody(
-  email: { html: string | null; text: string },
+  email: { html: Maybe<string>; text: string },
   htmlToMarkdown: HtmlToMarkdownConverter,
 ): string {
   const body = email.html === null ? email.text : htmlToMarkdown.convert(email.html);
