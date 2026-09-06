@@ -28,6 +28,13 @@ is switched off, so it becomes something Pantry-first ("Know a good price when y
 Slices: `entities/pantryItem/` (the product) + `entities/priceEntry/` (one observed price) +
 `features/priceInsight/` (the verdict engine).
 
+## v2 status — delivered
+
+Slices 1–10 are all merged: ingestion paused behind a flag with the app saying so, the Pantry-first
+tab shell, the unit conversion module, the two tables, the `pantryItem` and `priceEntry` entities,
+the price-insight verdict engine, the Pantry web views, the provider clients moved behind ports,
+and the URL importer. The follow-ups below (F1–F7) remain.
+
 ## v1 status — delivered
 
 Features 1–12 of the previous plan are **all merged**: the `couponType` taxonomy, merchant

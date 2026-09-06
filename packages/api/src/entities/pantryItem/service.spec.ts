@@ -4,7 +4,13 @@ import type { Maybe } from '../../common/types';
 import { Unit } from '../../common/units';
 import type { CouponType, CouponTypeService } from '../couponType/types';
 import { pantryItemServiceFactory } from './service';
-import type { PantryItem, PantryItemInput, PantryItemRepository } from './types';
+import type {
+  PantryItem,
+  PantryItemInput,
+  PantryItemRepository,
+  ProductDraft,
+  ProductLookup,
+} from './types';
 
 const makeItem = (over: Partial<PantryItem> = {}): PantryItem => ({
   id: 'p1',
@@ -50,6 +56,7 @@ function makeService(
     updated?: Maybe<PantryItem>;
     archivedRow?: Maybe<PantryItem>;
     deletedRow?: Maybe<PantryItem>;
+    product?: Maybe<ProductDraft>;
   } = {},
 ) {
   const insertPantryItem = vi.fn((input: PantryItemInput) =>
@@ -79,6 +86,8 @@ function makeService(
     setPantryItemArchived,
     deletePantryItem,
   };
+  const lookupProduct = vi.fn(() => Promise.resolve(over.product ?? null));
+  const productLookup: ProductLookup = { lookupProduct };
   // @ts-expect-error partial mock: only findCouponTypeById is used
   const couponTypeService: CouponTypeService = {
     findCouponTypeById: (id: string) =>
@@ -86,12 +95,13 @@ function makeService(
   };
 
   return {
-    service: pantryItemServiceFactory({ pantryItemRepository, couponTypeService }),
+    service: pantryItemServiceFactory({ pantryItemRepository, productLookup, couponTypeService }),
     insertPantryItem,
     findPantryItemByNameAndBrand,
     updatePantryItem,
     setPantryItemArchived,
     deletePantryItem,
+    lookupProduct,
   };
 }
 
@@ -296,5 +306,48 @@ describe('pantryItemService writes', () => {
   it('reports deleting an unknown item as not found', async () => {
     const { service } = makeService({ deletedRow: null });
     await expect(service.deletePantryItem('nope')).rejects.toBeInstanceOf(NotFoundError);
+  });
+});
+
+describe('pantryItemService URL import', () => {
+  it('returns what the page yielded, without storing anything', async () => {
+    const { service, insertPantryItem } = makeService({
+      product: {
+        name: 'Tide Free & Gentle',
+        brand: 'Tide',
+        imageUrl: 'https://example.test/tide.jpg',
+        price: 19.94,
+        currency: 'USD',
+        sizeAmount: 150,
+        sizeUnit: Unit.FLUID_OUNCE,
+      },
+    });
+
+    const draft = await service.draftPantryItemFromUrl('https://example.test/tide');
+
+    expect(draft).toMatchObject({ found: true, name: 'Tide Free & Gentle', sizeAmount: 150 });
+    expect(draft.url).toBe('https://example.test/tide');
+    // The whole point of a draft: the user confirms before a row exists.
+    expect(insertPantryItem).not.toHaveBeenCalled();
+  });
+
+  it('reports an unreadable page as a blank draft rather than an error', async () => {
+    // Retailers block server-side fetches routinely; that must open an empty form, not a failure.
+    const { service } = makeService({ product: null });
+
+    const draft = await service.draftPantryItemFromUrl('https://example.test/blocked');
+
+    expect(draft.found).toBe(false);
+    expect(draft.url).toBe('https://example.test/blocked');
+    expect(draft.name).toBeNull();
+    expect(draft.price).toBeNull();
+  });
+
+  it('passes the URL through to the lookup untouched', async () => {
+    const { service, lookupProduct } = makeService({ product: null });
+
+    await service.draftPantryItemFromUrl('https://example.test/a?b=c');
+
+    expect(lookupProduct).toHaveBeenCalledWith('https://example.test/a?b=c');
   });
 });

@@ -44,6 +44,31 @@ export interface PantryItemInput {
   notes: Maybe<string>;
 }
 
+/**
+ * What a product page yielded. Every field is optional: pages differ, retailers block, and a
+ * half-read page still saves typing. The caller confirms it before anything is stored.
+ */
+export interface ProductDraft {
+  name: Maybe<string>;
+  brand: Maybe<string>;
+  imageUrl: Maybe<string>;
+  price: Maybe<number>;
+  currency: Maybe<string>;
+  sizeAmount: Maybe<number>;
+  sizeUnit: Maybe<Unit>;
+}
+
+export interface PantryItemDraft extends ProductDraft {
+  url: string;
+  /** False when the page could not be read at all — the form opens blank rather than erroring. */
+  found: boolean;
+}
+
+/** Adapter port: implementations read a product page, or report that they could not. */
+export interface ProductLookup {
+  lookupProduct: (url: string) => Promise<Maybe<ProductDraft>>;
+}
+
 export interface PantryItemRepository {
   findPantryItemById: (id: string) => Promise<Maybe<PantryItem>>;
   findPantryItemsByIds: (ids: readonly string[]) => Promise<PantryItem[]>;
@@ -71,4 +96,6 @@ export interface PantryItemService {
   archivePantryItem: (id: string, archived: boolean) => Promise<PantryItem>;
   /** Hard delete. The price history goes with it (ON DELETE cascade) — archiving is the gentler option. */
   deletePantryItem: (id: string) => Promise<PantryItem>;
+  /** Read a product page into a draft. Never stores anything; the caller confirms first. */
+  draftPantryItemFromUrl: (url: string) => Promise<PantryItemDraft>;
 }

@@ -30,6 +30,7 @@ import type { LocationService, ZipCoordinateLookup } from './location/types';
 import { merchantRepositoryFactory } from './merchant/repository';
 import { merchantServiceFactory } from './merchant/service';
 import type { AddressCoordinateLookup, MerchantService } from './merchant/types';
+import type { ProductLookup } from './pantryItem/types';
 import { pantryItemRepositoryFactory } from './pantryItem/repository';
 import { pantryItemServiceFactory } from './pantryItem/service';
 import type { PantryItemService } from './pantryItem/types';
@@ -60,10 +61,12 @@ export function getEntitiesServices({
   db,
   zipCoordinateLookup,
   addressCoordinateLookup,
+  productLookup,
 }: {
   db: Db;
   zipCoordinateLookup: ZipCoordinateLookup;
   addressCoordinateLookup: AddressCoordinateLookup;
+  productLookup: ProductLookup;
 }): EntitiesServices {
   const merchantService = merchantServiceFactory({
     merchantRepository: merchantRepositoryFactory({ db }),
@@ -82,6 +85,7 @@ export function getEntitiesServices({
   });
   const pantryItemService = pantryItemServiceFactory({
     pantryItemRepository: pantryItemRepositoryFactory({ db }),
+    productLookup,
     couponTypeService,
   });
   const priceEntryService = priceEntryServiceFactory({

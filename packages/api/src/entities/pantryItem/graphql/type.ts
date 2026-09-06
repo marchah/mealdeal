@@ -1,7 +1,7 @@
 import { builder } from '../../../builder';
 import { Unit } from '../../../common/units';
 import { CouponTypeRef } from '../../couponType/graphql/type';
-import type { PantryItem } from '../types';
+import type { PantryItem, PantryItemDraft } from '../types';
 
 // Unit is shared with priceEntry, and a GraphQL enum may only be registered once — pantryItem
 // owns the registration as its first consumer, and the other slice imports this ref.
@@ -30,6 +30,25 @@ PantryItemRef.implement({
       resolve: (item, _args, ctx) =>
         item.couponTypeId === null ? null : ctx.loaders.couponTypeById.load(item.couponTypeId),
     }),
+  }),
+});
+
+/**
+ * What a product page yielded. Nothing here is stored — the form is prefilled and the user
+ * confirms, so `found: false` opens a blank form rather than reporting an error.
+ */
+export const PantryItemDraftRef = builder.objectRef<PantryItemDraft>('PantryItemDraft');
+PantryItemDraftRef.implement({
+  fields: (t) => ({
+    url: t.exposeString('url'),
+    found: t.exposeBoolean('found'),
+    name: t.exposeString('name', { nullable: true }),
+    brand: t.exposeString('brand', { nullable: true }),
+    imageUrl: t.exposeString('imageUrl', { nullable: true }),
+    price: t.exposeFloat('price', { nullable: true }),
+    currency: t.exposeString('currency', { nullable: true }),
+    sizeAmount: t.exposeFloat('sizeAmount', { nullable: true }),
+    sizeUnit: t.expose('sizeUnit', { type: UnitRef, nullable: true }),
   }),
 });
 

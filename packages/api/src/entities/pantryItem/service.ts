@@ -7,6 +7,7 @@ import type {
   PantryItemInput,
   PantryItemRepository,
   PantryItemService,
+  ProductLookup,
 } from './types';
 
 /** A field the user left blank is absent, not an empty string — one representation, not two. */
@@ -19,9 +20,11 @@ function blankToNull(value: Maybe<string>): Maybe<string> {
 // destructured down to the function actually used.
 export function pantryItemServiceFactory({
   pantryItemRepository,
+  productLookup,
   couponTypeService: { findCouponTypeById },
 }: {
   pantryItemRepository: PantryItemRepository;
+  productLookup: ProductLookup;
   couponTypeService: CouponTypeService;
 }): PantryItemService {
   function normalize(input: PantryItemInput): PantryItemInput {
@@ -124,6 +127,26 @@ export function pantryItemServiceFactory({
     return item;
   }
 
+  // Deliberately stores nothing. A page that could not be read comes back as `found: false` with
+  // the URL, so the form opens blank instead of the paste turning into an error the user has to
+  // dismiss — retailers block server-side fetches often enough that this is the common path.
+  async function draftPantryItemFromUrl(url: string) {
+    const draft = await productLookup.lookupProduct(url);
+    return draft === null
+      ? {
+          url,
+          found: false,
+          name: null,
+          brand: null,
+          imageUrl: null,
+          price: null,
+          currency: null,
+          sizeAmount: null,
+          sizeUnit: null,
+        }
+      : { ...draft, url, found: true };
+  }
+
   return {
     getPantryItemById,
     findPantryItemsByIds,
@@ -133,5 +156,6 @@ export function pantryItemServiceFactory({
     updatePantryItem,
     archivePantryItem,
     deletePantryItem,
+    draftPantryItemFromUrl,
   };
 }

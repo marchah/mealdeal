@@ -1,12 +1,9 @@
 import { useId, useState } from 'react';
-import { useMutation, useQuery } from 'urql';
+import { useQuery } from 'urql';
 import { Button } from '../../components/ui/button';
-import type { Maybe } from '../../lib/types';
-import { EMPTY_ITEM, type PantryItemFormValues } from './formValues';
-import { PantryItemForm } from './PantryItemForm';
+import { AddPantryItemPanel } from './AddPantryItemPanel';
 import { PantryItemCard } from './PantryItemCard';
-import { AddPantryItemMutation, PantryItemsQuery, mutationError } from './queries';
-import { toPantryItemInput } from './toInput';
+import { PantryItemsQuery } from './queries';
 
 const VERDICT_ORDER = ['GREAT', 'GOOD', 'TYPICAL', 'HIGH', 'UNKNOWN'];
 
@@ -26,37 +23,12 @@ export function PantryList({ onOpen }: { onOpen: (id: string) => void }) {
     query: PantryItemsQuery,
     variables: { includeArchived: false },
   });
-  const [, addPantryItem] = useMutation(AddPantryItemMutation);
   const [category, setCategory] = useState('all');
   const [verdict, setVerdict] = useState('all');
   const [sort, setSort] = useState('best');
   const [adding, setAdding] = useState(false);
-  const [formError, setFormError] = useState<Maybe<string>>(null);
-  const [busy, setBusy] = useState(false);
   const ids = useId();
   const id = (name: string) => `${ids}-${name}`;
-
-  async function handleAdd(values: PantryItemFormValues) {
-    setBusy(true);
-    setFormError(null);
-    let message: Maybe<string>;
-    try {
-      const result = await addPantryItem({ input: toPantryItemInput(values) });
-      const payload = result.data?.addPantryItem;
-      message =
-        result.error?.message ?? (payload ? mutationError(payload) : 'Something went wrong');
-    } finally {
-      // In a finally: a throw here would otherwise leave the form permanently disabled.
-      setBusy(false);
-    }
-    if (message !== null) {
-      setFormError(message);
-      return;
-    }
-    setAdding(false);
-    // The document cache cannot know a new item belongs in a list it has already seen empty.
-    refetch({ requestPolicy: 'network-only' });
-  }
 
   if (fetching && !data)
     return (
@@ -107,7 +79,6 @@ export function PantryList({ onOpen }: { onOpen: (id: string) => void }) {
         <Button
           onClick={() => {
             setAdding((open) => !open);
-            setFormError(null);
           }}
           aria-expanded={adding}
         >
@@ -116,13 +87,13 @@ export function PantryList({ onOpen }: { onOpen: (id: string) => void }) {
       </div>
 
       {adding && (
-        <PantryItemForm
-          initial={EMPTY_ITEM}
+        <AddPantryItemPanel
           categories={data?.getCouponTypes ?? []}
-          submitLabel="Add item"
-          error={formError}
-          busy={busy}
-          onSubmit={(values) => void handleAdd(values)}
+          onAdded={() => {
+            setAdding(false);
+            // The document cache cannot know a new item belongs in a list it has already seen empty.
+            refetch({ requestPolicy: 'network-only' });
+          }}
           onCancel={() => {
             setAdding(false);
           }}

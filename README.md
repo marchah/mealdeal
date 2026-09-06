@@ -27,6 +27,34 @@ docker compose up --build
 Everything runs as one container: the API serves the built SPA and `/graphql`, and runs the ingest
 worker in-process (SQLite lives on a mounted volume).
 
+## Pantry price tracking
+
+The half of the app that works today. Track the things you buy regularly, log what you paid and
+where, and MealDeal tells you whether today's price is any good — GREAT / GOOD / TYPICAL / HIGH, or
+"not enough history yet" when it cannot honestly say.
+
+Every price is stored per base unit (ounce, fluid ounce, count, square foot), which is what makes
+differently-sized packs comparable: a 150 fl oz jug at $19.94 beats a 2-pack of 46 fl oz bottles at
+$12.98, and nothing about the sticker prices tells you that. Set a target price on an item — a unit
+price, "$0.12 a fluid ounce", not a pack price — and anything at or below it reads GREAT regardless
+of history.
+
+### Importing from a product link
+
+Paste a product URL when adding an item and MealDeal reads what the page states — name, brand,
+image, price and pack size — into the form for you to confirm. Nothing is stored until you do.
+
+It reads `schema.org/Product` JSON-LD and OpenGraph tags first, and asks the configured LLM only
+for what those leave out (usually the pack size). **Expect this to fail on Amazon and other large
+retailers**: they block server-side requests as a matter of course, and MealDeal identifies itself
+rather than impersonating a browser to get around it. A blocked page opens the form empty instead
+of reporting an error — typing four fields is a worse outcome than a broken feature, not a failure.
+
+The server fetches a URL you supply, so it refuses anything that is not public http(s): private,
+loopback, link-local and carrier-grade-NAT addresses are rejected, DNS is resolved and checked
+before connecting (so a public hostname pointing at `127.0.0.1` is caught), redirects are followed
+manually and re-checked at each hop, and both the request and the response body are capped.
+
 ## Coupon newsletter ingestion (`COUPON_INGEST_ENABLED`)
 
 Off by default. While it is off:

@@ -276,3 +276,30 @@ export const DeletePriceEntryMutation = graphql(`
 export function mutationError(result: { __typename: string; message?: string }): Maybe<string> {
   return result.__typename.endsWith('Success') ? null : (result.message ?? 'Something went wrong');
 }
+
+export const DraftFromUrlMutation = graphql(`
+  mutation DraftPantryItemFromUrl($url: String!) {
+    draftPantryItemFromUrl(url: $url) {
+      __typename
+      ... on MutationDraftPantryItemFromUrlSuccess {
+        data {
+          url
+          found
+          name
+          brand
+          imageUrl
+          price
+          currency
+          sizeAmount
+          sizeUnit
+        }
+      }
+      ... on ValidationError {
+        message
+      }
+      ... on ServerError {
+        message
+      }
+    }
+  }
+`);

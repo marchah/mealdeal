@@ -71,6 +71,7 @@ type Mutation {
   archivePantryItem(archived: Boolean = true, id: ID!): MutationArchivePantryItemResult!
   deletePantryItem(id: ID!): MutationDeletePantryItemResult!
   deletePriceEntry(id: ID!): MutationDeletePriceEntryResult!
+  draftPantryItemFromUrl(url: String!): MutationDraftPantryItemFromUrlResult!
   removeNewsletter(id: ID!): MutationRemoveNewsletterResult!
   removePref(id: ID!): Boolean!
   updatePantryItem(id: ID!, input: PantryItemInput!): MutationUpdatePantryItemResult!
@@ -110,6 +111,12 @@ union MutationDeletePriceEntryResult = MutationDeletePriceEntrySuccess | NotFoun
 
 type MutationDeletePriceEntrySuccess {
   data: PriceEntry!
+}
+
+union MutationDraftPantryItemFromUrlResult = MutationDraftPantryItemFromUrlSuccess | ServerError | ValidationError
+
+type MutationDraftPantryItemFromUrlSuccess {
+  data: PantryItemDraft!
 }
 
 union MutationRemoveNewsletterResult = MutationRemoveNewsletterSuccess | NotFoundError | ServerError
@@ -158,6 +165,18 @@ type PantryItem {
   sizeUnit: Unit
   targetPrice: Float
   unitPriceUnit: Unit!
+}
+
+type PantryItemDraft {
+  brand: String
+  currency: String
+  found: Boolean!
+  imageUrl: String
+  name: String
+  price: Float
+  sizeAmount: Float
+  sizeUnit: Unit
+  url: String!
 }
 
 input PantryItemInput {

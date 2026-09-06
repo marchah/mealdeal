@@ -1,7 +1,7 @@
 import { builder } from '../../../builder';
 import { ConflictError, NotFoundError, ValidationError } from '../../../common/errors';
 import type { PantryItemInput } from '../types';
-import { PantryItemInputRef, PantryItemRef } from './type';
+import { PantryItemDraftRef, PantryItemInputRef, PantryItemRef } from './type';
 
 // The GraphQL input carries `undefined` for an omitted optional field; the domain speaks in
 // nulls, so the boundary is where the two meet.
@@ -47,6 +47,26 @@ builder.mutationFields((t) => ({
     },
     resolve: (_root, args, ctx) =>
       ctx.services.pantryItemService.archivePantryItem(args.id, args.archived ?? true),
+  }),
+  draftPantryItemFromUrl: t.field({
+    type: PantryItemDraftRef,
+    // Reads a page; stores nothing. ValidationError covers a URL that must not be fetched at all
+    // — a page that simply could not be read comes back as `found: false`.
+    errors: { types: [ValidationError] },
+    args: {
+      url: t.arg.string({
+        required: true,
+        validate: {
+          maxLength: 2_000,
+          url: true,
+          refine: [
+            (value) => /^https?:\/\//i.test(value),
+            { message: 'url must be an http(s) URL' },
+          ],
+        },
+      }),
+    },
+    resolve: (_root, args, ctx) => ctx.services.pantryItemService.draftPantryItemFromUrl(args.url),
   }),
   deletePantryItem: t.field({
     type: PantryItemRef,
