@@ -141,7 +141,10 @@ Each slice is one reviewable PR. `pnpm check` green + the required test tiers be
    `category` resolves through a DataLoader (`couponTypeById`) added to `context.ts`.
    Validation at the arg boundary (Zod via the Pothos plugin): name 1–200 chars, `imageUrl`
    http(s)-only + max 2 000 chars (same shape as `addNewsletter`'s `signupUrl`), `sizeAmount > 0`,
-   `targetPrice > 0`.
+   `targetPrice > 0`. The service also enforces **case- and null-folded uniqueness** on
+   name + brand, throwing `ConflictError`: slice 4 found that drizzle-kit cannot emit that index
+   (it splits the expression on the comma inside `coalesce()` and produces SQL that fails at
+   migration time), and a service check gives a better message than a constraint violation anyway.
    Tests: unit (`service.spec.ts`, hand-mocked ports) + integration against the real test DB.
    Deps: [3, 4].
 
