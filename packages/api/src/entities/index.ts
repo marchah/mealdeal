@@ -7,6 +7,9 @@ import './deal/graphql/type';
 import './deal/graphql/query';
 import './couponType/graphql/type';
 import './couponType/graphql/query';
+import './pantryItem/graphql/type';
+import './pantryItem/graphql/query';
+import './pantryItem/graphql/mutation';
 import './trackingPref/graphql/type';
 import './trackingPref/graphql/query';
 import './trackingPref/graphql/mutation';
@@ -25,6 +28,9 @@ import type { LocationService, ZipCoordinateLookup } from './location/types';
 import { merchantRepositoryFactory } from './merchant/repository';
 import { merchantServiceFactory } from './merchant/service';
 import type { AddressCoordinateLookup, MerchantService } from './merchant/types';
+import { pantryItemRepositoryFactory } from './pantryItem/repository';
+import { pantryItemServiceFactory } from './pantryItem/service';
+import type { PantryItemService } from './pantryItem/types';
 import { newsletterRepositoryFactory } from './newsletter/repository';
 import { newsletterServiceFactory } from './newsletter/service';
 import type { NewsletterService } from './newsletter/types';
@@ -36,6 +42,7 @@ import type { TrackingPrefService } from './trackingPref/types';
 // feature service, a third-party port) injected by the composition root.
 export interface EntitiesServices {
   dealService: DealService;
+  pantryItemService: PantryItemService;
   merchantService: MerchantService;
   trackingPrefService: TrackingPrefService;
   couponTypeService: CouponTypeService;
@@ -67,6 +74,10 @@ export function getEntitiesServices({
     trackingPrefService,
     couponTypeService,
   });
+  const pantryItemService = pantryItemServiceFactory({
+    pantryItemRepository: pantryItemRepositoryFactory({ db }),
+    couponTypeService,
+  });
   const locationService = locationServiceFactory({ zipCoordinateLookup });
   const newsletterService = newsletterServiceFactory({
     newsletterRepository: newsletterRepositoryFactory({ db }),
@@ -74,6 +85,7 @@ export function getEntitiesServices({
   });
   return {
     dealService,
+    pantryItemService,
     merchantService,
     trackingPrefService,
     couponTypeService,

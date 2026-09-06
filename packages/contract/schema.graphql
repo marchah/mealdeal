@@ -65,9 +65,13 @@ type Merchant {
 
 type Mutation {
   addNewsletter(merchantId: ID!, name: String!, recommended: Boolean = false, signupUrl: String!): MutationAddNewsletterResult!
+  addPantryItem(input: PantryItemInput!): MutationAddPantryItemResult!
   addPref(kind: PrefKind!, scope: PrefScope!, value: String!): TrackingPref!
+  archivePantryItem(archived: Boolean = true, id: ID!): MutationArchivePantryItemResult!
+  deletePantryItem(id: ID!): MutationDeletePantryItemResult!
   removeNewsletter(id: ID!): MutationRemoveNewsletterResult!
   removePref(id: ID!): Boolean!
+  updatePantryItem(id: ID!, input: PantryItemInput!): MutationUpdatePantryItemResult!
 }
 
 union MutationAddNewsletterResult = MutationAddNewsletterSuccess | NotFoundError | ServerError | ValidationError
@@ -76,10 +80,34 @@ type MutationAddNewsletterSuccess {
   data: Newsletter!
 }
 
+union MutationAddPantryItemResult = ConflictError | MutationAddPantryItemSuccess | NotFoundError | ServerError | ValidationError
+
+type MutationAddPantryItemSuccess {
+  data: PantryItem!
+}
+
+union MutationArchivePantryItemResult = MutationArchivePantryItemSuccess | NotFoundError | ServerError
+
+type MutationArchivePantryItemSuccess {
+  data: PantryItem!
+}
+
+union MutationDeletePantryItemResult = MutationDeletePantryItemSuccess | NotFoundError | ServerError
+
+type MutationDeletePantryItemSuccess {
+  data: PantryItem!
+}
+
 union MutationRemoveNewsletterResult = MutationRemoveNewsletterSuccess | NotFoundError | ServerError
 
 type MutationRemoveNewsletterSuccess {
   data: Newsletter!
+}
+
+union MutationUpdatePantryItemResult = ConflictError | MutationUpdatePantryItemSuccess | NotFoundError | ServerError | ValidationError
+
+type MutationUpdatePantryItemSuccess {
+  data: PantryItem!
 }
 
 type NearbyDealGroup {
@@ -100,6 +128,34 @@ type NotFoundError {
   status: Int!
 }
 
+type PantryItem {
+  archived: Boolean!
+  brand: String
+  category: CouponType
+  couponTypeId: ID
+  createdAt: DateTime!
+  id: ID!
+  imageUrl: String
+  name: String!
+  notes: String
+  sizeAmount: Float
+  sizeUnit: Unit
+  targetPrice: Float
+  unitPriceUnit: Unit!
+}
+
+input PantryItemInput {
+  brand: String
+  couponTypeId: ID
+  imageUrl: String
+  name: String!
+  notes: String
+  sizeAmount: Float
+  sizeUnit: Unit
+  targetPrice: Float
+  unitPriceUnit: Unit!
+}
+
 enum PrefKind {
   MUTE
   WATCHLIST
@@ -117,6 +173,8 @@ type Query {
   dealsNearMe(radiusMiles: Float = 25): QueryDealsNearMeResult!
   getCouponTypes: [CouponType!]!
   newsletter(id: ID!): QueryNewsletterResult!
+  pantryItem(id: ID!): QueryPantryItemResult!
+  pantryItems(couponTypeId: ID, includeArchived: Boolean = false): [PantryItem!]!
   prefs: [TrackingPref!]!
   recommendedNewsletters(radiusMiles: Float = 25): QueryRecommendedNewslettersResult!
   stats: Stats!
@@ -140,6 +198,12 @@ union QueryNewsletterResult = NotFoundError | QueryNewsletterSuccess | ServerErr
 
 type QueryNewsletterSuccess {
   data: Newsletter!
+}
+
+union QueryPantryItemResult = NotFoundError | QueryPantryItemSuccess | ServerError
+
+type QueryPantryItemSuccess {
+  data: PantryItem!
 }
 
 union QueryRecommendedNewslettersResult = LocationLookupError | LocationNotConfiguredError | LocationNotFoundError | QueryRecommendedNewslettersSuccess | ServerError | ValidationError
@@ -187,6 +251,17 @@ type TrackingPref {
   kind: PrefKind!
   scope: PrefScope!
   value: String!
+}
+
+enum Unit {
+  COUNT
+  FLUID_OUNCE
+  GALLON
+  OUNCE
+  PINT
+  POUND
+  QUART
+  SQUARE_FOOT
 }
 
 type ValidationError {
