@@ -9,7 +9,8 @@ import type { NewDeal } from '../entities/deal/types';
 import { llmExtractorFactory, type DealExtractor } from './extractor';
 import { archiveCanonicalMarkdown } from './archive';
 import type { EmailSource } from './email';
-import { mdreamHtmlToMarkdownConverterFactory, type HtmlToMarkdownConverter } from './markdown';
+import type { HtmlToMarkdownConverter } from './markdown';
+import { getThirdPartyServices } from '../third-party';
 import { emailSourceFactory } from './source';
 
 /** Keep a single email within the local model's context budget before extraction. */
@@ -119,8 +120,11 @@ export async function ingestOnce(deps: Partial<IngestDeps> = {}): Promise<Ingest
   const services = deps.services ?? getServices();
   const { getCouponTypes } = services.couponTypeService;
   const emailSource = deps.emailSource ?? emailSourceFactory({ config: settings });
-  const extractor = deps.extractor ?? llmExtractorFactory({ config: settings });
-  const htmlToMarkdown = deps.htmlToMarkdown ?? mdreamHtmlToMarkdownConverterFactory();
+  // Providers are chosen once, in the third-party module — this is a consumer, not the place a
+  // library gets named.
+  const { mdreamAdapter, openaiAdapter } = getThirdPartyServices();
+  const extractor = deps.extractor ?? llmExtractorFactory({ jsonChatCompletion: openaiAdapter });
+  const htmlToMarkdown = deps.htmlToMarkdown ?? mdreamAdapter;
   const archiveDirectory =
     deps.archiveDirectory ??
     (settings.INGEST_SOURCE === 'imap' ? settings.INGEST_ARCHIVE_DIR : null);

@@ -1,15 +1,21 @@
 import { describe, expect, it, vi } from 'vitest';
-
-const createCompletion = vi.hoisted(() => vi.fn());
-
-vi.mock('openai', () => ({
-  default: class {
-    chat = { completions: { create: createCompletion } };
-  },
-}));
-
 import { ExtractionTruncatedError } from '../common/errors';
-import { llmExtractorFactory, parseExtractionResponse } from './extractor';
+import type { Maybe } from '../common/types';
+import {
+  llmExtractorFactory,
+  parseExtractionResponse,
+  type JsonChatCompletion,
+  type JsonChatCompletionRequest,
+} from './extractor';
+
+/** A stand-in for the model, so this suite is about the prompt and the parsing, nothing else. */
+function makeExtractor(reply: { content: Maybe<string>; finishReason?: Maybe<string> }) {
+  const complete = vi.fn((_request: JsonChatCompletionRequest) =>
+    Promise.resolve({ content: reply.content, finishReason: reply.finishReason ?? null }),
+  );
+  const jsonChatCompletion: JsonChatCompletion = { complete };
+  return { extractor: llmExtractorFactory({ jsonChatCompletion }), complete };
+}
 
 describe('parseExtractionResponse', () => {
   it('returns deals for valid output', () => {
@@ -75,14 +81,7 @@ describe('parseExtractionResponse', () => {
   });
 
   it('puts the live coupon-type keys and labels in the model prompt', async () => {
-    createCompletion.mockResolvedValueOnce({ choices: [{ message: { content: '{"deals":[]}' } }] });
-    const extractor = llmExtractorFactory({
-      config: {
-        OPENAI_BASE_URL: 'http://localhost:1234/v1',
-        OPENAI_API_KEY: 'not-needed',
-        OPENAI_MODEL: 'test-model',
-      },
-    });
+    const { extractor, complete } = makeExtractor({ content: '{"deals":[]}' });
 
     await extractor.extract({
       subject: 'Weekly deals',
@@ -91,28 +90,23 @@ describe('parseExtractionResponse', () => {
       couponTypes: [{ key: 'fresh-food', label: 'Fresh Food' }],
     });
 
-    expect(createCompletion).toHaveBeenCalledWith(
+    expect(complete).toHaveBeenCalledWith(
       expect.objectContaining({
-        messages: expect.arrayContaining([
-          expect.objectContaining({
-            role: 'system',
-            content: expect.stringContaining('Never guess or synthesize merchantAddress'),
-          }),
-        ]),
+        system: expect.stringContaining('Never guess or synthesize merchantAddress'),
       }),
     );
+    // The taxonomy is passed live, not hard-coded in the prompt — which is the whole point of
+    // the field this test is named for.
+    const [request] = complete.mock.calls[0] ?? [];
+    expect(request?.system).toContain('fresh-food');
+    expect(request?.system).toContain('Fresh Food');
+    expect(request?.user).toContain('Cheese on sale');
   });
   // The parser can only report truncation if the caller actually forwards finish_reason.
   it('forwards the choice finish_reason so a capped response surfaces as truncation', async () => {
-    createCompletion.mockResolvedValueOnce({
-      choices: [{ message: { content: '{"deals":[{"merchant":"Shop"' }, finish_reason: 'length' }],
-    });
-    const extractor = llmExtractorFactory({
-      config: {
-        OPENAI_BASE_URL: 'http://localhost:1234/v1',
-        OPENAI_API_KEY: 'not-needed',
-        OPENAI_MODEL: 'test-model',
-      },
+    const { extractor } = makeExtractor({
+      content: '{"deals":[{"merchant":"Shop"',
+      finishReason: 'length',
     });
 
     await expect(

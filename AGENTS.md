@@ -112,7 +112,9 @@ For an **external integration** (third-party HTTP API, SDK, LLM, geocoder): put 
 interface declared in the consuming slice's `types.ts`**; wire it in `services.ts` and inject it into
 the service. If the provider's raw API needs translation, add a `<provider>ServiceFactory` (`service.ts`)
 on top of the adapter — the anti-corruption layer — and inject that instead. A provider's client/SDK
-**must never appear outside `third-party/`**. See `ARCHITECTURE.md` §3.
+**must never appear outside `third-party/`** — enforced by ESLint across `entities/`, `features/`
+and `ingest/`, with the provider packages listed by name in `eslint.config.js`, so adding an
+integration means adding its package there too. See `ARCHITECTURE.md` §3.
 
 ## GraphQL / codegen workflow
 
