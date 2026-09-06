@@ -2,6 +2,7 @@ import DataLoader from 'dataloader';
 import type { Maybe } from './common/types';
 import type { CouponType } from './entities/couponType/types';
 import type { Merchant } from './entities/merchant/types';
+import type { PriceEntry } from './entities/priceEntry/types';
 import { getServices, type Services } from './services';
 
 // Per-request batching. Loaders are rebuilt for each request so their cache never leaks
@@ -9,6 +10,8 @@ import { getServices, type Services } from './services';
 export interface Loaders {
   merchantById: DataLoader<string, Maybe<Merchant>>;
   couponTypeById: DataLoader<string, Maybe<CouponType>>;
+  /** Every entry for an item, newest first — the field narrows it by `since`/`limit`. */
+  priceEntriesByPantryItemId: DataLoader<string, PriceEntry[]>;
 }
 
 // The GraphQL context threaded into every resolver. Resolvers reach data ONLY through
@@ -32,6 +35,13 @@ export function createContext(): YogaContext {
         const found = await services.couponTypeService.findCouponTypesByIds(ids);
         const byId = new Map(found.map((couponType) => [couponType.id, couponType]));
         return ids.map((id) => byId.get(id) ?? null);
+      }),
+      priceEntriesByPantryItemId: new DataLoader<string, PriceEntry[]>(async (ids) => {
+        const found = await services.priceEntryService.findPriceEntriesByPantryItemIds(ids);
+        const byItemId = new Map<string, PriceEntry[]>(ids.map((id) => [id, []]));
+        // The batch arrives already newest-first, so pushing preserves that per group.
+        for (const entry of found) byItemId.get(entry.pantryItemId)?.push(entry);
+        return ids.map((id) => byItemId.get(id) ?? []);
       }),
     },
   };

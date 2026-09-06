@@ -10,6 +10,8 @@ import './couponType/graphql/query';
 import './pantryItem/graphql/type';
 import './pantryItem/graphql/query';
 import './pantryItem/graphql/mutation';
+import './priceEntry/graphql/type';
+import './priceEntry/graphql/mutation';
 import './trackingPref/graphql/type';
 import './trackingPref/graphql/query';
 import './trackingPref/graphql/mutation';
@@ -31,6 +33,9 @@ import type { AddressCoordinateLookup, MerchantService } from './merchant/types'
 import { pantryItemRepositoryFactory } from './pantryItem/repository';
 import { pantryItemServiceFactory } from './pantryItem/service';
 import type { PantryItemService } from './pantryItem/types';
+import { priceEntryRepositoryFactory } from './priceEntry/repository';
+import { priceEntryServiceFactory } from './priceEntry/service';
+import type { PriceEntryService } from './priceEntry/types';
 import { newsletterRepositoryFactory } from './newsletter/repository';
 import { newsletterServiceFactory } from './newsletter/service';
 import type { NewsletterService } from './newsletter/types';
@@ -43,6 +48,7 @@ import type { TrackingPrefService } from './trackingPref/types';
 export interface EntitiesServices {
   dealService: DealService;
   pantryItemService: PantryItemService;
+  priceEntryService: PriceEntryService;
   merchantService: MerchantService;
   trackingPrefService: TrackingPrefService;
   couponTypeService: CouponTypeService;
@@ -78,6 +84,11 @@ export function getEntitiesServices({
     pantryItemRepository: pantryItemRepositoryFactory({ db }),
     couponTypeService,
   });
+  const priceEntryService = priceEntryServiceFactory({
+    priceEntryRepository: priceEntryRepositoryFactory({ db }),
+    pantryItemService,
+    merchantService,
+  });
   const locationService = locationServiceFactory({ zipCoordinateLookup });
   const newsletterService = newsletterServiceFactory({
     newsletterRepository: newsletterRepositoryFactory({ db }),
@@ -86,6 +97,7 @@ export function getEntitiesServices({
   return {
     dealService,
     pantryItemService,
+    priceEntryService,
     merchantService,
     trackingPrefService,
     couponTypeService,

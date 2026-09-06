@@ -67,8 +67,10 @@ type Mutation {
   addNewsletter(merchantId: ID!, name: String!, recommended: Boolean = false, signupUrl: String!): MutationAddNewsletterResult!
   addPantryItem(input: PantryItemInput!): MutationAddPantryItemResult!
   addPref(kind: PrefKind!, scope: PrefScope!, value: String!): TrackingPref!
+  addPriceEntry(input: PriceEntryInput!): MutationAddPriceEntryResult!
   archivePantryItem(archived: Boolean = true, id: ID!): MutationArchivePantryItemResult!
   deletePantryItem(id: ID!): MutationDeletePantryItemResult!
+  deletePriceEntry(id: ID!): MutationDeletePriceEntryResult!
   removeNewsletter(id: ID!): MutationRemoveNewsletterResult!
   removePref(id: ID!): Boolean!
   updatePantryItem(id: ID!, input: PantryItemInput!): MutationUpdatePantryItemResult!
@@ -86,6 +88,12 @@ type MutationAddPantryItemSuccess {
   data: PantryItem!
 }
 
+union MutationAddPriceEntryResult = ConflictError | MutationAddPriceEntrySuccess | NotFoundError | ServerError | ValidationError
+
+type MutationAddPriceEntrySuccess {
+  data: PriceEntry!
+}
+
 union MutationArchivePantryItemResult = MutationArchivePantryItemSuccess | NotFoundError | ServerError
 
 type MutationArchivePantryItemSuccess {
@@ -96,6 +104,12 @@ union MutationDeletePantryItemResult = MutationDeletePantryItemSuccess | NotFoun
 
 type MutationDeletePantryItemSuccess {
   data: PantryItem!
+}
+
+union MutationDeletePriceEntryResult = MutationDeletePriceEntrySuccess | NotFoundError | ServerError
+
+type MutationDeletePriceEntrySuccess {
+  data: PriceEntry!
 }
 
 union MutationRemoveNewsletterResult = MutationRemoveNewsletterSuccess | NotFoundError | ServerError
@@ -138,6 +152,7 @@ type PantryItem {
   imageUrl: String
   name: String!
   notes: String
+  priceEntries(limit: Int, since: DateTime): [PriceEntry!]!
   sizeAmount: Float
   sizeUnit: Unit
   targetPrice: Float
@@ -164,6 +179,45 @@ enum PrefKind {
 enum PrefScope {
   CATEGORY
   ITEM
+}
+
+type PriceEntry {
+  createdAt: DateTime!
+  currency: String!
+  id: ID!
+  merchant: Merchant
+  note: String
+  observedAt: DateTime!
+  onSale: Boolean!
+  pantryItemId: ID!
+  price: Float!
+  quantity: Float!
+  sizeAmount: Float!
+  sizeUnit: Unit!
+  source: PriceSource!
+  unitPrice: Float!
+  url: String
+}
+
+input PriceEntryInput {
+  currency: String
+  merchantName: String
+  note: String
+  observedAt: DateTime
+  onSale: Boolean
+  pantryItemId: ID!
+  price: Float!
+  quantity: Float
+  sizeAmount: Float!
+  sizeUnit: Unit!
+  source: PriceSource
+  url: String
+}
+
+enum PriceSource {
+  COUPON
+  IMPORT
+  MANUAL
 }
 
 type Query {
