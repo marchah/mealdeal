@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, count as sqlCount, eq, isNull, sql } from 'drizzle-orm';
+import { and, count as sqlCount, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { ServerError } from '../../common/errors';
 import { pantryItems } from '../../db/schema';
 import type { Db } from '../../db/client';
@@ -16,6 +16,14 @@ export function pantryItemRepositoryFactory({ db }: { db: Db }): PantryItemRepos
   async function findPantryItemById(id: string) {
     const rows = await db.select().from(pantryItems).where(eq(pantryItems.id, id)).limit(1);
     return rows[0] ?? null;
+  }
+
+  async function findPantryItemsByIds(ids: readonly string[]) {
+    if (ids.length === 0) return [];
+    return db
+      .select()
+      .from(pantryItems)
+      .where(inArray(pantryItems.id, [...ids]));
   }
 
   // Folding happens in SQL so the duplicate check stays one indexed-ish lookup rather than
@@ -85,6 +93,7 @@ export function pantryItemRepositoryFactory({ db }: { db: Db }): PantryItemRepos
 
   return {
     findPantryItemById,
+    findPantryItemsByIds,
     findPantryItemByNameAndBrand,
     listPantryItems,
     countPantryItems,

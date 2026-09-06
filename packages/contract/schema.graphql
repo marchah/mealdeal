@@ -185,6 +185,8 @@ enum PrefScope {
 type PriceEntry {
   createdAt: DateTime!
   currency: String!
+  displayUnitPrice: Float!
+  formattedUnitPrice: String!
   id: ID!
   merchant: Merchant
   note: String

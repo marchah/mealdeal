@@ -1,5 +1,6 @@
 import { builder } from '../../../builder';
 import { NotFoundError } from '../../../common/errors';
+import { formatUnitPrice, unitPriceIn } from '../../../common/units';
 import { MerchantRef } from '../../merchant/graphql/type';
 import { PantryItemRef, UnitRef } from '../../pantryItem/graphql/type';
 import { PriceSource, type PriceEntry } from '../types';
@@ -19,6 +20,26 @@ PriceEntryRef.implement({
     // Per base unit (ounce / fluid ounce / count / square foot) — the comparable number. Reading
     // it in the item's own unit is presentation, and belongs with the item (see priceInsight).
     unitPrice: t.exposeFloat('unitPrice'),
+    // The same price read in the item's own unit. Presentation, not business logic — but it needs
+    // the conversion table, which is the server's, so the browser is not handed a second copy.
+    displayUnitPrice: t.float({
+      resolve: async (entry, _args, ctx) => {
+        const item = await ctx.loaders.pantryItemById.load(entry.pantryItemId);
+        if (!item) throw new NotFoundError(`Pantry item ${entry.pantryItemId} not found`);
+        return unitPriceIn(entry.unitPrice, item.unitPriceUnit);
+      },
+    }),
+    formattedUnitPrice: t.string({
+      resolve: async (entry, _args, ctx) => {
+        const item = await ctx.loaders.pantryItemById.load(entry.pantryItemId);
+        if (!item) throw new NotFoundError(`Pantry item ${entry.pantryItemId} not found`);
+        return formatUnitPrice({
+          baseUnitPrice: entry.unitPrice,
+          displayUnit: item.unitPriceUnit,
+          currency: entry.currency,
+        });
+      },
+    }),
     onSale: t.exposeBoolean('onSale'),
     source: t.expose('source', { type: PriceSourceRef }),
     url: t.exposeString('url', { nullable: true }),

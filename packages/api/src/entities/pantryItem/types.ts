@@ -46,6 +46,7 @@ export interface PantryItemInput {
 
 export interface PantryItemRepository {
   findPantryItemById: (id: string) => Promise<Maybe<PantryItem>>;
+  findPantryItemsByIds: (ids: readonly string[]) => Promise<PantryItem[]>;
   /** Case- and null-folded lookup backing the duplicate check; `name`/`brand` arrive normalized. */
   findPantryItemByNameAndBrand: (name: string, brand: Maybe<string>) => Promise<Maybe<PantryItem>>;
   listPantryItems: (input: ListPantryItemsInput) => Promise<PantryItem[]>;
@@ -60,6 +61,8 @@ export interface PantryItemRepository {
 
 export interface PantryItemService {
   getPantryItemById: (id: string) => Promise<PantryItem>;
+  /** Batch form for the per-request DataLoader; ids may repeat and may not all match. */
+  findPantryItemsByIds: (ids: readonly string[]) => Promise<PantryItem[]>;
   listPantryItems: (input: ListPantryItemsInput) => Promise<PantryItem[]>;
   countPantryItems: () => Promise<number>;
   addPantryItem: (input: PantryItemInput) => Promise<PantryItem>;

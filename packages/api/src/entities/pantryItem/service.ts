@@ -82,6 +82,10 @@ export function pantryItemServiceFactory({
     return item;
   }
 
+  function findPantryItemsByIds(ids: readonly string[]) {
+    return pantryItemRepository.findPantryItemsByIds(ids);
+  }
+
   function listPantryItems(input: ListPantryItemsInput) {
     return pantryItemRepository.listPantryItems(input);
   }
@@ -122,6 +126,7 @@ export function pantryItemServiceFactory({
 
   return {
     getPantryItemById,
+    findPantryItemsByIds,
     listPantryItems,
     countPantryItems,
     addPantryItem,

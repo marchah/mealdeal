@@ -215,6 +215,24 @@ test('creates the store on first sight and reuses it afterwards', async () => {
   expect(stored).toHaveLength(1);
 });
 
+test('reports each entry in the item’s own unit, whatever pack it was sold in', async () => {
+  // Tracked per gallon, bought by the fluid ounce: the row still reads in gallons, so the history
+  // table compares like with like without the browser owning a conversion table.
+  const pantryItemId = await seedItem('Laundry detergent', 'GALLON');
+  await addEntry({ pantryItemId, price: 19.94, sizeAmount: 150, sizeUnit: 'FLUID_OUNCE' });
+
+  const listed = await run<{
+    pantryItems: {
+      priceEntries: { unitPrice: number; displayUnitPrice: number; formattedUnitPrice: string }[];
+    }[];
+  }>('{ pantryItems { priceEntries { unitPrice displayUnitPrice formattedUnitPrice } } }');
+
+  const [row] = listed.data?.pantryItems[0]?.priceEntries ?? [];
+  expect(row?.unitPrice).toBeCloseTo(19.94 / 150, 10);
+  expect(row?.displayUnitPrice).toBeCloseTo((19.94 / 150) * 128, 8);
+  expect(row?.formattedUnitPrice).toBe('$17.02/gal');
+});
+
 test('refuses a size measuring something other than the item', async () => {
   const pantryItemId = await seedItem('Tide');
 

@@ -2,6 +2,7 @@ import DataLoader from 'dataloader';
 import type { Maybe } from './common/types';
 import type { CouponType } from './entities/couponType/types';
 import type { Merchant } from './entities/merchant/types';
+import type { PantryItem } from './entities/pantryItem/types';
 import type { PriceEntry } from './entities/priceEntry/types';
 import { getServices, type Services } from './services';
 
@@ -12,6 +13,8 @@ export interface Loaders {
   couponTypeById: DataLoader<string, Maybe<CouponType>>;
   /** Every entry for an item, newest first — the field narrows it by `since`/`limit`. */
   priceEntriesByPantryItemId: DataLoader<string, PriceEntry[]>;
+  /** A price entry reads its own item to know which unit to report itself in. */
+  pantryItemById: DataLoader<string, Maybe<PantryItem>>;
 }
 
 // The GraphQL context threaded into every resolver. Resolvers reach data ONLY through
@@ -34,6 +37,11 @@ export function createContext(): YogaContext {
       couponTypeById: new DataLoader<string, Maybe<CouponType>>(async (ids) => {
         const found = await services.couponTypeService.findCouponTypesByIds(ids);
         const byId = new Map(found.map((couponType) => [couponType.id, couponType]));
+        return ids.map((id) => byId.get(id) ?? null);
+      }),
+      pantryItemById: new DataLoader<string, Maybe<PantryItem>>(async (ids) => {
+        const found = await services.pantryItemService.findPantryItemsByIds(ids);
+        const byId = new Map(found.map((item) => [item.id, item]));
         return ids.map((id) => byId.get(id) ?? null);
       }),
       priceEntriesByPantryItemId: new DataLoader<string, PriceEntry[]>(async (ids) => {

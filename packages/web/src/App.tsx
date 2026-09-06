@@ -1,6 +1,7 @@
 import { type KeyboardEvent } from 'react';
 import { Button } from './components/ui/button';
-import { CouponsView, isCouponsPath } from './features/coupons/CouponsView';
+import { CouponsView } from './features/coupons/CouponsView';
+import { isCouponsPath } from './features/coupons/routes';
 import { PantryView } from './features/pantry/PantryView';
 import { useHashRoute } from './lib/useHashRoute';
 

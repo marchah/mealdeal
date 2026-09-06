@@ -70,6 +70,7 @@ function makeService(
   const pantryItemRepository: PantryItemRepository = {
     findPantryItemById: () =>
       Promise.resolve(over.existing === undefined ? makeItem() : over.existing),
+    findPantryItemsByIds: (ids) => Promise.resolve(ids.map((id) => makeItem({ id }))),
     findPantryItemByNameAndBrand,
     listPantryItems: () => Promise.resolve([makeItem()]),
     countPantryItems: () => Promise.resolve(1),

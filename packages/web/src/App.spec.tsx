@@ -1,11 +1,11 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { useQuery } from 'urql';
+import { useMutation, useQuery } from 'urql';
 import { App } from './App';
 import type { Maybe } from './lib/types';
 
-vi.mock('urql', () => ({ useQuery: vi.fn() }));
+vi.mock('urql', () => ({ useQuery: vi.fn(), useMutation: vi.fn() }));
 
 let root: Maybe<Root> = null;
 
@@ -16,6 +16,7 @@ function fetchingForever() {
     { data: undefined, fetching: true, error: undefined },
     vi.fn(),
   ] as never);
+  vi.mocked(useMutation).mockReturnValue([{}, vi.fn()] as never);
 }
 
 function renderAppAt(path: string) {
@@ -59,7 +60,9 @@ describe('App routing', () => {
     fetchingForever();
     const container = renderAppAt('');
 
-    expect(container.textContent).toContain('Track the items you buy regularly');
+    expect(container.querySelector('[role="status"]')?.textContent).toContain(
+      'Loading your pantry',
+    );
     expect(tabNamed(container, 'Pantry').getAttribute('aria-selected')).toBe('true');
     expect(tabNamed(container, 'Coupons').getAttribute('aria-selected')).toBe('false');
   });
@@ -73,7 +76,9 @@ describe('App routing', () => {
     fetchingForever();
     const container = renderAppAt('#/nope');
 
-    expect(container.textContent).toContain('Track the items you buy regularly');
+    expect(container.querySelector('[role="status"]')?.textContent).toContain(
+      'Loading your pantry',
+    );
     expect(tabNamed(container, 'Pantry').getAttribute('aria-selected')).toBe('true');
   });
 
@@ -113,7 +118,9 @@ describe('App routing', () => {
 
     settleNavigation(() => tabNamed(container, 'Pantry').click());
     expect(window.location.hash).toBe('#/pantry');
-    expect(container.textContent).toContain('Track the items you buy regularly');
+    expect(container.querySelector('[role="status"]')?.textContent).toContain(
+      'Loading your pantry',
+    );
   });
 
   it('switches the sub-view without leaving the Coupons tab', () => {
@@ -220,12 +227,14 @@ describe('App coupon banner placement', () => {
           stats: { activeDeals: 0, totalDeals: 0, merchants: 0 },
           getCouponTypes: [],
           deals: [],
+          pantryItems: [],
         },
         fetching: false,
         error: undefined,
       },
       vi.fn(),
     ] as never);
+    vi.mocked(useMutation).mockReturnValue([{}, vi.fn()] as never);
 
     const coupons = renderAppAt('#/coupons');
     expect(coupons.textContent).toContain('Coupon newsletter ingestion is paused');

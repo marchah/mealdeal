@@ -3,23 +3,16 @@ import { useHashRoute } from '../../lib/useHashRoute';
 import { DealsList } from '../deals/DealsList';
 import { NearMeView } from '../nearMe/NearMeView';
 import { CouponIngestBanner } from './CouponIngestBanner';
-
-export const COUPONS_PATH = '/coupons';
-const NEAR_ME_PATH = '/coupons/near-me';
+import { COUPONS_NEAR_ME_PATH, COUPONS_PATH } from './routes';
 
 const COUPON_VIEWS = [
   { label: 'Browse deals', path: COUPONS_PATH },
-  { label: 'Near me', path: NEAR_ME_PATH },
+  { label: 'Near me', path: COUPONS_NEAR_ME_PATH },
 ];
-
-/** True for `/coupons` and anything beneath it, so an unknown sub-path still lands on coupons. */
-export function isCouponsPath(path: string): boolean {
-  return path === COUPONS_PATH || path.startsWith(`${COUPONS_PATH}/`);
-}
 
 export function CouponsView() {
   const { path, navigate } = useHashRoute();
-  const activePath = path === NEAR_ME_PATH ? NEAR_ME_PATH : COUPONS_PATH;
+  const activePath = path === COUPONS_NEAR_ME_PATH ? COUPONS_NEAR_ME_PATH : COUPONS_PATH;
 
   return (
     <>
@@ -38,7 +31,7 @@ export function CouponsView() {
           </Button>
         ))}
       </nav>
-      {activePath === NEAR_ME_PATH ? <NearMeView /> : <DealsList />}
+      {activePath === COUPONS_NEAR_ME_PATH ? <NearMeView /> : <DealsList />}
     </>
   );
 }
