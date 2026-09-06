@@ -7,6 +7,9 @@ export interface Stats {
   activeDeals: number;
   merchants: number;
   lastIngestAt: Maybe<Date>;
+  pantryItems: number;
+  /** Tracked items whose latest price is worth acting on right now. */
+  itemsWorthBuyingNow: number;
 }
 
 export interface DashboardService {

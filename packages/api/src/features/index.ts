@@ -10,6 +10,8 @@ import { ingestRunServiceFactory } from './ingestRun/service';
 import type { IngestRunService } from './ingestRun/types';
 import { nearMeServiceFactory } from './nearMe/service';
 import type { NearMeService } from './nearMe/types';
+import { priceInsightServiceFactory } from './priceInsight/service';
+import type { PriceInsightService } from './priceInsight/types';
 import { storeRepositoryFactory } from './store/repository';
 import { storeServiceFactory } from './store/service';
 import type { StoreService } from './store/types';
@@ -18,6 +20,7 @@ import './appConfig/graphql/type';
 import './appConfig/graphql/query';
 import './dashboard/graphql/type';
 import './dashboard/graphql/query';
+import './priceInsight/graphql/type';
 import './store/graphql/type';
 import './store/graphql/query';
 
@@ -30,6 +33,7 @@ export interface FeaturesServices {
   storeService: StoreService;
   dashboardService: DashboardService;
   nearMeService: NearMeService;
+  priceInsightService: PriceInsightService;
 }
 
 export function getFeaturesServices({
@@ -46,10 +50,16 @@ export function getFeaturesServices({
   });
   const appConfigService = appConfigServiceFactory({ config, ingestRunService });
   const storeService = storeServiceFactory({ storeRepository: storeRepositoryFactory({ db }) });
+  const priceInsightService = priceInsightServiceFactory({
+    pantryItemService: entities.pantryItemService,
+    priceEntryService: entities.priceEntryService,
+  });
   const dashboardService = dashboardServiceFactory({
     dealService: entities.dealService,
     merchantService: entities.merchantService,
     ingestRunService,
+    pantryItemService: entities.pantryItemService,
+    priceInsightService,
   });
   const nearMeService = nearMeServiceFactory({
     locationService: entities.locationService,
@@ -58,5 +68,12 @@ export function getFeaturesServices({
     couponTypeService: entities.couponTypeService,
     newsletterService: entities.newsletterService,
   });
-  return { appConfigService, ingestRunService, storeService, dashboardService, nearMeService };
+  return {
+    appConfigService,
+    ingestRunService,
+    storeService,
+    dashboardService,
+    nearMeService,
+    priceInsightService,
+  };
 }

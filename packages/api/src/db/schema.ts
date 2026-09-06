@@ -103,7 +103,8 @@ export const pantryItems = sqliteTable(
     // load-bearing beyond display: it fixes the item's dimension, which is what lets a price entry
     // measured in the wrong dimension be rejected.
     unitPriceUnit: text('unit_price_unit').$type<Unit>().notNull(),
-    // "Buy at or below" — an override that calls a price GREAT regardless of its history.
+    // "Buy at or below", as a UNIT price in unit_price_unit — $0.12 a fluid ounce, not $18 a jug,
+    // so it survives a change of pack size. Overrides the history-based verdict (see priceInsight).
     targetPrice: real('target_price'),
     notes: text('notes'),
     // Soft delete: hiding an item must never destroy the price history that took months to build.

@@ -150,6 +150,7 @@ type PantryItem {
   createdAt: DateTime!
   id: ID!
   imageUrl: String
+  insight(windowDays: Int = 365): PriceInsight!
   name: String!
   notes: String
   priceEntries(limit: Int, since: DateTime): [PriceEntry!]!
@@ -214,10 +215,37 @@ input PriceEntryInput {
   url: String
 }
 
+type PriceInsight {
+  cheapestMerchant: Merchant
+  currency: String
+  displayUnit: Unit!
+  formattedLatestUnitPrice: String
+  highestUnitPrice: Float
+  latest: PriceEntry
+  latestUnitPrice: Float
+  lowestUnitPrice: Float
+  medianUnitPrice: Float
+  meetsTargetPrice: Boolean
+  observationCount: Int!
+  pantryItemId: ID!
+  percentile: Float
+  savingsVsMedianPct: Float
+  verdict: PriceVerdict!
+  windowDays: Int!
+}
+
 enum PriceSource {
   COUPON
   IMPORT
   MANUAL
+}
+
+enum PriceVerdict {
+  GOOD
+  GREAT
+  HIGH
+  TYPICAL
+  UNKNOWN
 }
 
 type Query {
@@ -285,8 +313,10 @@ type ServerError {
 
 type Stats {
   activeDeals: Int!
+  itemsWorthBuyingNow: Int!
   lastIngestAt: DateTime
   merchants: Int!
+  pantryItems: Int!
   totalDeals: Int!
 }
 

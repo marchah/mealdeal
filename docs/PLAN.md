@@ -164,11 +164,19 @@ Each slice is one reviewable PR. `pnpm check` green + the required test tiers be
    `observationCount`, `windowDays`, `percentile`, `savingsVsMedianPct`, `meetsTargetPrice`,
    `cheapestMerchant`, and `verdict`.
 
-   Deterministic, explainable rules — no magic:
+   Deterministic, explainable rules — no magic, applied in this order:
+   - `targetPrice` set and the latest unit price is at or below it → `GREAT`. **Checked first**,
+     ahead of the sample-size guard: a target is the user's own statement of what counts as good,
+     so making it wait for three observations would hide a genuine buy signal on a new item;
    - fewer than 3 observations in the window → `UNKNOWN` ("not enough history yet");
-   - `targetPrice` set and the latest unit price is at or below it → `GREAT`;
    - otherwise the latest unit price's percentile within the window: ≤15% → `GREAT`, ≤35% → `GOOD`,
      ≤75% → `TYPICAL`, else `HIGH`.
+
+   The percentile is a percentile **rank** counting ties as half, `(below + equal/2) / n`. A plain
+   "fraction strictly below" scores a history of identical prices as 0 — the cheapest ever seen —
+   and would call an utterly ordinary price `GREAT`. `targetPrice` is a **unit price in the item's
+   own `unitPriceUnit`** ("buy at or below $0.12 a fluid ounce"), not a pack price, so it stays
+   meaningful when the pack size changes.
 
    **Median, not mean** (one warehouse-club bulk buy must not move the baseline) over a rolling
    window (default 365 days, so a three-year-old price stops anchoring the answer). Also extend
