@@ -4,6 +4,11 @@ Self-hosted grocery-deal tracker. An ingest worker reads a dedicated IMAP mailbo
 an OpenAI-compatible LLM to extract structured deals, and stores them in SQLite; a small web app lists
 active deals and manages mute/watchlist preferences. **Bring your own inbox + LLM. One container.**
 
+> **Coupon newsletter ingestion ships paused** (`COUPON_INGEST_ENABLED=false`). The pipeline is built
+> and tested but does not run, because no newsletter worth ingesting has been found yet — see
+> [docs/PLAN.md](./docs/PLAN.md), which puts the product weight behind Pantry price tracking instead.
+> Turn ingestion back on whenever you have a source: it is one environment variable.
+
 ## Stack
 
 - **API** — GraphQL (Yoga + Pothos, code-first) on a clean-architecture, factory-DI backend
@@ -21,6 +26,19 @@ docker compose up --build
 
 Everything runs as one container: the API serves the built SPA and `/graphql`, and runs the ingest
 worker in-process (SQLite lives on a mounted volume).
+
+## Coupon newsletter ingestion (`COUPON_INGEST_ENABLED`)
+
+Off by default. While it is off:
+
+- the scheduler is never registered (nothing runs on `INGEST_CRON`, inline or in the worker);
+- `POST /internal/ingest` answers `503 {"status":"disabled"}`, and so does `pnpm ingest`;
+- `node dist/worker.js` logs that it has nothing to schedule and exits;
+- the web app shows a banner saying no new coupons are being imported, alongside the last import date.
+
+Already-ingested coupons keep working everywhere — listing, filtering and near-me are unaffected.
+Set `COUPON_INGEST_ENABLED=true` to resume. Only `true` and `false` are accepted: a truthy-ish spelling
+like `1` or `TRUE` fails at startup rather than silently leaving the pipeline off.
 
 ## Optional location lookup
 
@@ -66,8 +84,8 @@ save each email's converted Markdown to a folder (gitignored — it holds real e
 that corpus offline by running the API against the folder source, then triggering a pass:
 
 ```bash
-# run the API against a folder of .md emails instead of IMAP
-INGEST_SOURCE=folder INGEST_LOCAL_DIR=./ingest-input pnpm dev
+# run the API against a folder of .md emails instead of IMAP (ingestion must be enabled)
+COUPON_INGEST_ENABLED=true INGEST_SOURCE=folder INGEST_LOCAL_DIR=./ingest-input pnpm dev
 
 # then, in another shell, trigger one pass (token-gated POST /internal/ingest)
 pnpm ingest
@@ -76,9 +94,10 @@ pnpm ingest
 Processed files move to `<dir>/processed/`, so re-runs are idempotent. A small synthetic fixture
 lives in `packages/api/test/fixtures/ingest/`.
 
-The trigger **starts** a pass and returns immediately — `202 {"status":"started"}`, or
-`409 {"status":"already-running"}` when one is still in flight. It does not wait for the outcome,
-because a full batch routinely outlives the HTTP request. Watch the logs for the closing
+The trigger **starts** a pass and returns immediately — `202 {"status":"started"}`,
+`409 {"status":"already-running"}` when one is still in flight, or `503 {"status":"disabled"}` when
+`COUPON_INGEST_ENABLED` is false. It does not wait for the outcome, because a full batch routinely
+outlives the HTTP request. Watch the logs for the closing
 `pass complete: N seen, N added, N skipped, N dropped` line instead.
 
 ## Skipping dead emails (`INGEST_MIN_BODY_LENGTH`)

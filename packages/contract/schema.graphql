@@ -1,3 +1,8 @@
+type AppConfig {
+  couponIngestEnabled: Boolean!
+  lastIngestAt: DateTime
+}
+
 type ConflictError {
   message: String!
   status: Int!
@@ -106,6 +111,7 @@ enum PrefScope {
 }
 
 type Query {
+  appConfig: AppConfig!
   deal(id: ID!): QueryDealResult!
   deals(activeOnly: Boolean = true, category: String): [Deal!]!
   dealsNearMe(radiusMiles: Float = 25): QueryDealsNearMeResult!

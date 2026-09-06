@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Button } from './components/ui/button';
+import { CouponIngestBanner } from './features/coupons/CouponIngestBanner';
 import { DealsList } from './features/deals/DealsList';
 import { NearMeView } from './features/nearMe/NearMeView';
 
@@ -11,6 +12,7 @@ export function App() {
       <header>
         <h1 className="text-2xl font-bold tracking-tight">MealDeal</h1>
         <p className="text-muted-foreground">Active grocery deals from your inbox.</p>
+        <CouponIngestBanner />
         <nav className="mt-4 flex gap-2" aria-label="Deal views">
           <Button
             variant={view === 'deals' ? 'default' : 'outline'}

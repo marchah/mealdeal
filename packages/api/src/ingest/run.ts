@@ -334,6 +334,12 @@ export function startIngestPass(deps: Partial<IngestDeps> = {}): boolean {
 
 /** Schedule recurring passes (node-cron). No-ops on an invalid cron expression. */
 export function scheduleIngest(): void {
+  if (!settings.COUPON_INGEST_ENABLED) {
+    logInfo('coupon newsletter ingestion is paused (COUPON_INGEST_ENABLED=false); not scheduling', {
+      tag: 'INGEST',
+    });
+    return;
+  }
   const expr = settings.INGEST_CRON;
   if (!cron.validate(expr)) {
     logWarning(`invalid INGEST_CRON "${expr}"; not scheduling`, { tag: 'INGEST' });

@@ -1,5 +1,8 @@
+import type { AppConfigSettings } from '../common/settings';
 import type { Db } from '../db/client';
 import type { EntitiesServices } from '../entities';
+import { appConfigServiceFactory } from './appConfig/service';
+import type { AppConfigService } from './appConfig/types';
 import { dashboardServiceFactory } from './dashboard/service';
 import type { DashboardService } from './dashboard/types';
 import { ingestRunRepositoryFactory } from './ingestRun/repository';
@@ -11,6 +14,8 @@ import { storeRepositoryFactory } from './store/repository';
 import { storeServiceFactory } from './store/service';
 import type { StoreService } from './store/types';
 
+import './appConfig/graphql/type';
+import './appConfig/graphql/query';
 import './dashboard/graphql/type';
 import './dashboard/graphql/query';
 import './store/graphql/type';
@@ -20,6 +25,7 @@ import './store/graphql/query';
 // ingestRun/store feature data. Built from the db + the already-built entity services injected by
 // the composition root — features depend on entities, never the reverse.
 export interface FeaturesServices {
+  appConfigService: AppConfigService;
   ingestRunService: IngestRunService;
   storeService: StoreService;
   dashboardService: DashboardService;
@@ -29,13 +35,16 @@ export interface FeaturesServices {
 export function getFeaturesServices({
   db,
   entities,
+  config,
 }: {
   db: Db;
   entities: EntitiesServices;
+  config: AppConfigSettings;
 }): FeaturesServices {
   const ingestRunService = ingestRunServiceFactory({
     ingestRunRepository: ingestRunRepositoryFactory({ db }),
   });
+  const appConfigService = appConfigServiceFactory({ config, ingestRunService });
   const storeService = storeServiceFactory({ storeRepository: storeRepositoryFactory({ db }) });
   const dashboardService = dashboardServiceFactory({
     dealService: entities.dealService,
@@ -49,5 +58,5 @@ export function getFeaturesServices({
     couponTypeService: entities.couponTypeService,
     newsletterService: entities.newsletterService,
   });
-  return { ingestRunService, storeService, dashboardService, nearMeService };
+  return { appConfigService, ingestRunService, storeService, dashboardService, nearMeService };
 }

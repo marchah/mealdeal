@@ -1,3 +1,4 @@
+import { settings } from './common/settings';
 import { createDb } from './db/client';
 import { getEntitiesServices, type EntitiesServices } from './entities';
 import { getFeaturesServices, type FeaturesServices } from './features';
@@ -24,7 +25,7 @@ export function getServices(): Services {
     zipCoordinateLookup: zippopotamAdapter,
     addressCoordinateLookup: nominatimAdapter,
   });
-  const features = getFeaturesServices({ db, entities });
+  const features = getFeaturesServices({ db, entities, config: settings });
   cached = { ...entities, ...features };
   return cached;
 }

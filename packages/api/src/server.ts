@@ -29,6 +29,12 @@ function handleInternalIngest(req: IncomingMessage, res: ServerResponse): void {
     return;
   }
   res.setHeader('content-type', 'application/json');
+  // Checked after the token so an unauthenticated caller learns nothing about the deployment.
+  if (!settings.COUPON_INGEST_ENABLED) {
+    res.statusCode = 503;
+    res.end(JSON.stringify({ status: 'disabled' }));
+    return;
+  }
   if (!startIngestPass()) {
     res.statusCode = 409;
     res.end(JSON.stringify({ status: 'already-running' }));
