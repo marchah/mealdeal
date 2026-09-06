@@ -67,7 +67,7 @@ third-party/mdream|openai|productPage/   (provider clients, moved/added)
    here so it reads as a decision, not a slip.
 
 3. **`unitPrice` is denormalized on write, in canonical base units.** Every `price_entries` row stores
-   `unit_price` already normalized (per gram / per millilitre / per count / per square foot). This is
+   `unit_price` already normalized (per ounce / per fluid ounce / per count / per square foot). This is
    the whole reason the feature works: a 150 fl-oz jug and a 2-pack of 46 fl-oz bottles become
    directly comparable numbers, and "is this a good deal" collapses to a `min`/`median` over one
    indexed column instead of a per-row conversion in JS. Display unit ($/oz vs $/gal) is a
@@ -85,8 +85,10 @@ third-party/mdream|openai|productPage/   (provider clients, moved/added)
 New enums (TS `enum`, SCREAMING_SNAKE key **and** value, per the conventions):
 
 - `UnitDimension` — `COUNT | WEIGHT | VOLUME | AREA`
-- `Unit` — `COUNT`, `OUNCE`, `POUND`, `GRAM`, `KILOGRAM`, `FLUID_OUNCE`, `PINT`, `QUART`, `GALLON`,
-  `MILLILITER`, `LITER`, `SQUARE_FOOT` (paper towels, foil)
+- `Unit` — `COUNT`, `OUNCE`, `POUND`, `FLUID_OUNCE`, `PINT`, `QUART`, `GALLON`, `SQUARE_FOOT`
+  (paper towels, foil). **US customary only**: this is a US household, and a US-only set makes every
+  conversion factor an exact integer (16, 32, 128), so there is no floating-point error anywhere in
+  the comparison path. Adding a metric unit later is one enum member and one factor.
 - `PriceSource` — `MANUAL | IMPORT | COUPON`
 - `PriceVerdict` — `GREAT | GOOD | TYPICAL | HIGH | UNKNOWN`
 
@@ -124,7 +126,7 @@ Each slice is one reviewable PR. `pnpm check` green + the required test tiers be
    `dimensionOf(unit)`, `toBaseAmount(amount, unit)`, `unitPriceIn(unitPrice, unit)`,
    `formatUnitPrice(unitPrice, unit)`. No I/O, no db, no deps.
    Tests: conversion round-trips, every unit in the table, cross-dimension rejection, zero/negative
-   amounts, floating-point tolerance on gallon↔millilitre.
+   amounts, and exact (not approximate) equality on gallon↔fluid-ounce.
    Deps: [].
 
 4. **DB migration: `pantry_items` + `price_entries`.** Edit `db/schema.ts`, `pnpm db:generate`,
