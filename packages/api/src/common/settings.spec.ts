@@ -36,6 +36,22 @@ describe('parseSettings', () => {
     );
   });
 
+  it('pauses coupon newsletter ingestion unless it is explicitly enabled', () => {
+    expect(parseSettings({}).COUPON_INGEST_ENABLED).toBe(false);
+    expect(parseSettings({ COUPON_INGEST_ENABLED: 'false' }).COUPON_INGEST_ENABLED).toBe(false);
+    expect(parseSettings({ COUPON_INGEST_ENABLED: 'true' }).COUPON_INGEST_ENABLED).toBe(true);
+    // Docker Compose substitutes an empty string for an unset variable; that means "unset".
+    expect(parseSettings({ COUPON_INGEST_ENABLED: '' }).COUPON_INGEST_ENABLED).toBe(false);
+  });
+
+  it('rejects a COUPON_INGEST_ENABLED value that is neither true nor false', () => {
+    // Truthy-ish spellings must fail loudly: silently treating `1` as false would leave an
+    // operator who meant to enable ingestion staring at a pipeline that never runs.
+    expect(() => parseSettings({ COUPON_INGEST_ENABLED: '1' })).toThrow();
+    expect(() => parseSettings({ COUPON_INGEST_ENABLED: 'TRUE' })).toThrow();
+    expect(() => parseSettings({ COUPON_INGEST_ENABLED: 'yes' })).toThrow();
+  });
+
   it('requires a local directory for the folder email source', () => {
     expect(() => parseSettings({ INGEST_SOURCE: 'folder' })).toThrow(
       'INGEST_LOCAL_DIR is required when INGEST_SOURCE=folder',

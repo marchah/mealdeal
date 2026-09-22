@@ -1,7 +1,5 @@
-import OpenAI from 'openai';
 import { z } from 'zod';
 import { ExtractionTruncatedError, ServerError } from '../common/errors';
-import type { LlmSettings } from '../common/settings';
 import type { Maybe } from '../common/types';
 import type { CouponType } from '../entities/couponType/types';
 
@@ -37,6 +35,25 @@ export interface ExtractionInput {
 
 export interface DealExtractor {
   extract: (input: ExtractionInput) => Promise<ExtractedDeal[]>;
+}
+
+export interface JsonChatCompletionRequest {
+  system: string;
+  user: string;
+}
+
+export interface JsonChatCompletionResult {
+  content: Maybe<string>;
+  /** `length` means the model hit its output cap; the caller treats that as unretryable. */
+  finishReason: Maybe<string>;
+}
+
+/**
+ * The port for "ask a model for JSON". Narrow on purpose: the provider's SDK, the model name and
+ * the sampling settings stay behind it, so this file holds only the prompt and the schema.
+ */
+export interface JsonChatCompletion {
+  complete: (request: JsonChatCompletionRequest) => Promise<JsonChatCompletionResult>;
 }
 
 const SYSTEM_PROMPT = [
@@ -81,29 +98,20 @@ export function parseExtractionResponse(
   return parsed.data.deals;
 }
 
-export function llmExtractorFactory({ config }: { config: LlmSettings }): DealExtractor {
-  const client = new OpenAI({ baseURL: config.OPENAI_BASE_URL, apiKey: config.OPENAI_API_KEY });
-  return {
-    async extract(email) {
-      const completion = await client.chat.completions.create({
-        model: config.OPENAI_MODEL,
-        temperature: 0,
-        response_format: { type: 'json_object' },
-        messages: [
-          {
-            role: 'system',
-            content: `${SYSTEM_PROMPT}\nCoupon types: ${JSON.stringify(
-              email.couponTypes.map(({ key, label }) => ({ key, label })),
-            )}`,
-          },
-          {
-            role: 'user',
-            content: `Subject: ${email.subject}\nFrom: ${email.from}\n\n${email.body}`,
-          },
-        ],
-      });
-      const choice = completion.choices[0];
-      return parseExtractionResponse(choice?.message.content, choice?.finish_reason);
-    },
-  };
+export function llmExtractorFactory({
+  jsonChatCompletion,
+}: {
+  jsonChatCompletion: JsonChatCompletion;
+}): DealExtractor {
+  async function extract(email: ExtractionInput) {
+    const { content, finishReason } = await jsonChatCompletion.complete({
+      system: `${SYSTEM_PROMPT}\nCoupon types: ${JSON.stringify(
+        email.couponTypes.map(({ key, label }) => ({ key, label })),
+      )}`,
+      user: `Subject: ${email.subject}\nFrom: ${email.from}\n\n${email.body}`,
+    });
+    return parseExtractionResponse(content, finishReason);
+  }
+
+  return { extract };
 }

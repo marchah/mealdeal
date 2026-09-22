@@ -5,7 +5,7 @@ import { settings } from './settings';
 // Pretty + colorized in development, JSON in production, silent in tests unless LOG_LEVEL=debug.
 // Modeled on nucreator-app's logger.
 
-export type LoggingTag = 'SERVER' | 'WORKER' | 'INGEST' | 'DB';
+export type LoggingTag = 'SERVER' | 'WORKER' | 'INGEST' | 'DB' | 'PRODUCT_PAGE';
 
 interface LogOptions {
   extra?: Record<string, unknown>;

@@ -1,155 +1,260 @@
-# MealDeal v1 — Coupon Types, Location, Near-Me & Newsletters
+# MealDeal v2 — Pantry price tracking; coupon ingestion on pause
 
-## Overview
+## Why this plan
 
-This plan reconciles "deal" vs "coupon" naming and adds the core v1 features:
-typed coupon types, store locations (address + lat/lng), near-me search by ZIP radius,
-newsletter recommendations from nearby stores, and a web "near me" view.
+The v1 premise was "a coupon newsletter arrives, we extract deals from it". That premise is
+**unproven** — no newsletter worth ingesting has been found. Rather than keep building on it, v2
+**pauses ingestion behind a flag** (the pipeline stays intact and tested, it just doesn't run) and
+puts the product weight behind a second, self-sufficient feature: **Pantry** — the items we buy
+regularly, their price history, and a straight answer to *"is $19.94 a good price for this?"*
+
+Pantry becomes the app's primary tab and default view; Coupons keeps everything v1 built, behind a
+banner saying nothing new is arriving. The two halves stay one app and share a spine (merchants, the coupon-type taxonomy, the DI graph),
+so re-enabling ingestion later is a config change, not a rebuild — and once it is back on, a coupon
+for a tracked pantry item is an obvious, cheap payoff (follow-up F2).
 
 ### Naming decision
 
-The existing `deal` module stays as-is (it's the canonical template and already used everywhere).
-`coupon` is a user-facing synonym — a `Deal` *is* a coupon. We add a `CouponType` module that
-classifies deals by category (food, household, beverages, snacks, personal-care, pharmacy,
-pet-supplies, other). The deal's free-text `category` field remains for LLM-extracted raw values
-and is kept for backwards compatibility; a new typed `couponTypeId` field is the canonical
-classification.
+Top-level tabs are **Pantry** and **Coupons**, in that order — **Pantry is the primary tab and the
+default landing view**. That ordering is the plan's thesis made visible: the proven feature is the one
+you open the app for, and Coupons is the paused half you visit when you want to. "Pantry" is literally
+*the items you buy regularly*, it is one word, and it avoids two live collisions: `trackingPref`
+already owns the word *tracking* (and a `WATCHLIST` `PrefKind`), and *watchlist* would then mean two
+different things.
+
+The app's header copy moves with it: "Active grocery deals from your inbox" describes a pipeline that
+is switched off, so it becomes something Pantry-first ("Know a good price when you see one").
+
+Slices: `entities/pantryItem/` (the product) + `entities/priceEntry/` (one observed price) +
+`features/priceInsight/` (the verdict engine).
+
+## v2 status — delivered
+
+Slices 1–10 are all merged: ingestion paused behind a flag with the app saying so, the Pantry-first
+tab shell, the unit conversion module, the two tables, the `pantryItem` and `priceEntry` entities,
+the price-insight verdict engine, the Pantry web views, the provider clients moved behind ports,
+and the URL importer. The follow-ups below (F1–F7) remain.
+
+## v1 status — delivered
+
+Features 1–12 of the previous plan are **all merged**: the `couponType` taxonomy, merchant
+location + geocoding via `third-party/nominatim/`, the `store` + `newsletter` slices, the near-me
+queries, the web near-me view, ingest-time coupon-type classification, HTML→Markdown
+preprocessing (mdream), and the folder-backed offline email source + archive. Nothing there is
+removed by this plan; it is switched off at the entrypoint and kept green.
 
 ## Architecture fit
 
-Each new entity follows the **copy-the-deal-module** pattern from AGENTS.md:
+Every new slice is the **copy-the-`deal`-entity** pattern from `AGENTS.md` — same file roles, same
+factory DI, same `resolver → service → repository → db` rule.
 
 ```
-modules/deal/          (canonical template — unchanged)
-modules/couponType/    (new — typed classification enum + filter)
-modules/store/         (new — merchant + address + lat/lng + distance search)
-modules/newsletter/    (new — store newsletters for recommendation)
+entities/pantryItem/    (new — the product you buy regularly)
+entities/priceEntry/    (new — one observed price, at a merchant, on a date)
+features/priceInsight/  (new — price history statistics + the GREAT/GOOD/TYPICAL/HIGH verdict)
+features/appConfig/     (new — exposes "coupon ingestion is off" to the SPA)
+common/units.ts         (new — Unit enums + conversion; see the deviation note below)
+third-party/mdream|openai|productPage/   (provider clients, moved/added)
 ```
 
-Data model additions:
-- `coupon_types` — id, key (enum string), label (human-readable)
-- `merchants` — add `address`, `lat`, `lng` columns
-- `newsletters` — id, merchantId (FK), name, signupUrl, recommended (boolean)
+### Three decisions a reviewer should check first
 
-Config additions:
-- `settings.ts` — `USER_LOCATION` (ZIP code, e.g. `"02139"`), resolved to lat/lng for distance
-  computation.
+1. **Categories reuse `coupon_types`.** A pantry item's category FKs the *existing* seeded taxonomy
+   (food, household, beverages, snacks, personal-care, pharmacy, pet-supplies, other) rather than
+   introducing a parallel table. It is exposed on the GraphQL type as `PantryItem.category: CouponType!`
+   — a slightly odd type name for a pantry field, accepted deliberately over a risky app-wide rename
+   (`Deal.category` is already taken by the free-text LLM value, so `CouponType`→`Category` would
+   collide). Renaming the entity is optional debt, tracked as follow-up F5. The payoff is that a
+   coupon and a pantry item speak one vocabulary, which is what makes F2 nearly free.
+
+2. **`common/units.ts` holds enums *and* conversion math.** `AGENTS.md` says a fixed value set lives
+   in the slice's `types.ts`, but `Unit` is consumed by two slices, the Drizzle schema, the Pothos
+   enum and the insight feature, and the conversion table is not a type. It has the same standing as
+   `common/errors.ts`: a pure, side-effect-free reference module every layer may import. Called out
+   here so it reads as a decision, not a slip.
+
+3. **`unitPrice` is denormalized on write, in canonical base units.** Every `price_entries` row stores
+   `unit_price` already normalized (per ounce / per fluid ounce / per count / per square foot). This is
+   the whole reason the feature works: a 150 fl-oz jug and a 2-pack of 46 fl-oz bottles become
+   directly comparable numbers, and "is this a good deal" collapses to a `min`/`median` over one
+   indexed column instead of a per-row conversion in JS. Display unit ($/oz vs $/gal) is a
+   presentation concern resolved at read time from the item's `unit_price_unit`.
 
 ## Data model
 
 | Table | Key columns | Notes |
 |---|---|---|
-| `coupon_types` | id, key, label | Reference table; pre-seeded with defaults |
-| `merchants` | id, name, address, lat, lng | Existing + 3 new columns |
-| `deals` | id, merchantId, couponTypeId (FK→coupon_types), category (kept) | New FK column |
-| `newsletters` | id, merchantId (FK→merchants), name, signupUrl, recommended | New table |
+| `pantry_items` | id, name, brand, coupon_type_id (FK), image_url, size_amount, size_unit, unit_price_unit, target_price, notes, archived, created_at | The product. `archived` is a soft delete so history survives. |
+| `price_entries` | id, pantry_item_id (FK, cascade), merchant_id (FK, nullable), price, currency, size_amount, size_unit, quantity, unit_price, on_sale, source, url, note, observed_at, created_at | One observation. `unit_price` canonical + indexed on `(pantry_item_id, observed_at)`. |
+| `merchants` | *(unchanged)* | Reused as the "where I saw it" dimension — Costco, Target, Amazon. Teaches you which store is cheapest per item. |
+| `coupon_types` | *(unchanged)* | Reused as the pantry category taxonomy. `seedCouponTypes()` in `server.ts` is now load-bearing for Pantry too. |
+
+New enums (TS `enum`, SCREAMING_SNAKE key **and** value, per the conventions):
+
+- `UnitDimension` — `COUNT | WEIGHT | VOLUME | AREA`
+- `Unit` — `COUNT`, `OUNCE`, `POUND`, `FLUID_OUNCE`, `PINT`, `QUART`, `GALLON`, `SQUARE_FOOT`
+  (paper towels, foil). **US customary only**: this is a US household, and a US-only set makes every
+  conversion factor an exact integer (16, 32, 128), so there is no floating-point error anywhere in
+  the comparison path. Adding a metric unit later is one enum member and one factor.
+- `PriceSource` — `MANUAL | IMPORT | COUPON`
+- `PriceVerdict` — `GREAT | GOOD | TYPICAL | HIGH | UNKNOWN`
+
+Config additions (`common/settings.ts`, the only reader of `process.env`):
+
+- `COUPON_INGEST_ENABLED` — boolean, **default `false`**. The switch this plan is named for.
 
 ## Ordered feature list
 
-Each feature is a vertical slice sized for one coder task. Dependencies ensure correct build order.
+Each slice is one reviewable PR. `pnpm check` green + the required test tiers before it lands.
 
-1. **Add CouponType module** — Create the `couponType` module (types, repo, service, schema, spec).
-   Seed with default keys (food, household, beverages, snacks, personal-care, pharmacy, pet-supplies, other).
-   Adds `getCouponTypes` query. No deps.
-
-2. **Update deal schema: add couponTypeId FK** — Add `couponTypeId` text column (FK to `coupon_types.id`)
-   to the `deals` table via a Drizzle migration. Keep `category` as-is for backwards compat.
-   Deps: [coupon-type-module] (the FK references the coupon_type table).
-
-3. **Update deal module: add couponTypeId field** — Add `couponTypeId` and `couponType` (nested) to
-   `Deal` type, repository, service, and GraphQL schema. Update `dealServiceFactory` to accept
-   `couponTypeService` from DI. Deps: [coupon-type-module, deal-schema-coupon-type-id].
-
-4. **Add merchant location fields** — Add `address` (text, nullable), `lat` (real, nullable),
-   `lng` (real, nullable) to merchants table. Update merchant module types, schema, and GraphQL.
+1. **Pause coupon ingestion and make the app say so.** Add `COUPON_INGEST_ENABLED` (default `false`)
+   to `settings.ts`, `.env.example` and the README. `scheduleIngest()` logs and no-ops;
+   `POST /internal/ingest` answers `503 {"status":"disabled"}`; `worker.ts` idles with a clear line.
+   Add `features/appConfig/` — `appConfigServiceFactory({ config })` (config injected, mirroring
+   `emailSourceFactory({ config: settings })`; a service must stay unit-testable) exposing
+   `Query.appConfig: AppConfig!` with `couponIngestEnabled: Boolean!` and `lastIngestAt: DateTime`.
+   The Coupons tab renders a banner: *"Coupon newsletter ingestion is paused — no new coupons are
+   being imported."* Already-ingested deals still list normally.
+   Tests: unit (both flag states), integration (`appConfig` query), `settings.spec.ts` addition.
    Deps: [].
 
-5. **Add Store module (with distance search)** — New module that exposes a `Store` type combining
-   merchant fields + location. Adds `storesNearLocation(args: { lat, lng, radiusMiles })` query
-   using the Haversine formula via SQLite's built-in `acos()`/`sin()`/`cos()` functions.
-   Deps: [merchant-location-fields].
+2. **Web: the tab shell, Pantry first.** Replace `App.tsx`'s two-state toggle with top-level
+   **Pantry | Coupons** — Pantry is the first tab and the view an empty hash route resolves to, so
+   opening the app lands on price tracking. Coupons keeps its existing Browse-deals / Near-me sub-nav
+   — `DealsList` and `NearMeView` move under it unchanged — and carries slice 1's paused banner.
+   Pantry renders a placeholder until slice 8. Update the header copy (see the naming decision).
+   Deep-linking via a ~30-line `useHashRoute` hook in `web/src/lib/` rather than a `react-router`
+   dependency (revisit if the surface grows; the no-new-dependency rule applies). Accessibility: real
+   tab semantics (`aria-selected`, arrow-key navigation), `jsx-a11y` clean.
+   Tests: `App.spec.tsx` — including that the default route is Pantry.
+   Deps: [1].
 
-6. **Add Newsletter module** — New module with `Newsletter` type (id, merchantId, name, signupUrl,
-   recommended). Adds `addNewsletter`, `removeNewsletter` mutations and `newsletter` query.
-   Deps: [merchant-location-fields] (needs merchantId FK).
+3. **`common/units.ts`.** The `Unit` / `UnitDimension` enums, the conversion table, and pure helpers:
+   `dimensionOf(unit)`, `toBaseAmount(amount, unit)`, `unitPriceIn(unitPrice, unit)`,
+   `formatUnitPrice(unitPrice, unit)`. No I/O, no db, no deps.
+   Tests: conversion round-trips, every unit in the table, cross-dimension rejection, zero/negative
+   amounts, and exact (not approximate) equality on gallon↔fluid-ounce.
+   Deps: [].
 
-7. **Near-me GraphQL queries** — Add `storesNearMe` (uses USER_LOCATION from settings to resolve
-   ZIP→lat/lng, then calls store search), `dealsNearMe` (deals from nearby stores grouped by
-   coupon type), and `recommendedNewsletters` (newsletters from nearby stores where recommended=true).
-   These are new fields on the Query type in the store module's schema.pothos.
-   Deps: [store-module, coupon-type-module].
+4. **DB migration: `pantry_items` + `price_entries`.** Edit `db/schema.ts`, `pnpm db:generate`,
+   commit the generated migration (never hand-written). Additive only; nothing existing changes.
+   Columns use `.$type<Unit>()` / `.$type<PriceSource>()` so the enum stays one source of truth.
+   Deps: [3].
 
-8. **Web: near-me view** — Add web components: coupon browsing by type (list/filter), a "near me"
-   view showing nearby stores, their coupons grouped by type, and recommended newsletters.
-   Uses the new GraphQL queries. Accessibility-clean.
-   Deps: [near-me-queries].
+5. **`entities/pantryItem/`.** Copy the `deal` slice. `types.ts` (domain type + `PantryItemRepository`
+   / `PantryItemService` ports, methods entity-qualified: `getPantryItemById`, `listPantryItems`,
+   `countPantryItems`, `addPantryItem`, `updatePantryItem`, `archivePantryItem`, `deletePantryItem`),
+   `repository.ts`, `service.ts`, `graphql/{type,query,mutation}.ts`. Register in `entities/index.ts`.
+   `category` resolves through a DataLoader (`couponTypeById`) added to `context.ts`.
+   Validation at the arg boundary (Zod via the Pothos plugin): name 1–200 chars, `imageUrl`
+   http(s)-only + max 2 000 chars (same shape as `addNewsletter`'s `signupUrl`), `sizeAmount > 0`,
+   `targetPrice > 0`. The service also enforces **case- and null-folded uniqueness** on
+   name + brand, throwing `ConflictError`: slice 4 found that drizzle-kit cannot emit that index
+   (it splits the expression on the comma inside `coalesce()` and produces SQL that fails at
+   migration time), and a service check gives a better message than a constraint violation anyway.
+   Tests: unit (`service.spec.ts`, hand-mocked ports) + integration against the real test DB.
+   Deps: [3, 4].
 
-## Follow-up — data population (found in the v1 audit)
+6. **`entities/priceEntry/`.** Same shape. The service computes canonical `unitPrice` on write via
+   `common/units.ts` — `price / (toBaseAmount(sizeAmount, sizeUnit) * quantity)` — and throws
+   `ValidationError` when the entry's unit dimension does not match the item's (you cannot log
+   *$/gallon* against an item measured in pounds). Exposed as `PantryItem.priceEntries(limit, since)`
+   plus `addPriceEntry` / `deletePriceEntry` mutations. A `priceEntriesByPantryItemId` DataLoader
+   keeps the list view off N+1.
+   Tests: unit (unit-price math incl. multi-packs, dimension mismatch, `price <= 0`, `quantity <= 0`,
+   future `observedAt`) + integration.
+   Deps: [3, 4, 5].
 
-Features 1–8 build the read/query surface for near-me and coupon-type grouping, but they assume the
-underlying data is already populated. Two population steps were never planned, so both features
-return **empty / degenerate results against real ingested data** until these are added — the merged
-code is correct, it's just starved of inputs:
+7. **`features/priceInsight/` — the verdict engine.** No table of its own; composes the two entity
+   services. `getPriceInsight({ pantryItemId, windowDays })` and a batched `listPriceInsights` for the
+   grid. Returns: `latest`, `lowestUnitPrice`, `highestUnitPrice`, `medianUnitPrice`,
+   `observationCount`, `windowDays`, `percentile`, `savingsVsMedianPct`, `meetsTargetPrice`,
+   `cheapestMerchant`, and `verdict`.
 
-9. **Populate merchant coordinates (geocoding)** — Near-me filters merchants to those with a
-   non-null `lat`/`lng`, but nothing sets them: ingest creates merchants with null coordinates and
-   `merchantService.updateMerchantLocation` has no caller, so `storesNearMe` / `dealsNearMe` /
-   `recommendedNewsletters` return `[]` for real data. Add a geocoding step — capture the merchant
-   address (extend the LLM extractor) and resolve it to coordinates through a `third-party/<geocoder>/`
-   adapter behind a port (wired in `services.ts`), called during ingest via `updateMerchantLocation`.
-   An admin `updateMerchantLocation` mutation is a reasonable interim to set them manually.
-   Deps: [merchant-location-fields, store-module].
+   Deterministic, explainable rules — no magic, applied in this order:
+   - `targetPrice` set and the latest unit price is at or below it → `GREAT`. **Checked first**,
+     ahead of the sample-size guard: a target is the user's own statement of what counts as good,
+     so making it wait for three observations would hide a genuine buy signal on a new item;
+   - fewer than 3 observations in the window → `UNKNOWN` ("not enough history yet");
+   - otherwise the latest unit price's percentile within the window: ≤15% → `GREAT`, ≤35% → `GOOD`,
+     ≤75% → `TYPICAL`, else `HIGH`.
 
-10. **Classify deals by coupon type during ingest** — `deal.couponTypeId` is always null today
-    (ingest hard-codes it), so `dealsNearMe` grouping and the web coupon-type filter only ever surface
-    the "unclassified" group. Add a classification step that maps each extracted deal to a seeded
-    `CouponType` (LLM classification into the taxonomy, or a keyword→key mapping via
-    `couponTypeService.getCouponTypeByKey`) and sets `couponTypeId` on the `NewDeal` before insert.
-    Deps: [coupon-type-module, deal-couponTypeId-field].
+   The percentile is a percentile **rank** counting ties as half, `(below + equal/2) / n`. A plain
+   "fraction strictly below" scores a history of identical prices as 0 — the cheapest ever seen —
+   and would call an utterly ordinary price `GREAT`. `targetPrice` is a **unit price in the item's
+   own `unitPriceUnit`** ("buy at or below $0.12 a fluid ounce"), not a pack price, so it stays
+   meaningful when the pack size changes.
 
-## Follow-up — ingestion quality
+   **Median, not mean** (one warehouse-club bulk buy must not move the baseline) over a rolling
+   window (default 365 days, so a three-year-old price stops anchoring the answer). Also extend
+   `features/dashboard` with `pantryItems` and `itemsWorthBuyingNow` counts — it is already the
+   cross-entity read model, so this is reuse rather than a new aggregate.
+   Tests: unit is the priority here — empty history, one observation, two observations, all-equal
+   prices, a single outlier, exactly at the target price, an entry on the window boundary, an entry
+   older than the window.
+   Deps: [5, 6].
 
-11. **Convert emails to markdown before LLM extraction** — The extractor is currently fed the email's
-    plain-text part (`imap.ts` passes only `parsed.text`), which drops the structure marketing/deal
-    emails carry in HTML (offer tables, links, headings, prices). Add a preprocessing step: also
-    capture the HTML part (`mailparser`'s `simpleParser` already returns `parsed.html` alongside
-    `parsed.text`), convert it to clean **markdown**, and feed that to `extractor.extract`, falling back
-    to `parsed.text` when an email has no HTML. Markdown preserves the deal structure the model needs
-    while being far cheaper than raw HTML — meaningfully fewer tokens, which matters for the local
-    model's context budget.
+8. **Web: the Pantry views.** A card grid — image (with `referrerPolicy="no-referrer"`, real `alt`
+   text and a graceful placeholder when the URL 404s), name + size, latest price, **unit price in the
+   item's display unit**, and a colour-and-text verdict badge (never colour alone — `jsx-a11y` and
+   colour-blind users both care). An inline-SVG sparkline of price history, no chart dependency.
+   Filters by category and verdict, sort by "best deal right now". Item detail: full history table,
+   per-merchant best price, "Log a price" form. Add / edit item forms.
+   Tests: component specs for the list, the badge thresholds and the empty state.
+   Deps: [2, 5, 6, 7].
 
-    **Tool — recommended: [`mdream`](https://github.com/harlan-zw/mdream)** (an HTML→markdown converter
-    built for LLMs). It is Node-native (Rust/NAPI binding **plus a pure-JS fallback**, so it runs
-    in-process in the single container — no second runtime), zero-dependency, ~37× faster than turndown
-    and **~2× fewer output tokens**, actively maintained, with a plugin API to **isolate main content**
-    (strip email header/footer/nav boilerplate) and customize table rendering. Alternatives:
-    [`node-html-markdown`](https://www.npmjs.com/package/node-html-markdown) (proven, fast, Node-native)
-    or [`turndown`](https://github.com/mixmark-io/turndown) + `turndown-plugin-gfm` (most battle-tested,
-    best table fidelity) if we favour maturity over token efficiency. **Rejected for this app:**
-    Microsoft **MarkItDown** and **trafilatura** — both capable (and already in our KB) but **Python**,
-    so they'd add a second runtime to the one-Node-container design; and since `mailparser` already
-    yields the HTML, their file/`.eml` parsing is redundant.
+9. **Enabling refactor — provider clients into `third-party/`.** `AGENTS.md` §3 says a provider SDK
+   must never appear outside `third-party/`; today `ingest/markdown.ts` imports `mdream` and
+   `ingest/extractor.ts` imports `openai` directly. Neither trips ESLint (the `ingest` category has no
+   such policy) so this is rule-spirit debt, not a build failure — but slice 10 needs both from a
+   second caller, so it gets paid now rather than duplicated. Move mdream to
+   `third-party/mdream/adapter.ts` (`mdreamAdapterFactory`, implementing the existing
+   `HtmlToMarkdownConverter` port) and the OpenAI client to `third-party/openai/adapter.ts`
+   (`openaiAdapterFactory`) behind a narrow `JsonChatCompletion` port. `ingest/extractor.ts` keeps its
+   prompt and its Zod schema and takes the port. Pure refactor: **every existing test stays green,
+   unchanged**, and the SDL does not move.
+   Deps: [].
 
-    Keep the converter swappable behind a tiny interface in the `ingest/` pipeline (mdream today,
-    another lib tomorrow) and guard output length as today. Deps: [] — isolated to ingest, no schema
-    change. (Ideally lands **before** features 9–10, since a richer markdown body also makes merchant
-    addresses and deal categories easier to extract.)
+10. **URL import (paste an Amazon link).** Port `ProductLookup { lookupProduct: (url) => Promise<Maybe<ProductDraft>> }`
+    declared in `entities/pantryItem/types.ts` (the consuming slice owns the port), implemented in
+    `third-party/productPage/`: `adapter.ts` owns transport only (fetch, timeout, redirect + response-size
+    caps), `service.ts` is the anti-corruption layer — try `schema.org/Product` JSON-LD and OpenGraph
+    tags first, and only when name/price/size are still missing convert the HTML to Markdown (slice 9's
+    port) and ask the local LLM, validating the result with Zod exactly as the deal extractor does.
 
-12. **Offline ingest testing — save emails as markdown + a folder-backed mock IMAP** — Iterate on
-    extraction (and on features 9–10) without a live inbox:
-    - **Save the markdown.** During a real pass, also write each converted email's markdown to a
-      configurable local folder (e.g. `INGEST_ARCHIVE_DIR`), building a corpus of real deal emails.
-    - **Mock-IMAP flag.** Add an email-source flag (e.g. `INGEST_SOURCE=folder` + `INGEST_LOCAL_DIR`)
-      that, at the composition root, swaps the real `imapClientFactory` for a **folder-backed source**
-      implementing the same `fetchUnseen` / `markSeen` interface. It replays the saved `.md` files as
-      the (already-markdown) email bodies straight to the extractor, so a full ingest runs entirely
-      offline. `markSeen` for the folder source is a no-op (or moves the file to a `processed/` subdir
-      so re-runs are idempotent).
-    - **Trigger already exists.** `POST /internal/ingest` (token-gated, calls `ingestOnce`) runs a pass
-      on demand against whichever source the flag selects; add a thin `pnpm ingest` script as a
-      convenience wrapper.
+    `Mutation.draftPantryItemFromUrl(url)` returns a **draft, never a saved row** — the web prefills the
+    add-item form and you confirm. That is the whole robustness story: Amazon blocks plain server-side
+    fetches often enough that any design assuming success is wrong, so a block degrades to
+    "we couldn't read that page, here's the empty form" instead of an error state.
 
-    **Public-repo note:** real saved emails can carry PII, so the archive dir is **gitignored**; commit
-    only a small **synthetic / anonymized** fixture set (a handful of `.md`) for CI + examples. This
-    also makes the ingest pipeline testable end-to-end with a stable corpus (unit/integration fixtures).
-    Deps: [email-markdown-preprocessing].
+    Security: single-user self-hosted, so no enterprise hardening — but the server fetches a
+    user-supplied URL, so http(s)-only, reject private/loopback address ranges, hard timeout and a
+    response-size cap. Cheap, and the alternative is a self-hosted box making arbitrary internal requests.
+    Tests: unit (JSON-LD hit, OG fallback, LLM fallback, all three fail, non-http scheme, oversize
+    response) with a mocked adapter port; no live network in CI.
+    Deps: [5, 9].
+
+## Follow-ups (deliberately deferred)
+
+- **F1 — Scheduled price refresh.** Repurpose the now-idle ingest cron into a pass that re-fetches each
+  tracked item's URL and appends a `PriceEntry` with `source = IMPORT`. Deferred on purpose: it makes the
+  feature's reliability depend on scraping surviving bot detection, which is not a thing to bet the core
+  on before the core is proven. Deps: [10].
+- **F2 — Coupon ↔ pantry matching.** Once ingestion is re-enabled, surface "there's an active coupon for
+  an item you track" by matching on the shared category taxonomy + item name. This is the payoff for
+  decision 1 and should be cheap. Deps: [5, ingestion re-enabled].
+- **F3 — Receipt import.** Photo/PDF of a receipt → a vision model → several `PriceEntry` rows at once.
+  The highest-leverage data-entry win, and the largest. Deps: [6].
+- **F4 — Price-drop notifications.** When a new entry crosses `targetPrice` or lands `GREAT`. Deps: [7].
+- **F5 — Rename `CouponType` → `Category`.** Optional debt from decision 1; needs a `Deal.category`
+  disambiguation first, and touches the SDL, the web and a migration. Deps: [].
+- **F6 — CSV export/import** of pantry items + price history. Self-hosted data should be portable.
+- **F7 — Playwright e2e**, once that infra lands (still owed from v1's Definition of Done).
+
+## Definition of Done (per slice — from AGENTS.md)
+
+`pnpm check` green · a **unit** test for every new service and an **integration** test for every new
+resolver · all inputs Zod-validated at the boundary · `packages/contract/schema.graphql` and
+`packages/web/src/graphql-env.d.ts` regenerated **and committed** · migrations generated, never
+hand-written · no `process.env` outside `common/settings.ts` · no `console.*` · no layer crossings ·
+web changes `jsx-a11y` clean · README and `.env.example` updated wherever config or behaviour moved.

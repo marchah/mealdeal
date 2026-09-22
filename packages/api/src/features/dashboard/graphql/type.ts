@@ -8,5 +8,7 @@ StatsRef.implement({
     activeDeals: t.exposeInt('activeDeals'),
     merchants: t.exposeInt('merchants'),
     lastIngestAt: t.expose('lastIngestAt', { type: 'DateTime', nullable: true }),
+    pantryItems: t.exposeInt('pantryItems'),
+    itemsWorthBuyingNow: t.exposeInt('itemsWorthBuyingNow'),
   }),
 });

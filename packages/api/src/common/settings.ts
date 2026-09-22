@@ -16,6 +16,13 @@ const EnvSchema = z
     DATABASE_URL: z.string().default('file:./data/mealdeal.db'),
     MIGRATIONS_DIR: z.string().default('drizzle'),
 
+    // Coupon newsletter ingestion is PAUSED by default (docs/PLAN.md v2): no newsletter worth
+    // ingesting has been found, so the pipeline stays built and tested but does not run. Strict
+    // rather than truthy-ish, so a typo fails at startup instead of silently leaving ingest off.
+    COUPON_INGEST_ENABLED: z.preprocess(
+      (value) => (value === '' ? undefined : value),
+      z.enum(['true', 'false']).default('false'),
+    ),
     INGEST_INLINE: z.string().default('1'),
     INGEST_CRON: z.string().default('*/30 * * * *'),
     INGEST_BATCH: z.coerce.number().int().positive().default(25),
@@ -95,6 +102,11 @@ export interface ImapSettings {
   IMAP_MAILBOX: string;
 }
 
+/** The deployment facts the SPA needs in order to render honest state (see features/appConfig). */
+export interface AppConfigSettings {
+  COUPON_INGEST_ENABLED: boolean;
+}
+
 /** OpenAI-compatible LLM settings. */
 export interface LlmSettings {
   OPENAI_BASE_URL: string;
@@ -132,6 +144,7 @@ export function parseSettings(env: NodeJS.ProcessEnv) {
     DATABASE_URL: ENV.DATABASE_URL,
     MIGRATIONS_DIR: ENV.MIGRATIONS_DIR,
 
+    COUPON_INGEST_ENABLED: ENV.COUPON_INGEST_ENABLED === 'true',
     INGEST_INLINE: ENV.INGEST_INLINE !== '0',
     INGEST_CRON: ENV.INGEST_CRON,
     INGEST_BATCH: ENV.INGEST_BATCH,

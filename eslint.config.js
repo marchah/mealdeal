@@ -137,13 +137,16 @@ export default tseslint.config(
   },
 
   // ---- Provider/HTTP clients belong in third-party/, never inside a module ----
+  // `ingest` is included because it is where this rule actually drifted: the mdream and openai
+  // imports lived there for months without tripping anything. Named SDKs are listed alongside the
+  // HTTP clients, so adding a provider means adding it here — the same upkeep the list already has.
   {
-    files: ['packages/api/src/{entities,features}/**/*.ts'],
+    files: ['packages/api/src/{entities,features,ingest}/**/*.ts'],
     rules: {
       'no-restricted-imports': [
         'error',
         {
-          paths: ['axios', 'node-fetch', 'undici', 'got'].map((name) => ({
+          paths: ['axios', 'node-fetch', 'undici', 'got', 'openai', 'mdream'].map((name) => ({
             name,
             message:
               'HTTP/provider clients belong in third-party/<provider>/ behind a port — not in a slice.',

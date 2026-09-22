@@ -8,7 +8,12 @@ if (!token) {
   try {
     const response = await fetch(url, { method: 'POST', headers: { 'x-ingest-token': token } });
     const body = await response.text();
-    if (response.status === 409) {
+    if (response.status === 503) {
+      console.error(
+        'Coupon newsletter ingestion is paused on the server (COUPON_INGEST_ENABLED=false).',
+      );
+      process.exitCode = 1;
+    } else if (response.status === 409) {
       console.error('A pass is already running; this request started nothing.');
       process.exitCode = 1;
     } else if (!response.ok) {

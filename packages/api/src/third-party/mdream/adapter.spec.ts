@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { mdreamHtmlToMarkdownConverterFactory } from './markdown';
+import { mdreamAdapterFactory } from './adapter';
 
-describe('mdreamHtmlToMarkdownConverterFactory', () => {
+describe('mdreamAdapter', () => {
   it('preserves offer structure while removing configured email boilerplate', () => {
-    const converter = mdreamHtmlToMarkdownConverterFactory();
+    const converter = mdreamAdapterFactory();
 
     const markdown = converter.convert(`
       <header>View this email in your browser</header>

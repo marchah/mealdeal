@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { Deal, DealService } from '../../entities/deal/types';
 import type { MerchantService } from '../../entities/merchant/types';
+import type { PantryItemService } from '../../entities/pantryItem/types';
 import type { IngestRunService } from '../ingestRun/types';
+import { PriceVerdict, type PriceInsight, type PriceInsightService } from '../priceInsight/types';
 import { dashboardServiceFactory } from './service';
 import type { Maybe } from '../../common/types';
 
@@ -26,8 +28,19 @@ const makeDeal = (over: Partial<Deal> = {}): Deal => ({
   ...over,
 });
 
+// Only the verdict is read, so the rest of the insight is irrelevant to these assertions.
+const makeInsight = (verdict: PriceVerdict): PriceInsight =>
+  ({ verdict }) as unknown as PriceInsight;
+
 function makeService(
-  over: { active?: Deal[]; total?: number; merchants?: number; lastIngestAt?: Maybe<Date> } = {},
+  over: {
+    active?: Deal[];
+    total?: number;
+    merchants?: number;
+    lastIngestAt?: Maybe<Date>;
+    pantryItems?: number;
+    verdicts?: PriceVerdict[];
+  } = {},
 ) {
   const active = over.active ?? [makeDeal({ id: 'a' }), makeDeal({ id: 'b' })];
   // @ts-expect-error partial mock: only listDeals and countDeals are used
@@ -43,7 +56,22 @@ function makeService(
   const ingestRunService: IngestRunService = {
     lastIngestCompletedAt: () => Promise.resolve(over.lastIngestAt ?? null),
   };
-  return dashboardServiceFactory({ dealService, merchantService, ingestRunService });
+  // @ts-expect-error partial mock: only countPantryItems is used
+  const pantryItemService: PantryItemService = {
+    countPantryItems: () => Promise.resolve(over.pantryItems ?? 0),
+  };
+  // @ts-expect-error partial mock: only listPriceInsights is used
+  const priceInsightService: PriceInsightService = {
+    listPriceInsights: () => Promise.resolve((over.verdicts ?? []).map(makeInsight)),
+  };
+
+  return dashboardServiceFactory({
+    dealService,
+    merchantService,
+    ingestRunService,
+    pantryItemService,
+    priceInsightService,
+  });
 }
 
 describe('dashboardService', () => {
@@ -60,6 +88,8 @@ describe('dashboardService', () => {
       activeDeals: 2,
       merchants: 3,
       lastIngestAt,
+      pantryItems: 0,
+      itemsWorthBuyingNow: 0,
     });
   });
 
@@ -69,5 +99,33 @@ describe('dashboardService', () => {
     expect(stats.activeDeals).toBe(1);
     expect(stats.totalDeals).toBe(4);
     expect(stats.lastIngestAt).toBeNull();
+  });
+});
+
+describe('dashboardService pantry counts', () => {
+  it('counts only the items whose price is worth acting on', async () => {
+    // GOOD, TYPICAL and UNKNOWN are not buy signals; counting them would make the number
+    // decoration rather than a prompt.
+    const service = makeService({
+      pantryItems: 5,
+      verdicts: [
+        PriceVerdict.GREAT,
+        PriceVerdict.GREAT,
+        PriceVerdict.GOOD,
+        PriceVerdict.TYPICAL,
+        PriceVerdict.HIGH,
+        PriceVerdict.UNKNOWN,
+      ],
+    });
+
+    const stats = await service.getStats();
+    expect(stats.pantryItems).toBe(5);
+    expect(stats.itemsWorthBuyingNow).toBe(2);
+  });
+
+  it('reports zero for an empty pantry rather than omitting the counts', async () => {
+    const stats = await makeService().getStats();
+    expect(stats.pantryItems).toBe(0);
+    expect(stats.itemsWorthBuyingNow).toBe(0);
   });
 });
