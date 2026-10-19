@@ -4,9 +4,13 @@
 # (push: false). This workflow is the one that actually publishes, and only for commits that
 # have landed: pushes to main and version tags.
 #
-# Consumers pull a tag instead of building from source — for the homelab that means the
-# Portainer compose stack goes from a multi-minute rebuild per update to a ~10 s pull, and
-# rollback becomes "pin the previous sha- tag".
+# Consumers pull a tag instead of building from source — for a deployed compose stack that
+# means a multi-minute rebuild per update becomes a ~10 s pull, and rollback becomes "pin the
+# previous sha- tag".
+#
+# After a push from main, the `deploy` branch moves to the commit just published. The stack
+# tracks `deploy`, not `main`: the publish takes minutes, and a git-polling deployer can see a
+# new `main` commit before its image exists, redeploy the previous image, and never retry.
 #
 # ⚠️ FIRST PUBLISH IS PRIVATE. GitHub creates the package private by default, so an
 # unauthenticated `docker pull` will 401. After the first successful run, go to
@@ -30,7 +34,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write # to move the deploy branch
       packages: write
     steps:
       - uses: actions/checkout@v4
@@ -65,3 +69,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Move the deploy branch to this commit
+        if: github.ref == 'refs/heads/main'
+        run: git push --force origin "HEAD:refs/heads/deploy"
