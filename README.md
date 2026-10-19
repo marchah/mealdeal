@@ -27,6 +27,11 @@ docker compose up --build
 Everything runs as one container: the API serves the built SPA and `/graphql`, and runs the ingest
 worker in-process (SQLite lives on a mounted volume).
 
+To deploy without building, run [`deploy/compose.yaml`](deploy/compose.yaml) as a git-polling stack (a
+Portainer git stack, for one) that pulls the published `ghcr.io/marchah/mealdeal` image. Track the
+`deploy` branch, which the `Publish image` workflow moves only after a commit's image is pushed. Its
+settings are stack environment variables; the file says which.
+
 ## Pantry price tracking
 
 The half of the app that works today. Track the things you buy regularly, log what you paid and
