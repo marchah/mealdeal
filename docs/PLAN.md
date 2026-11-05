@@ -138,19 +138,22 @@ to — and marking that entry `onSale` — is core, not polish.
 
 ## OCR engine candidates
 
-From the CognitiveStack notes (`local-ai-models/pp-ocrv6.md`, `knowledge-and-retrieval/indra-ocr.md`,
-`local-ai-models/oxr-1.md`). Slice 0 picks one.
+From each engine's upstream project: [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR)
+(PP-OCRv6), [Indra](https://github.com/datalab-to/indra), [OXR](https://github.com/SoMarkAI/OXR)
+and [Unlimited-OCR](https://github.com/baidu/Unlimited-OCR). Slice 0 picks one.
 
 | Engine | Runs on | Why it is a candidate | Watch for |
 |---|---|---|---|
-| **PP-OCRv6** (medium / small) | CPU — pve2 is enough | Apache-2.0; detection + recognition with line boxes; ONNX / OpenVINO runtimes | Emits text boxes, not rows — rebuilding rows is ours |
-| **Indra OCR** | CPU — pve2 is enough | ~1M params, very fast; lines with boxes **and reading order**; Markdown / JSON output | Small model, "moderate accuracy"; weights are OpenRAIL-M |
-| **OXR-1.0** | GPU — pve | 1.3B document-parsing VLM; Markdown / JSON with coordinates; strong benchmark claims | Documented for Transformers / vLLM; pve's V620s are AMD, so ROCm is untested. Only if both CPU engines fall short |
+| **PP-OCRv6** (medium / small) | CPU | Apache-2.0; detection + recognition with line boxes; ONNX / OpenVINO runtimes | Emits text boxes, not rows — rebuilding rows is ours. Medium needs x86_64 and ~6 GB free while reading a 12 MP photo (slice 1) |
+| **Indra OCR** | CPU | ~1M params, very fast; lines with boxes **and reading order**; Markdown / JSON output | Small model, "moderate accuracy"; weights are OpenRAIL-M |
+| **OXR-1.0** | GPU | 1.3B document-parsing VLM; Markdown / JSON with coordinates; strong benchmark claims | Documented for Transformers / vLLM, so on an AMD GPU ROCm is untested. Only if both CPU engines fall short |
 
-Not candidates: **Unlimited-OCR** (NVIDIA-only per its note, and pve's GPUs are AMD) and
-**Tesseract** (far behind both CPU candidates on the same benchmark).
+Not candidates: **Unlimited-OCR** (NVIDIA-only, which rules it out for an AMD- or CPU-only
+deployment) and **Tesseract** (far behind both CPU candidates on the same benchmark).
 
-Host: a CPU engine runs on **pve2**, beside the house Docker host. Only OXR-1.0 would need **pve**.
+Host: the OCR stack runs as its own container on a host with the CPU and memory to spare — a
+12 MP photo peaks at ~6 GB (slice 1), more than a small shared Docker VM has. Where it is
+deployed is tracked outside this repo; MealDeal only needs `OCR_BASE_URL`.
 
 ## Data model
 
@@ -185,11 +188,11 @@ Each slice is one reviewable PR. `pnpm check` green + the required test tiers be
 
 0. **Spike: pick the OCR engine.** Not app code — a throwaway script outside the repo. Photograph
    2–3 receipts per store, including a long Costco receipt, one with produce by weight and one with
-   card savings. Run each through PP-OCRv6 and Indra (OXR-1.0 on pve only if both struggle), rebuild
-   the rows, send the text to Qwen with a draft parse prompt, and score: lines found, prices right,
-   discounts attached, store and date right. Outputs: the engine and its host, the photo resolution
-   it needs, and per receipt the **redacted** OCR text plus the expected parse — committed as the
-   fixtures slices 1–2 test against.
+   card savings. Run each through PP-OCRv6 and Indra (OXR-1.0, on a GPU, only if both struggle),
+   rebuild the rows, send the text to Qwen with a draft parse prompt, and score: lines found,
+   prices right, discounts attached, store and date right. Outputs: the engine and what its host
+   needs, the photo resolution it needs, and per receipt the **redacted** OCR text plus the
+   expected parse — committed as the fixtures slices 1–2 test against.
    Deps: [].
 
 1. **OCR service and adapter.** The chosen engine runs as its own container on the LAN — its native
@@ -211,8 +214,7 @@ Each slice is one reviewable PR. `pnpm check` green + the required test tiers be
    redacted boxes are a fixture whose rebuilt rows must equal slice 2's text fixture. Two findings
    for the host: PaddlePaddle 3.3.x fails every inference on x86 with oneDNN (pinned to 3.2.2,
    which reads slice 0's receipt box for box as the spike did), and one 12 MP photo peaks at
-   ~6 GB of memory — more than pve2's house Docker VM has, so the stack needs more memory there
-   or a guest of its own.
+   ~6 GB of memory, so the stack needs a host with that much to spare while it reads.
    Deps: [0].
 
 2. **Receipt parser — `features/receiptParser/`.** OCR text in, structured receipt out, through the
@@ -332,9 +334,10 @@ they fail with "LLM returned non-JSON output". The fix belongs in the openai ada
 boundary — and is a prerequisite for slice 2.
 
 Still to do: 2–3 receipts each from Costco, Food Lion and Harris Teeter (and more from Aldi);
-Indra OCR; timing and memory on pve2 itself (slice 1 measured x86 with oneDNN only under Rosetta:
-14 s at 10 threads, 29 s at 4, ~6 GB peak), with OpenVINO or ONNX as the alternatives if that
-is too slow or too large; and a check that the photo includes the receipt's header.
+Indra OCR; timing and memory on the deployment host (slice 1 measured x86 with oneDNN only under
+Rosetta on an M3 Max: 14 s at 10 threads, 29 s at 4, ~6 GB peak), with OpenVINO or ONNX as the
+alternatives if that is too slow or too large; and a check that the photo includes the receipt's
+header.
 
 ## Follow-ups (deliberately deferred)
 
