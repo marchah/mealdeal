@@ -80,7 +80,7 @@ entities/receipt/            receipts, their photos and their lines
 entities/receiptAlias/       learned receipt names: (store, match key) → item + pack size, or ignore
 features/receiptParser/      OCR text → structured receipt (prompt + Zod schema, existing LLM port)
 features/receiptImport/      the pipeline: stages, retries, matching, confirm
-third-party/<ocr engine>/    adapter (transport) + service (rebuild printed lines from boxes)
+third-party/paddleocr/       adapter (transport) + service (rebuild printed lines from boxes)
 third-party/fileSystem/      receipt photos as files under RECEIPTS_DIR, behind the receipt slice's port
 ```
 
@@ -172,6 +172,8 @@ Config additions (`common/settings.ts`, the only reader of `process.env`):
 
 - `OCR_BASE_URL` — optional. Unset means receipt import is off, and `Query.appConfig` says so — the
   same honest-state pattern as the ingestion pause.
+- `OCR_TIMEOUT_SECONDS` — default 300, per photo. A setting rather than a constant because OCR time
+  is the OCR host's CPU: 14 s to a minute for one 12 MP photo across the machines measured so far.
 - `RECEIPTS_DIR` — default `./data/receipts`; `/data/receipts` in Docker, on the same volume as the
   database (the deploy compose's "the ONLY precious state" comment changes with it).
 - The parser reuses `OPENAI_*`. A separate receipt-model setting only if slice 0 shows another model
@@ -203,6 +205,14 @@ Each slice is one reviewable PR. `pnpm check` green + the required test tiers be
    line, a low-confidence stray box beside a row, an empty result, timeout, oversize response;
    `settings.spec.ts`; `appConfig` integration.
    No live OCR in CI.
+   As built: PP-OCRv6 medium in `deploy/ocr/` behind a small standard-library HTTP wrapper
+   (PaddleX's own serving wants base64 JSON and adds a serving stack); the port reads photos into
+   `ReceiptOcrInput`, so slice 4 hands its result straight to `updateReceiptOcrText`. Slice 0's
+   redacted boxes are a fixture whose rebuilt rows must equal slice 2's text fixture. Two findings
+   for the host: PaddlePaddle 3.3.x fails every inference on x86 with oneDNN (pinned to 3.2.2,
+   which reads slice 0's receipt box for box as the spike did), and one 12 MP photo peaks at
+   ~6 GB of memory — more than pve2's house Docker VM has, so the stack needs more memory there
+   or a guest of its own.
    Deps: [0].
 
 2. **Receipt parser — `features/receiptParser/`.** OCR text in, structured receipt out, through the
@@ -303,8 +313,9 @@ they fail with "LLM returned non-JSON output". The fix belongs in the openai ada
 boundary — and is a prerequisite for slice 2.
 
 Still to do: 2–3 receipts each from Costco, Food Lion and Harris Teeter (and more from Aldi);
-Indra OCR; timing on pve2 with an OpenVINO or ONNX backend; and a check that the photo includes
-the receipt's header.
+Indra OCR; timing and memory on pve2 itself (slice 1 measured x86 with oneDNN only under Rosetta:
+14 s at 10 threads, 29 s at 4, ~6 GB peak), with OpenVINO or ONNX as the alternatives if that
+is too slow or too large; and a check that the photo includes the receipt's header.
 
 ## Follow-ups (deliberately deferred)
 
