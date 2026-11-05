@@ -77,10 +77,11 @@ Every slice is the copy-the-`deal`-entity pattern from `AGENTS.md`:
 
 ```
 entities/receipt/            receipts, their photos and their lines
-entities/receiptAlias/       learned receipt names: (store, printed text) → item + pack size, or ignore
+entities/receiptAlias/       learned receipt names: (store, match key) → item + pack size, or ignore
 features/receiptParser/      OCR text → structured receipt (prompt + Zod schema, existing LLM port)
 features/receiptImport/      the pipeline: stages, retries, matching, confirm
 third-party/<ocr engine>/    adapter (transport) + service (rebuild printed lines from boxes)
+third-party/fileSystem/      receipt photos as files under RECEIPTS_DIR, behind the receipt slice's port
 ```
 
 ### Decisions a reviewer should check first
@@ -156,14 +157,15 @@ Host: a CPU engine runs on **pve2**, beside the house Docker host. Only OXR-1.0 
 | Table | Key columns | Notes |
 |---|---|---|
 | `receipts` | id, merchant_id (FK, nullable), purchased_at, status, failed_stage, error, ocr_text, ocr_engine, subtotal, tax, total, image_hash, created_at | `status`: UPLOADED → OCR_DONE → PARSED → READY → CONFIRMED, or FAILED with `failed_stage`. `image_hash` catches the same photo uploaded twice. |
-| `receipt_images` | id, receipt_id (FK, cascade), position, path, content_type, bytes | A long receipt is several photos, in order. Files under `RECEIPTS_DIR`. |
-| `receipt_lines` | id, receipt_id (FK, cascade), position, item_number (nullable), printed_text, description, quantity, unit_price, weight, weight_unit, line_total, discount, tax_flag, flags, pantry_item_id (nullable), size_amount, size_unit, match_source, decision, price_entry_id (nullable) | `match_source`: ALIAS / SUGGESTED / MANUAL. `decision`: PENDING / INCLUDE / EXCLUDE / IGNORE_ALWAYS. `price_entry_id` is what makes confirm idempotent. |
-| `receipt_aliases` | id, merchant_id (FK), match_key, printed_text, pantry_item_id (FK, cascade, nullable), size_amount, size_unit, ignored, created_at, updated_at | Unique on (merchant_id, match_key) — the item number when printed, else the folded text (decision 5). `printed_text` is kept for display. Null item + `ignored` = always ignore at this store. |
+| `receipt_images` | id, receipt_id (FK, cascade), position, path, content_type, bytes | A long receipt is several photos, in order — unique on (receipt_id, position). Files under `RECEIPTS_DIR`; `path` is relative to it. |
+| `receipt_lines` | id, receipt_id (FK, cascade), position, item_number (nullable), printed_text, description, quantity, unit_price, weight, weight_unit, line_total, discount, tax_flag, flags, pantry_item_id (FK, set null, nullable), size_amount, size_unit, match_source, decision, price_entry_id (FK, set null, nullable) | Unique on (receipt_id, position). `match_source`: ALIAS / SUGGESTED / MANUAL. `decision`: PENDING / INCLUDE / EXCLUDE / IGNORE_ALWAYS. `flags`: a JSON list of `ReceiptLineFlag`. `price_entry_id` is what makes confirm idempotent. Both links set null: a deleted item or entry un-matches the line rather than erasing what the receipt printed. |
+| `receipt_aliases` | id, merchant_id (FK), match_key, printed_text, pantry_item_id (FK, cascade, nullable), size_amount, size_unit, ignored, created_at, updated_at | Unique on (merchant_id, match_key) — `item:<number>` when printed, else `text:<folded text>` (decision 5; case, whitespace and the 0/O, 1/l/I look-alikes folded — `receiptAliasMatchKey`). `printed_text` is kept for display. Null item + `ignored` = always ignore at this store. |
 | `price_entries` | + receipt_id (FK, nullable, ON DELETE set null) | Deleting a receipt keeps the prices it produced: the history is the precious part, the same reasoning as `archived`. |
 
-New enums (TS `enum`, SCREAMING_SNAKE key and value): `ReceiptStatus`, `ReceiptStage`,
-`ReceiptLineDecision`, `ReceiptMatchSource`, and `PriceSource.RECEIPT` (whose arrival means
-`MANUAL`'s doc comment stops saying "off a receipt").
+New enums (TS `enum`, SCREAMING_SNAKE key and value): `ReceiptStatus`, `ReceiptStage` (OCR /
+PARSE / MATCH — confirm is a request that answers its caller, not a background stage),
+`ReceiptLineDecision`, `ReceiptMatchSource`, `ReceiptLineFlag` (slice 2's line-level check), and
+`PriceSource.RECEIPT` (whose arrival means `MANUAL`'s doc comment stops saying "off a receipt").
 
 Config additions (`common/settings.ts`, the only reader of `process.env`):
 
@@ -221,7 +223,7 @@ Each slice is one reviewable PR. `pnpm check` green + the required test tiers be
    slice. Photos sit behind a small storage port with a filesystem implementation rooted at
    `RECEIPTS_DIR`.
    Tests: integration — lines and images cascade with their receipt; deleting a receipt leaves its
-   price entries with `receipt_id` null; one learned name per (store, printed text); a learned name
+   price entries with `receipt_id` null; one learned name per (store, match key); a learned name
    goes with its deleted item. Unit for both services.
    Deps: [].
 
@@ -240,7 +242,7 @@ Each slice is one reviewable PR. `pnpm check` green + the required test tiers be
    `jsx-a11y` clean.
    Deps: [1, 2, 3].
 
-5. **Matching.** The last pipeline stage, PARSED → READY. A learned name for (store, printed text)
+5. **Matching.** The last pipeline stage, PARSED → READY. A learned name for (store, match key)
    gives the item and pack size, or ignore. Otherwise one text-only LLM call with the unmatched lines
    and the pantry catalog (name, brand, usual size) suggests an item or none; an id not in the
    catalog is dropped. Pack size: the learned name's, then the item's usual size, then left for you.

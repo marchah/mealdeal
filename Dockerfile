@@ -20,6 +20,7 @@ FROM node:26-slim AS runtime
 ENV NODE_ENV=production \
     WEB_DIR=/app/web \
     DATABASE_URL=file:/data/mealdeal.db \
+    RECEIPTS_DIR=/data/receipts \
     PORT=4000
 WORKDIR /app
 COPY --from=build /app/prod/package.json ./package.json

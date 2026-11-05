@@ -19,12 +19,14 @@ let cached: Services | undefined;
 export function getServices(): Services {
   if (cached) return cached;
   const db = createDb();
-  const { zippopotamAdapter, nominatimAdapter, productPageService } = getThirdPartyServices();
+  const { zippopotamAdapter, nominatimAdapter, productPageService, fileSystemAdapter } =
+    getThirdPartyServices();
   const entities = getEntitiesServices({
     db,
     zipCoordinateLookup: zippopotamAdapter,
     addressCoordinateLookup: nominatimAdapter,
     productLookup: productPageService,
+    receiptPhotoStore: fileSystemAdapter,
   });
   const features = getFeaturesServices({ db, entities, config: settings });
   cached = { ...entities, ...features };

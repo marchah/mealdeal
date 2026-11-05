@@ -8,6 +8,7 @@ services:
       - '4000:4000'
     environment:
       DATABASE_URL: file:/data/mealdeal.db
+      RECEIPTS_DIR: /data/receipts
       IMAP_HOST: ${IMAP_HOST:-}
       IMAP_PORT: ${IMAP_PORT:-993}
       IMAP_SECURE: ${IMAP_SECURE:-true}

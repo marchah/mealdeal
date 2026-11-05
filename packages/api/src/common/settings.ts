@@ -15,6 +15,11 @@ const EnvSchema = z
     WEB_DIR: z.string().optional(),
     DATABASE_URL: z.string().default('file:./data/mealdeal.db'),
     MIGRATIONS_DIR: z.string().default('drizzle'),
+    // Receipt photos, kept beside the database so a better OCR engine can re-read them later.
+    RECEIPTS_DIR: z.preprocess(
+      (value) => (value === '' ? undefined : value),
+      z.string().default('./data/receipts'),
+    ),
 
     // Coupon newsletter ingestion is PAUSED by default (docs/PLAN.md v2): no newsletter worth
     // ingesting has been found, so the pipeline stays built and tested but does not run. Strict
@@ -143,6 +148,7 @@ export function parseSettings(env: NodeJS.ProcessEnv) {
     WEB_DIR: ENV.WEB_DIR,
     DATABASE_URL: ENV.DATABASE_URL,
     MIGRATIONS_DIR: ENV.MIGRATIONS_DIR,
+    RECEIPTS_DIR: ENV.RECEIPTS_DIR,
 
     COUPON_INGEST_ENABLED: ENV.COUPON_INGEST_ENABLED === 'true',
     INGEST_INLINE: ENV.INGEST_INLINE !== '0',

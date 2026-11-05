@@ -6,12 +6,14 @@ import type { Unit } from '../../common/units';
 
 /** Where an observed price came from. */
 export enum PriceSource {
-  /** Typed in — at the shelf, off a receipt, from a screenshot. */
+  /** Typed in — at the shelf, from a screenshot. */
   MANUAL = 'MANUAL',
   /** Read off a product page by the URL importer. */
   IMPORT = 'IMPORT',
   /** Derived from an ingested coupon. */
   COUPON = 'COUPON',
+  /** Confirmed from an imported receipt photo. */
+  RECEIPT = 'RECEIPT',
 }
 
 export interface PriceEntry {

@@ -37,6 +37,12 @@ import type { PantryItemService } from './pantryItem/types';
 import { priceEntryRepositoryFactory } from './priceEntry/repository';
 import { priceEntryServiceFactory } from './priceEntry/service';
 import type { PriceEntryService } from './priceEntry/types';
+import { receiptRepositoryFactory } from './receipt/repository';
+import { receiptServiceFactory } from './receipt/service';
+import type { ReceiptPhotoStore, ReceiptService } from './receipt/types';
+import { receiptAliasRepositoryFactory } from './receiptAlias/repository';
+import { receiptAliasServiceFactory } from './receiptAlias/service';
+import type { ReceiptAliasService } from './receiptAlias/types';
 import { newsletterRepositoryFactory } from './newsletter/repository';
 import { newsletterServiceFactory } from './newsletter/service';
 import type { NewsletterService } from './newsletter/types';
@@ -50,6 +56,8 @@ export interface EntitiesServices {
   dealService: DealService;
   pantryItemService: PantryItemService;
   priceEntryService: PriceEntryService;
+  receiptService: ReceiptService;
+  receiptAliasService: ReceiptAliasService;
   merchantService: MerchantService;
   trackingPrefService: TrackingPrefService;
   couponTypeService: CouponTypeService;
@@ -62,11 +70,13 @@ export function getEntitiesServices({
   zipCoordinateLookup,
   addressCoordinateLookup,
   productLookup,
+  receiptPhotoStore,
 }: {
   db: Db;
   zipCoordinateLookup: ZipCoordinateLookup;
   addressCoordinateLookup: AddressCoordinateLookup;
   productLookup: ProductLookup;
+  receiptPhotoStore: ReceiptPhotoStore;
 }): EntitiesServices {
   const merchantService = merchantServiceFactory({
     merchantRepository: merchantRepositoryFactory({ db }),
@@ -93,6 +103,13 @@ export function getEntitiesServices({
     pantryItemService,
     merchantService,
   });
+  const receiptService = receiptServiceFactory({
+    receiptRepository: receiptRepositoryFactory({ db }),
+    receiptPhotoStore,
+  });
+  const receiptAliasService = receiptAliasServiceFactory({
+    receiptAliasRepository: receiptAliasRepositoryFactory({ db }),
+  });
   const locationService = locationServiceFactory({ zipCoordinateLookup });
   const newsletterService = newsletterServiceFactory({
     newsletterRepository: newsletterRepositoryFactory({ db }),
@@ -102,6 +119,8 @@ export function getEntitiesServices({
     dealService,
     pantryItemService,
     priceEntryService,
+    receiptService,
+    receiptAliasService,
     merchantService,
     trackingPrefService,
     couponTypeService,

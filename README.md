@@ -25,7 +25,7 @@ docker compose up --build
 ```
 
 Everything runs as one container: the API serves the built SPA and `/graphql`, and runs the ingest
-worker in-process (SQLite lives on a mounted volume).
+worker in-process. SQLite and the receipt photos live on the mounted `/data` volume — back it up.
 
 To deploy without building, run [`deploy/compose.yaml`](deploy/compose.yaml) as a git-polling stack (a
 Portainer git stack, for one) that pulls the published `ghcr.io/marchah/mealdeal` image. Track the
@@ -59,6 +59,14 @@ The server fetches a URL you supply, so it refuses anything that is not public h
 loopback, link-local and carrier-grade-NAT addresses are rejected, DNS is resolved and checked
 before connecting (so a public hostname pointing at `127.0.0.1` is caught), redirects are followed
 manually and re-checked at each hop, and both the request and the response body are capped.
+
+### Receipt photos (`RECEIPTS_DIR`)
+
+Receipt import ([docs/PLAN.md](./docs/PLAN.md), in progress) keeps every photo you upload, so a
+better OCR engine can re-read old receipts later. They are files under `RECEIPTS_DIR` —
+`./data/receipts` by default, `/data/receipts` in the container, on the same volume as the database.
+Back them up together. Receipts print membership numbers and card digits, so a photo never belongs
+in the repository; `.gitignore` keeps `data/` and `receipts/` out.
 
 ## Coupon newsletter ingestion (`COUPON_INGEST_ENABLED`)
 

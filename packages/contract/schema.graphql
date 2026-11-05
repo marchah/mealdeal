@@ -259,6 +259,7 @@ enum PriceSource {
   COUPON
   IMPORT
   MANUAL
+  RECEIPT
 }
 
 enum PriceVerdict {
