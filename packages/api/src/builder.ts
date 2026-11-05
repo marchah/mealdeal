@@ -8,6 +8,7 @@ import {
   LocationNotConfiguredError,
   LocationNotFoundError,
   NotFoundError,
+  ReceiptImportDisabledError,
   ServerError,
   ValidationError,
 } from './common/errors';
@@ -21,6 +22,7 @@ export const builder = new SchemaBuilder<{
   DefaultFieldNullability: false;
   Scalars: {
     DateTime: { Input: Date; Output: Date };
+    File: { Input: File; Output: never };
     ID: { Input: string; Output: string };
   };
 }>({
@@ -37,6 +39,13 @@ export const builder = new SchemaBuilder<{
 });
 
 builder.addScalarType('DateTime', DateTimeResolver, {});
+// Yoga hands a multipart request's files to resolvers as File objects (graphql-multipart-request-spec).
+builder.scalarType('File', {
+  description: 'A file sent in a multipart request. Input only.',
+  serialize: () => {
+    throw new Error('File is an input-only scalar');
+  },
+});
 builder.queryType({});
 builder.mutationType({});
 
@@ -69,5 +78,9 @@ builder.objectType(LocationNotFoundError, {
 });
 builder.objectType(LocationLookupError, {
   name: 'LocationLookupError',
+  fields: (t) => ({ message: t.exposeString('message'), status: t.exposeInt('status') }),
+});
+builder.objectType(ReceiptImportDisabledError, {
+  name: 'ReceiptImportDisabledError',
   fields: (t) => ({ message: t.exposeString('message'), status: t.exposeInt('status') }),
 });

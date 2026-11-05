@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lt } from 'drizzle-orm';
 import { ServerError } from '../../common/errors';
 import { receiptImages, receiptLines, receipts } from '../../db/schema';
 import type { Db } from '../../db/client';
 import {
   ReceiptLineDecision,
+  type ListReceiptsByPurchaseInput,
   type ListReceiptsInput,
   type NewReceipt,
   type ParsedReceiptLine,
@@ -24,6 +25,29 @@ export function receiptRepositoryFactory({ db }: { db: Db }): ReceiptRepository 
     return rows[0] ?? null;
   }
 
+  async function findReceiptByImageHash(imageHash: string) {
+    const rows = await db.select().from(receipts).where(eq(receipts.imageHash, imageHash)).limit(1);
+    return rows[0] ?? null;
+  }
+
+  async function findReceiptImagesByReceiptIds(receiptIds: readonly string[]) {
+    if (receiptIds.length === 0) return [];
+    return db
+      .select()
+      .from(receiptImages)
+      .where(inArray(receiptImages.receiptId, [...receiptIds]))
+      .orderBy(asc(receiptImages.receiptId), asc(receiptImages.position));
+  }
+
+  async function findReceiptLinesByReceiptIds(receiptIds: readonly string[]) {
+    if (receiptIds.length === 0) return [];
+    return db
+      .select()
+      .from(receiptLines)
+      .where(inArray(receiptLines.receiptId, [...receiptIds]))
+      .orderBy(asc(receiptLines.receiptId), asc(receiptLines.position));
+  }
+
   async function listReceipts(input: ListReceiptsInput) {
     if (input.statuses !== null && input.statuses.length === 0) return [];
     return (
@@ -34,6 +58,20 @@ export function receiptRepositoryFactory({ db }: { db: Db }): ReceiptRepository 
         // created_at is in seconds; the id only makes a same-second tie stable.
         .orderBy(desc(receipts.createdAt), asc(receipts.id))
     );
+  }
+
+  async function listReceiptsByPurchase(input: ListReceiptsByPurchaseInput) {
+    return db
+      .select()
+      .from(receipts)
+      .where(
+        and(
+          eq(receipts.merchantId, input.merchantId),
+          gte(receipts.purchasedAt, input.purchasedFrom),
+          lt(receipts.purchasedAt, input.purchasedBefore),
+        ),
+      )
+      .orderBy(asc(receipts.createdAt), asc(receipts.id));
   }
 
   async function listReceiptImages(receiptId: string) {
@@ -136,7 +174,11 @@ export function receiptRepositoryFactory({ db }: { db: Db }): ReceiptRepository 
 
   return {
     findReceiptById,
+    findReceiptByImageHash,
+    findReceiptImagesByReceiptIds,
+    findReceiptLinesByReceiptIds,
     listReceipts,
+    listReceiptsByPurchase,
     listReceiptImages,
     listReceiptLines,
     insertReceipt,

@@ -17,6 +17,10 @@ export function merchantServiceFactory({
     return merchantRepository.findMerchantsByIds(ids);
   }
 
+  function listMerchants() {
+    return merchantRepository.listMerchants();
+  }
+
   function countMerchants() {
     return merchantRepository.countMerchants();
   }
@@ -43,6 +47,7 @@ export function merchantServiceFactory({
 
   return {
     findMerchantsByIds,
+    listMerchants,
     countMerchants,
     updateMerchantLocation,
     getOrCreateMerchant,

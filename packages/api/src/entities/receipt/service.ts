@@ -1,9 +1,10 @@
 import { createHash } from 'node:crypto';
-import { NotFoundError, ValidationError } from '../../common/errors';
+import { ConflictError, NotFoundError, ValidationError } from '../../common/errors';
 import { logException } from '../../common/logger';
 import {
   ReceiptStatus,
   type AddReceiptInput,
+  type ListReceiptsByPurchaseInput,
   type ListReceiptsInput,
   type NewReceiptImage,
   type ReceiptImage,
@@ -60,8 +61,20 @@ export function receiptServiceFactory({
     return receipt;
   }
 
+  function findReceiptImagesByReceiptIds(receiptIds: readonly string[]) {
+    return receiptRepository.findReceiptImagesByReceiptIds(receiptIds);
+  }
+
+  function findReceiptLinesByReceiptIds(receiptIds: readonly string[]) {
+    return receiptRepository.findReceiptLinesByReceiptIds(receiptIds);
+  }
+
   function listReceipts(input: ListReceiptsInput) {
     return receiptRepository.listReceipts(input);
+  }
+
+  function listReceiptsByPurchase(input: ListReceiptsByPurchaseInput) {
+    return receiptRepository.listReceiptsByPurchase(input);
   }
 
   function listReceiptImages(receiptId: string) {
@@ -84,6 +97,12 @@ export function receiptServiceFactory({
     if (input.photos.some((photo) => photo.contentType.trim() === '')) {
       throw new ValidationError('A receipt photo needs a content type');
     }
+    const imageHash = hashPhotos(input.photos);
+    if (await receiptRepository.findReceiptByImageHash(imageHash)) {
+      throw new ConflictError(
+        'These photos are already uploaded as a receipt: retry or delete that one instead',
+      );
+    }
 
     // Files first, rows second: a crash in between leaves an orphan file, never a row pointing
     // at a photo that does not exist.
@@ -98,7 +117,7 @@ export function receiptServiceFactory({
       }
       return await receiptRepository.insertReceipt({
         status: ReceiptStatus.UPLOADED,
-        imageHash: hashPhotos(input.photos),
+        imageHash,
         images,
       });
     } catch (error) {
@@ -174,7 +193,10 @@ export function receiptServiceFactory({
 
   return {
     getReceiptById,
+    findReceiptImagesByReceiptIds,
+    findReceiptLinesByReceiptIds,
     listReceipts,
+    listReceiptsByPurchase,
     listReceiptImages,
     listReceiptLines,
     readReceiptImage,

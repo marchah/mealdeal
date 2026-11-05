@@ -3,6 +3,7 @@ import { index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-or
 import type { Unit } from '../common/units';
 import type { PriceSource } from '../entities/priceEntry/types';
 import type {
+  ReceiptFlag,
   ReceiptLineDecision,
   ReceiptLineFlag,
   ReceiptMatchSource,
@@ -164,24 +165,33 @@ export const priceEntries = sqliteTable(
   (t) => [index('price_entries_item_observed').on(t.pantryItemId, t.observedAt)],
 );
 
-export const receipts = sqliteTable('receipts', {
-  id: text('id').primaryKey(),
-  // Null until the parse names the store.
-  merchantId: text('merchant_id').references(() => merchants.id),
-  purchasedAt: timestamp('purchased_at'),
-  status: text('status').$type<ReceiptStatus>().notNull(),
-  // Set only while status is FAILED: the stage a retry restarts at, and why it stopped.
-  failedStage: text('failed_stage').$type<ReceiptStage>(),
-  error: text('error'),
-  // Kept so a better prompt can re-parse without re-reading the photo (docs/PLAN.md decision 4).
-  ocrText: text('ocr_text'),
-  ocrEngine: text('ocr_engine'),
-  subtotal: real('subtotal'),
-  tax: real('tax'),
-  total: real('total'),
-  imageHash: text('image_hash'),
-  createdAt: timestamp('created_at').notNull().default(now),
-});
+export const receipts = sqliteTable(
+  'receipts',
+  {
+    id: text('id').primaryKey(),
+    // Null until the parse names the store.
+    merchantId: text('merchant_id').references(() => merchants.id),
+    purchasedAt: timestamp('purchased_at'),
+    status: text('status').$type<ReceiptStatus>().notNull(),
+    // Set only while status is FAILED: the stage a retry restarts at, and why it stopped.
+    failedStage: text('failed_stage').$type<ReceiptStage>(),
+    error: text('error'),
+    // Kept so a better prompt can re-parse without re-reading the photo (docs/PLAN.md decision 4).
+    ocrText: text('ocr_text'),
+    ocrEngine: text('ocr_engine'),
+    subtotal: real('subtotal'),
+    tax: real('tax'),
+    total: real('total'),
+    imageHash: text('image_hash'),
+    // Stored rather than derived: the item-count check compares against a count the receipt
+    // prints and no column holds.
+    flags: text('flags', { mode: 'json' }).$type<ReceiptFlag[]>().notNull().default([]),
+    createdAt: timestamp('created_at').notNull().default(now),
+  },
+  // The upload's duplicate check answers with a message; this keeps two uploads of the same
+  // photos racing past it from both landing. NULLs (a receipt with no photos) never collide.
+  (t) => [uniqueIndex('receipts_image_hash').on(t.imageHash)],
+);
 
 export const receiptImages = sqliteTable(
   'receipt_images',

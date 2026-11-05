@@ -138,25 +138,28 @@ to — and marking that entry `onSale` — is core, not polish.
 
 ## OCR engine candidates
 
-From the CognitiveStack notes (`local-ai-models/pp-ocrv6.md`, `knowledge-and-retrieval/indra-ocr.md`,
-`local-ai-models/oxr-1.md`). Slice 0 picks one.
+From each engine's upstream project: [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR)
+(PP-OCRv6), [Indra](https://github.com/datalab-to/indra), [OXR](https://github.com/SoMarkAI/OXR)
+and [Unlimited-OCR](https://github.com/baidu/Unlimited-OCR). Slice 0 picks one.
 
 | Engine | Runs on | Why it is a candidate | Watch for |
 |---|---|---|---|
-| **PP-OCRv6** (medium / small) | CPU — pve2 is enough | Apache-2.0; detection + recognition with line boxes; ONNX / OpenVINO runtimes | Emits text boxes, not rows — rebuilding rows is ours |
-| **Indra OCR** | CPU — pve2 is enough | ~1M params, very fast; lines with boxes **and reading order**; Markdown / JSON output | Small model, "moderate accuracy"; weights are OpenRAIL-M |
-| **OXR-1.0** | GPU — pve | 1.3B document-parsing VLM; Markdown / JSON with coordinates; strong benchmark claims | Documented for Transformers / vLLM; pve's V620s are AMD, so ROCm is untested. Only if both CPU engines fall short |
+| **PP-OCRv6** (medium / small) | CPU | Apache-2.0; detection + recognition with line boxes; ONNX / OpenVINO runtimes | Emits text boxes, not rows — rebuilding rows is ours. Medium needs x86_64 and ~6 GB free while reading a 12 MP photo (slice 1) |
+| **Indra OCR** | CPU | ~1M params, very fast; lines with boxes **and reading order**; Markdown / JSON output | Small model, "moderate accuracy"; weights are OpenRAIL-M |
+| **OXR-1.0** | GPU | 1.3B document-parsing VLM; Markdown / JSON with coordinates; strong benchmark claims | Documented for Transformers / vLLM, so on an AMD GPU ROCm is untested. Only if both CPU engines fall short |
 
-Not candidates: **Unlimited-OCR** (NVIDIA-only per its note, and pve's GPUs are AMD) and
-**Tesseract** (far behind both CPU candidates on the same benchmark).
+Not candidates: **Unlimited-OCR** (NVIDIA-only, which rules it out for an AMD- or CPU-only
+deployment) and **Tesseract** (far behind both CPU candidates on the same benchmark).
 
-Host: a CPU engine runs on **pve2**, beside the house Docker host. Only OXR-1.0 would need **pve**.
+Host: the OCR stack runs as its own container on a host with the CPU and memory to spare — a
+12 MP photo peaks at ~6 GB (slice 1), more than a small shared Docker VM has. Where it is
+deployed is tracked outside this repo; MealDeal only needs `OCR_BASE_URL`.
 
 ## Data model
 
 | Table | Key columns | Notes |
 |---|---|---|
-| `receipts` | id, merchant_id (FK, nullable), purchased_at, status, failed_stage, error, ocr_text, ocr_engine, subtotal, tax, total, image_hash, created_at | `status`: UPLOADED → OCR_DONE → PARSED → READY → CONFIRMED, or FAILED with `failed_stage`. `image_hash` catches the same photo uploaded twice. Slice 4 adds `flags`, a JSON list of `ReceiptFlag`: the item-count check compares against a count the receipt prints and no column stores, so the receipt-level flags cannot be re-derived at read time. |
+| `receipts` | id, merchant_id (FK, nullable), purchased_at, status, failed_stage, error, ocr_text, ocr_engine, subtotal, tax, total, image_hash, created_at | `status`: UPLOADED → OCR_DONE → PARSED → READY → CONFIRMED, or FAILED with `failed_stage`. `image_hash` (unique; slice 4) refuses the same photos uploaded twice. Slice 4 adds `flags`, a JSON list of `ReceiptFlag`: the item-count check compares against a count the receipt prints and no column stores, so the receipt-level flags cannot be re-derived at read time. |
 | `receipt_images` | id, receipt_id (FK, cascade), position, path, content_type, bytes | A long receipt is several photos, in order — unique on (receipt_id, position). Files under `RECEIPTS_DIR`; `path` is relative to it. |
 | `receipt_lines` | id, receipt_id (FK, cascade), position, item_number (nullable), printed_text, description, quantity, unit_price, weight, weight_unit, line_total, discount, tax_flag, flags, pantry_item_id (FK, set null, nullable), size_amount, size_unit, match_source, decision, price_entry_id (FK, set null, nullable) | Unique on (receipt_id, position). `match_source`: ALIAS / SUGGESTED / MANUAL. `decision`: PENDING / INCLUDE / EXCLUDE / IGNORE_ALWAYS. `flags`: a JSON list of `ReceiptLineFlag`. `price_entry_id` is what makes confirm idempotent. Both links set null: a deleted item or entry un-matches the line rather than erasing what the receipt printed. |
 | `receipt_aliases` | id, merchant_id (FK), match_key, printed_text, pantry_item_id (FK, cascade, nullable), size_amount, size_unit, ignored, created_at, updated_at | Unique on (merchant_id, match_key) — `item:<number>` when printed, else `text:<folded text>` (decision 5; case, whitespace and the 0/O, 1/l/I look-alikes folded — `receiptAliasMatchKey`). `printed_text` is kept for display. Null item + `ignored` = always ignore at this store. |
@@ -165,7 +168,7 @@ Host: a CPU engine runs on **pve2**, beside the house Docker host. Only OXR-1.0 
 New enums (TS `enum`, SCREAMING_SNAKE key and value): `ReceiptStatus`, `ReceiptStage` (OCR /
 PARSE / MATCH — confirm is a request that answers its caller, not a background stage),
 `ReceiptLineDecision`, `ReceiptMatchSource`, `ReceiptLineFlag` and `ReceiptFlag` (slice 2's
-line- and receipt-level checks), and
+line- and receipt-level checks, plus slice 4's `POSSIBLE_DUPLICATE`), and
 `PriceSource.RECEIPT` (whose arrival means `MANUAL`'s doc comment stops saying "off a receipt").
 
 Config additions (`common/settings.ts`, the only reader of `process.env`):
@@ -185,11 +188,11 @@ Each slice is one reviewable PR. `pnpm check` green + the required test tiers be
 
 0. **Spike: pick the OCR engine.** Not app code — a throwaway script outside the repo. Photograph
    2–3 receipts per store, including a long Costco receipt, one with produce by weight and one with
-   card savings. Run each through PP-OCRv6 and Indra (OXR-1.0 on pve only if both struggle), rebuild
-   the rows, send the text to Qwen with a draft parse prompt, and score: lines found, prices right,
-   discounts attached, store and date right. Outputs: the engine and its host, the photo resolution
-   it needs, and per receipt the **redacted** OCR text plus the expected parse — committed as the
-   fixtures slices 1–2 test against.
+   card savings. Run each through PP-OCRv6 and Indra (OXR-1.0, on a GPU, only if both struggle),
+   rebuild the rows, send the text to Qwen with a draft parse prompt, and score: lines found,
+   prices right, discounts attached, store and date right. Outputs: the engine and what its host
+   needs, the photo resolution it needs, and per receipt the **redacted** OCR text plus the
+   expected parse — committed as the fixtures slices 1–2 test against.
    Deps: [].
 
 1. **OCR service and adapter.** The chosen engine runs as its own container on the LAN — its native
@@ -211,8 +214,7 @@ Each slice is one reviewable PR. `pnpm check` green + the required test tiers be
    redacted boxes are a fixture whose rebuilt rows must equal slice 2's text fixture. Two findings
    for the host: PaddlePaddle 3.3.x fails every inference on x86 with oneDNN (pinned to 3.2.2,
    which reads slice 0's receipt box for box as the spike did), and one 12 MP photo peaks at
-   ~6 GB of memory — more than pve2's house Docker VM has, so the stack needs more memory there
-   or a guest of its own.
+   ~6 GB of memory, so the stack needs a host with that much to spare while it reads.
    Deps: [0].
 
 2. **Receipt parser — `features/receiptParser/`.** OCR text in, structured receipt out, through the
@@ -254,12 +256,31 @@ Each slice is one reviewable PR. `pnpm check` green + the required test tiers be
    `retryReceipt(id)` restarts there, and startup resumes unfinished receipts. Duplicates: an
    identical photo is refused at
    upload; the same store + date + total after parsing is flagged, not blocked. Queries
-   `receipts(status)` and `receipt(id)`. Web: a Receipts view under Pantry — upload
-   (`accept="image/*"` with `capture`, so a phone opens its camera), a list with each receipt's
-   status, polling while any is processing.
+   `receipts(statuses)` and `receipt(id)`, and `deleteReceipt(id)`. Web: a Receipts view under
+   Pantry — upload (`accept="image/*"` with `capture`, so a phone opens its camera), a list with
+   each receipt's status, polling while any is processing.
    Tests: unit — each stage's failure and retry from that stage, one-at-a-time processing, resume on
    startup, both duplicate guards; integration — upload and the receipt queries; web specs,
    `jsx-a11y` clean.
+   As built: `uploadReceipt(images: [File!]!)` takes 1–10 images of at most 25 MB each (what the
+   OCR service accepts), checked with Zod at the argument and again by the web before sending, and
+   answers `ReceiptImportDisabledError` while `OCR_BASE_URL` is unset — as does `retryReceipt`. The
+   queue lives in the `receiptImport` service, one per service graph: receipts run in the order
+   queued, and each stage runs only from the status before it, so a retried parse never re-reads
+   the photos. A failure records its stage and the error's own message; a retry puts back the
+   status that stage starts from (OCR → UPLOADED, PARSE → OCR_DONE). Startup queues UPLOADED and
+   OCR_DONE receipts, oldest first, before the server listens. OCR that reads no text at all fails
+   the OCR stage rather than saving an empty OCR_DONE: the parser can do nothing with it, and a
+   retry reads the same photo the same way, so the message says to retake the photo. The photo
+   check is in `addReceipt` (a `ConflictError`) and a unique index on `image_hash` backs it, so two
+   uploads racing past the check cannot both land. The purchase check compares the store, the
+   purchase day in the server's zone (the zone the parser reads the printed time in) and the total
+   to the cent with every other receipt, and adds `POSSIBLE_DUPLICATE` to the new one only.
+   `deleteReceipt(id)` moved here from slice 6: a receipt that failed for good needs a way out,
+   and the photo check would otherwise refuse uploading that photo again. `Receipt.lines` is
+   exposed read-only, for slice 6 to build on. Yoga buffers a multipart body before the argument
+   check runs; capping the parser itself (Yoga's `formDataLimits`) belongs with F11, when the
+   endpoint leaves the LAN.
    Deps: [1, 2, 3].
 
 5. **Matching.** The last pipeline stage, PARSED → READY. A learned name for (store, match key)
@@ -280,7 +301,7 @@ Each slice is one reviewable PR. `pnpm check` green + the required test tiers be
    single entry with that quantity. `Mutation.confirmReceipt(id, lines)` creates any new
    items, adds price entries (source RECEIPT, the receipt's store, `observedAt` = purchase date,
    `onSale` when discounted), learns names (item + pack size, or ignore) and marks the receipt
-   CONFIRMED — idempotent per line. Plus `deleteReceipt(id)`.
+   CONFIRMED — idempotent per line. (`deleteReceipt(id)` landed with slice 4.)
    Tests: unit — new item, name learned with its size, Exclude vs Always ignore, a blank line
    skipped, a re-run after a partial failure creates no duplicates, confirming a confirmed receipt
    refused; integration — confirm end to end, the entries visible through `PantryItem.priceEntries`
@@ -313,9 +334,10 @@ they fail with "LLM returned non-JSON output". The fix belongs in the openai ada
 boundary — and is a prerequisite for slice 2.
 
 Still to do: 2–3 receipts each from Costco, Food Lion and Harris Teeter (and more from Aldi);
-Indra OCR; timing and memory on pve2 itself (slice 1 measured x86 with oneDNN only under Rosetta:
-14 s at 10 threads, 29 s at 4, ~6 GB peak), with OpenVINO or ONNX as the alternatives if that
-is too slow or too large; and a check that the photo includes the receipt's header.
+Indra OCR; timing and memory on the deployment host (slice 1 measured x86 with oneDNN only under
+Rosetta on an M3 Max: 14 s at 10 threads, 29 s at 4, ~6 GB peak), with OpenVINO or ONNX as the
+alternatives if that is too slow or too large; and a check that the photo includes the receipt's
+header.
 
 ## Follow-ups (deliberately deferred)
 
@@ -340,7 +362,9 @@ is too slow or too large; and a check that the photo includes the receipt's head
 - **F10 — Emailed receipts** through the paused IMAP pipeline, entering at the parse stage — they
   are already text, so no OCR. Deps: [4].
 - **F11 — Access from outside the LAN, with authentication.** `/graphql` has none, which is fine on
-  the LAN and is not once it is reachable from the internet and accepts uploads. Deps: [].
+  the LAN and is not once it is reachable from the internet and accepts uploads — which is also
+  when the multipart parser wants a hard size cap of its own (Yoga's `formDataLimits`, through
+  `@whatwg-node/fetch`), not only slice 4's check on the parsed arguments. Deps: [].
 - **F12 — Re-read stored receipts** with a newer OCR engine or prompt. Deps: [4].
 
 ## Definition of Done (per slice — from AGENTS.md)

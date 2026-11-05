@@ -1,10 +1,6 @@
 import type { Maybe } from '../../common/types';
 import type { Merchant } from '../../entities/merchant/types';
-import type {
-  ParsedReceiptLine,
-  ReceiptFlag,
-  ReceiptParseInput,
-} from '../../entities/receipt/types';
+import type { ParsedReceiptLine, ReceiptParseInput } from '../../entities/receipt/types';
 
 export interface ReceiptTextParseInput {
   /** The OCR engine's text, rebuilt into printed rows. */
@@ -20,7 +16,6 @@ export interface ParsedReceipt extends ReceiptParseInput {
   /** The item count the receipt prints ("31 ITEMS"), when it prints one. */
   printedItemCount: Maybe<number>;
   lines: ParsedReceiptLine[];
-  flags: ReceiptFlag[];
 }
 
 export interface ReceiptParserService {

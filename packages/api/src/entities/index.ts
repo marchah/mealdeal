@@ -18,6 +18,9 @@ import './trackingPref/graphql/mutation';
 import './newsletter/graphql/type';
 import './newsletter/graphql/query';
 import './newsletter/graphql/mutation';
+import './receipt/graphql/type';
+import './receipt/graphql/query';
+import './receipt/graphql/mutation';
 
 import { couponTypeRepositoryFactory } from './couponType/repository';
 import { couponTypeServiceFactory } from './couponType/service';

@@ -128,6 +128,15 @@ export class ExtractionTruncatedError extends ServerError {
   }
 }
 
+/** No OCR service is configured (OCR_BASE_URL), so receipt photos cannot be read. */
+export class ReceiptImportDisabledError extends ServerError {
+  constructor() {
+    super('Receipt import is off: no OCR service is configured (OCR_BASE_URL)');
+    this.status = 503;
+    this.name = 'ReceiptImportDisabledError';
+  }
+}
+
 /** The OCR service failed, timed out, or answered with something unusable. */
 export class OcrServiceError extends ServerError {
   constructor(message: string) {

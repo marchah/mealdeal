@@ -1,4 +1,5 @@
 import type { AppConfigSettings } from '../common/settings';
+import type { Maybe } from '../common/types';
 import type { Db } from '../db/client';
 import type { EntitiesServices } from '../entities';
 import type { JsonChatCompletion } from '../ingest/extractor';
@@ -13,6 +14,8 @@ import { nearMeServiceFactory } from './nearMe/service';
 import type { NearMeService } from './nearMe/types';
 import { priceInsightServiceFactory } from './priceInsight/service';
 import type { PriceInsightService } from './priceInsight/types';
+import { receiptImportServiceFactory } from './receiptImport/service';
+import type { ReceiptImportService, ReceiptTextReader } from './receiptImport/types';
 import { receiptParserServiceFactory } from './receiptParser/service';
 import type { ReceiptParserService } from './receiptParser/types';
 import { storeRepositoryFactory } from './store/repository';
@@ -24,6 +27,7 @@ import './appConfig/graphql/query';
 import './dashboard/graphql/type';
 import './dashboard/graphql/query';
 import './priceInsight/graphql/type';
+import './receiptImport/graphql/mutation';
 import './store/graphql/type';
 import './store/graphql/query';
 
@@ -38,6 +42,7 @@ export interface FeaturesServices {
   nearMeService: NearMeService;
   priceInsightService: PriceInsightService;
   receiptParserService: ReceiptParserService;
+  receiptImportService: ReceiptImportService;
 }
 
 export function getFeaturesServices({
@@ -45,11 +50,14 @@ export function getFeaturesServices({
   entities,
   config,
   jsonChatCompletion,
+  receiptTextReader,
 }: {
   db: Db;
   entities: EntitiesServices;
   config: AppConfigSettings;
   jsonChatCompletion: JsonChatCompletion;
+  /** Null while OCR_BASE_URL is unset: receipt import is off. */
+  receiptTextReader: Maybe<ReceiptTextReader>;
 }): FeaturesServices {
   const ingestRunService = ingestRunServiceFactory({
     ingestRunRepository: ingestRunRepositoryFactory({ db }),
@@ -75,6 +83,12 @@ export function getFeaturesServices({
     newsletterService: entities.newsletterService,
   });
   const receiptParserService = receiptParserServiceFactory({ jsonChatCompletion });
+  const receiptImportService = receiptImportServiceFactory({
+    receiptTextReader,
+    receiptService: entities.receiptService,
+    merchantService: entities.merchantService,
+    receiptParserService,
+  });
   return {
     appConfigService,
     ingestRunService,
@@ -83,5 +97,6 @@ export function getFeaturesServices({
     nearMeService,
     priceInsightService,
     receiptParserService,
+    receiptImportService,
   };
 }

@@ -16,6 +16,8 @@ export interface Merchant {
 export interface MerchantRepository {
   findMerchantsByIds: (ids: readonly string[]) => Promise<Merchant[]>;
   findMerchantByName: (name: string) => Promise<Maybe<Merchant>>;
+  /** By name. */
+  listMerchants: () => Promise<Merchant[]>;
   createMerchant: (name: string) => Promise<Merchant>;
   countMerchants: () => Promise<number>;
   updateMerchantLocation: (
@@ -31,6 +33,8 @@ export interface AddressCoordinateLookup {
 
 export interface MerchantService {
   findMerchantsByIds: (ids: readonly string[]) => Promise<Merchant[]>;
+  /** By name. */
+  listMerchants: () => Promise<Merchant[]>;
   getOrCreateMerchant: (name: string) => Promise<Merchant>;
   countMerchants: () => Promise<number>;
   updateMerchantLocation: (

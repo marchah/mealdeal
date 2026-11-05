@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { count as sqlCount, eq, inArray } from 'drizzle-orm';
+import { asc, count as sqlCount, eq, inArray } from 'drizzle-orm';
 import { merchants } from '../../db/schema';
 import type { Db } from '../../db/client';
 import type { Merchant, MerchantRepository } from './types';
@@ -19,6 +19,10 @@ export function merchantRepositoryFactory({ db }: { db: Db }): MerchantRepositor
   async function findMerchantByName(name: string) {
     const rows = await db.select().from(merchants).where(eq(merchants.name, name)).limit(1);
     return rows[0] ?? null;
+  }
+
+  async function listMerchants() {
+    return db.select().from(merchants).orderBy(asc(merchants.name));
   }
 
   async function countMerchants() {
@@ -54,6 +58,7 @@ export function merchantRepositoryFactory({ db }: { db: Db }): MerchantRepositor
   return {
     findMerchantsByIds,
     findMerchantByName,
+    listMerchants,
     countMerchants,
     createMerchant,
     updateMerchantLocation,

@@ -57,6 +57,8 @@ export enum ReceiptFlag {
   TOTAL_MISMATCH = 'TOTAL_MISMATCH',
   /** The receipt prints an item count that matches neither the lines nor their quantities. */
   ITEM_COUNT_MISMATCH = 'ITEM_COUNT_MISMATCH',
+  /** Another receipt has the same store, purchase day and total: perhaps the same trip twice. */
+  POSSIBLE_DUPLICATE = 'POSSIBLE_DUPLICATE',
 }
 
 export interface Receipt {
@@ -73,6 +75,7 @@ export interface Receipt {
   total: Maybe<number>;
   /** Over the photos' bytes, in order — catches the same photo uploaded twice. */
   imageHash: Maybe<string>;
+  flags: ReceiptFlag[];
   createdAt: Date;
 }
 
@@ -115,6 +118,13 @@ export interface ListReceiptsInput {
   statuses: Maybe<readonly ReceiptStatus[]>;
 }
 
+/** One store's receipts bought in [purchasedFrom, purchasedBefore). */
+export interface ListReceiptsByPurchaseInput {
+  merchantId: string;
+  purchasedFrom: Date;
+  purchasedBefore: Date;
+}
+
 export interface ReceiptPhotoInput {
   bytes: Uint8Array;
   contentType: string;
@@ -153,6 +163,8 @@ export interface ReceiptParseInput {
   total: Maybe<number>;
   /** In printed order; replaces whatever an earlier parse stored. */
   lines: readonly ParsedReceiptLine[];
+  /** The receipt-level checks; replaces the earlier parse's. */
+  flags: ReceiptFlag[];
 }
 
 /** What matching suggests, or review settles. Replaces the line's previous match. */
@@ -190,6 +202,7 @@ export type ReceiptUpdate = Partial<
     | 'subtotal'
     | 'tax'
     | 'total'
+    | 'flags'
   >
 >;
 
@@ -205,8 +218,14 @@ export interface ReceiptPhotoStore {
 
 export interface ReceiptRepository {
   findReceiptById: (id: string) => Promise<Maybe<Receipt>>;
+  findReceiptByImageHash: (imageHash: string) => Promise<Maybe<Receipt>>;
+  /** Every image of every receipt asked for, in page order within each receipt. */
+  findReceiptImagesByReceiptIds: (receiptIds: readonly string[]) => Promise<ReceiptImage[]>;
+  /** Every line of every receipt asked for, in printed order within each receipt. */
+  findReceiptLinesByReceiptIds: (receiptIds: readonly string[]) => Promise<ReceiptLine[]>;
   /** Newest first. */
   listReceipts: (input: ListReceiptsInput) => Promise<Receipt[]>;
+  listReceiptsByPurchase: (input: ListReceiptsByPurchaseInput) => Promise<Receipt[]>;
   /** In page order. */
   listReceiptImages: (receiptId: string) => Promise<ReceiptImage[]>;
   /** In printed order. */
@@ -235,11 +254,17 @@ export interface ReceiptRepository {
 
 export interface ReceiptService {
   getReceiptById: (id: string) => Promise<Receipt>;
+  findReceiptImagesByReceiptIds: (receiptIds: readonly string[]) => Promise<ReceiptImage[]>;
+  findReceiptLinesByReceiptIds: (receiptIds: readonly string[]) => Promise<ReceiptLine[]>;
   listReceipts: (input: ListReceiptsInput) => Promise<Receipt[]>;
+  listReceiptsByPurchase: (input: ListReceiptsByPurchaseInput) => Promise<Receipt[]>;
   listReceiptImages: (receiptId: string) => Promise<ReceiptImage[]>;
   listReceiptLines: (receiptId: string) => Promise<ReceiptLine[]>;
   readReceiptImage: (image: ReceiptImage) => Promise<Uint8Array>;
-  /** Stores the photos, then creates the receipt as UPLOADED. */
+  /**
+   * Stores the photos, then creates the receipt as UPLOADED. Throws ConflictError when the same
+   * photos, in the same order, are already a receipt.
+   */
   addReceipt: (input: AddReceiptInput) => Promise<Receipt>;
   /** Moves the receipt on and clears any recorded failure. FAILED goes through recordReceiptFailure. */
   updateReceiptStatus: (id: string, status: ReceiptStatus) => Promise<Receipt>;
