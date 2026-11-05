@@ -25,7 +25,8 @@ ingest-archive/
 ingest-input/
 
 # Receipt photos print membership numbers and card digits (commit only redacted OCR text).
-receipts/
+# Anchored: an unanchored pattern would also swallow source folders named receipts/.
+/receipts/
 
 # env / secrets (public repo — never commit)
 .env

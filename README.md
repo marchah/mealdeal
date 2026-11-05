@@ -66,7 +66,13 @@ Receipt import ([docs/PLAN.md](./docs/PLAN.md), in progress) keeps every photo y
 better OCR engine can re-read old receipts later. They are files under `RECEIPTS_DIR` —
 `./data/receipts` by default, `/data/receipts` in the container, on the same volume as the database.
 Back them up together. Receipts print membership numbers and card digits, so a photo never belongs
-in the repository; `.gitignore` keeps `data/` and `receipts/` out.
+in the repository; `.gitignore` keeps `data/` and the top-level `receipts/` folder out.
+
+### Time zone (`TZ`)
+
+A receipt prints the store's local time with no zone, and the app reads it in the server's time
+zone. A container runs in UTC unless told otherwise, which would store an 11:30 purchase as 11:30
+UTC. Both compose files set `TZ` (default `America/New_York`); set it to your own zone.
 
 ## Coupon newsletter ingestion (`COUPON_INGEST_ENABLED`)
 
