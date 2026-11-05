@@ -6,6 +6,7 @@ import { createContext } from '../../src/context';
 import { createDb } from '../../src/db/client';
 import { ingestRuns } from '../../src/db/schema';
 import { schema } from '../../src/schema';
+import { resetDb } from './resetDb';
 
 // INTEGRATION test for the appConfig feature. Proves what the unit spec cannot: the query resolves
 // end-to-end through the real Yoga app (HTTP parse -> context -> composition root -> resolver ->
@@ -44,9 +45,7 @@ async function seedIngestRun(finishedAt: Maybe<Date>): Promise<void> {
     });
 }
 
-beforeEach(async () => {
-  await createDb().delete(ingestRuns);
-});
+beforeEach(resetDb);
 
 test('reports coupon ingestion as paused by default, with no import yet', async () => {
   const body = await runQuery();

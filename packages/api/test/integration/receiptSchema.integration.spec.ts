@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import { afterAll, beforeEach, expect, test } from 'vitest';
+import { beforeEach, expect, test } from 'vitest';
 import type { Maybe } from '../../src/common/types';
 import { Unit } from '../../src/common/units';
 import { createDb } from '../../src/db/client';
@@ -19,6 +19,7 @@ import {
   ReceiptLineFlag,
   ReceiptStatus,
 } from '../../src/entities/receipt/types';
+import { resetDb } from './resetDb';
 
 // INTEGRATION test for the receipt migration. Like pantrySchema, it pins BEHAVIOUR rather than the
 // column list: that the committed migrations apply, and that every referential rule the schema
@@ -128,18 +129,7 @@ async function seedAlias(
   return id;
 }
 
-// Other specs clear `merchants` without knowing receipts reference it, so this file leaves nothing
-// behind — and never deletes merchants itself, seeding uniquely named ones instead.
-async function clearReceipts() {
-  const db = createDb();
-  await db.delete(receiptAliases);
-  await db.delete(receipts);
-  await db.delete(priceEntries);
-  await db.delete(pantryItems);
-}
-
-beforeEach(clearReceipts);
-afterAll(clearReceipts);
+beforeEach(resetDb);
 
 test('the migrations created the receipt tables', async () => {
   const db = createDb();

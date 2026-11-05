@@ -4,8 +4,9 @@ import { beforeEach, expect, test } from 'vitest';
 import type { Maybe } from '../../src/common/types';
 import { createContext } from '../../src/context';
 import { createDb } from '../../src/db/client';
-import { couponTypes, merchants, pantryItems, priceEntries } from '../../src/db/schema';
+import { merchants, pantryItems } from '../../src/db/schema';
 import { schema } from '../../src/schema';
+import { resetDb } from './resetDb';
 
 // INTEGRATION test for the priceEntry slice. Proves what the unit spec cannot: the mutation and
 // the nested PantryItem.priceEntries field resolve end-to-end through the real Yoga app, the
@@ -73,13 +74,7 @@ function addEntry(input: Record<string, unknown>) {
   return run<AddEntryResult>(ADD_ENTRY, { input });
 }
 
-beforeEach(async () => {
-  const db = createDb();
-  await db.delete(priceEntries);
-  await db.delete(pantryItems);
-  await db.delete(merchants);
-  await db.delete(couponTypes);
-});
+beforeEach(resetDb);
 
 test('records a price and stores the comparable unit price', async () => {
   const pantryItemId = await seedItem('Tide Free & Gentle');

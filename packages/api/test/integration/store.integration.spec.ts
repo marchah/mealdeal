@@ -4,8 +4,9 @@ import { createYoga } from 'graphql-yoga';
 import { beforeEach, expect, test } from 'vitest';
 import { createContext } from '../../src/context';
 import { createDb } from '../../src/db/client';
-import { deals, merchants, newsletters } from '../../src/db/schema';
+import { merchants } from '../../src/db/schema';
 import { schema } from '../../src/schema';
+import { resetDb } from './resetDb';
 
 const yoga = createYoga({ schema, context: createContext });
 
@@ -32,12 +33,7 @@ async function seedStore(opts: { name: string; address?: string; lat?: number; l
   return id;
 }
 
-beforeEach(async () => {
-  const db = createDb();
-  await db.delete(deals);
-  await db.delete(newsletters);
-  await db.delete(merchants);
-});
+beforeEach(resetDb);
 
 test('the real libsql integration runtime provides SQLite trigonometric functions', async () => {
   const result = await createDb().get<{ acos_value: number; sin_value: number; cos_value: number }>(

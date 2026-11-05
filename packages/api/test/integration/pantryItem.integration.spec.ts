@@ -4,8 +4,9 @@ import { beforeEach, expect, test } from 'vitest';
 import type { Maybe } from '../../src/common/types';
 import { createContext } from '../../src/context';
 import { createDb } from '../../src/db/client';
-import { couponTypes, pantryItems, priceEntries } from '../../src/db/schema';
+import { couponTypes } from '../../src/db/schema';
 import { schema } from '../../src/schema';
+import { resetDb } from './resetDb';
 
 // INTEGRATION test for the pantryItem slice. Proves what the unit spec cannot: that the queries
 // and mutations resolve end-to-end through the real Yoga app (HTTP parse -> context -> resolver ->
@@ -75,12 +76,7 @@ async function seedCouponType(key = 'household'): Promise<string> {
   return id;
 }
 
-beforeEach(async () => {
-  const db = createDb();
-  await db.delete(priceEntries);
-  await db.delete(pantryItems);
-  await db.delete(couponTypes);
-});
+beforeEach(resetDb);
 
 test('adds an item and reads it back through the list', async () => {
   const added = await addItem({ ...TIDE, sizeAmount: 150, sizeUnit: 'FLUID_OUNCE' });

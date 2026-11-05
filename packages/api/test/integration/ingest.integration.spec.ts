@@ -6,13 +6,14 @@ import { beforeEach, expect, test, vi } from 'vitest';
 import { settings } from '../../src/common/settings';
 import { createContext } from '../../src/context';
 import { createDb } from '../../src/db/client';
-import { deals, merchants, newsletters } from '../../src/db/schema';
+import { deals, merchants } from '../../src/db/schema';
 import type { EmailSource } from '../../src/ingest/email';
 import type { DealExtractor } from '../../src/ingest/extractor';
 import { folderEmailSourceFactory } from '../../src/ingest/folder';
 import { ingestOnce } from '../../src/ingest/run';
 import { schema } from '../../src/schema';
 import { getServices } from '../../src/services';
+import { resetDb } from './resetDb';
 
 const fixtureDirectory = new URL('../fixtures/ingest/', import.meta.url);
 const yoga = createYoga({ schema, context: createContext });
@@ -23,10 +24,7 @@ function urlString(input: RequestInfo | URL): string {
 }
 
 beforeEach(async () => {
-  const db = createDb();
-  await db.delete(deals);
-  await db.delete(newsletters);
-  await db.delete(merchants);
+  await resetDb();
   await getServices().couponTypeService.seedCouponTypes();
 });
 

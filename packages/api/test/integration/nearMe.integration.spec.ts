@@ -6,6 +6,7 @@ import { createContext } from '../../src/context';
 import { createDb } from '../../src/db/client';
 import { couponTypes, deals, merchants, newsletters } from '../../src/db/schema';
 import { schema } from '../../src/schema';
+import { resetDb } from './resetDb';
 
 const yoga = createYoga({ schema, context: createContext });
 
@@ -26,11 +27,7 @@ async function seedMerchant(name: string, lat: number, lng: number): Promise<str
 
 beforeEach(async () => {
   settings.USER_LOCATION = null;
-  const db = createDb();
-  await db.delete(deals);
-  await db.delete(newsletters);
-  await db.delete(merchants);
-  await db.delete(couponTypes);
+  await resetDb();
 });
 
 afterEach(() => {

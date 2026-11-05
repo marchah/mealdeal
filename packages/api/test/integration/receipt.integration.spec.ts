@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { access, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
-import { afterAll, beforeEach, describe, expect, test } from 'vitest';
+import { beforeEach, describe, expect, test } from 'vitest';
 import { NotFoundError } from '../../src/common/errors';
 import { settings } from '../../src/common/settings';
 import type { Maybe } from '../../src/common/types';
@@ -26,6 +26,7 @@ import {
   type ParsedReceiptLine,
 } from '../../src/entities/receipt/types';
 import { getServices } from '../../src/services';
+import { resetDb } from './resetDb';
 
 // INTEGRATION test for the receipt and receiptAlias slices: the real composition root against the
 // migrated test db and a real RECEIPTS_DIR (the `test:integration` script gives the suite its own).
@@ -101,18 +102,7 @@ const fileExists = (path: string) =>
     () => false,
   );
 
-// Other specs clear `merchants` without knowing receipts reference it, so this file leaves nothing
-// behind — and never deletes merchants itself, seeding uniquely named ones instead.
-async function clearReceipts() {
-  const db = createDb();
-  await db.delete(receiptAliases);
-  await db.delete(receipts);
-  await db.delete(priceEntries);
-  await db.delete(pantryItems);
-}
-
-beforeEach(clearReceipts);
-afterAll(clearReceipts);
+beforeEach(resetDb);
 
 describe('receiptService', () => {
   test('adds a receipt: photos on disk, rows in the db, both readable back in page order', async () => {
