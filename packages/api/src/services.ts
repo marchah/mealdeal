@@ -19,8 +19,13 @@ let cached: Services | undefined;
 export function getServices(): Services {
   if (cached) return cached;
   const db = createDb();
-  const { zippopotamAdapter, nominatimAdapter, productPageService, fileSystemAdapter } =
-    getThirdPartyServices();
+  const {
+    zippopotamAdapter,
+    nominatimAdapter,
+    openaiAdapter,
+    productPageService,
+    fileSystemAdapter,
+  } = getThirdPartyServices();
   const entities = getEntitiesServices({
     db,
     zipCoordinateLookup: zippopotamAdapter,
@@ -28,7 +33,12 @@ export function getServices(): Services {
     productLookup: productPageService,
     receiptPhotoStore: fileSystemAdapter,
   });
-  const features = getFeaturesServices({ db, entities, config: settings });
+  const features = getFeaturesServices({
+    db,
+    entities,
+    config: settings,
+    jsonChatCompletion: openaiAdapter,
+  });
   cached = { ...entities, ...features };
   return cached;
 }

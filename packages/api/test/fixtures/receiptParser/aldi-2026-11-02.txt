@@ -1,0 +1,54 @@
+https://help.aldi.us
+382719 Mixed Vegetables   0.96 FB
+382719 Mixed Vegetables   0.96 FB
+717662 Org Black Beans   0.95 FB
+717662 0rg Black Beans   0.95 FB
+383071 Worcst/Steak Sauce   1.99 FB
+602413 Alani Energy   2.65 FE
+201336 Crunchy Peanut Btr   1.59 FB
+343190 Redcd Sodium Broth   1.25 FB
+664975 Inst Mashed Potato   1.85 FB
+385412 Seaweed Snacks   1.99 FB
+401753 Lentils/Sp1it Peas   1.39 FB
+627731 GrassFed Bf Sticks   12.99 FB
+523308 Kett1e Variety Pok   6.59 FB
+458716 Maple Brbn Ben S1d   2.95 FB
+356538 Classic Coleslaw   1.89 FB
+356435 Org AngelSweet Tom   3.29 FB
+356570 Org Strawberries   4.25 FB
+356490 Bagged Avocados   3.15 FB
+356609 Red Onions   1.95 FB
+341878 Yellow Onions   1.89 FB
+356371 Garlic   1.19 FB
+262770 Banana Organic LRW   0.95 FB
+(G) 1.641b-   (T) 0.011b
+(N) 1.63 1b ×   0.58/1b
+356419 Mangoes   0.89 FB
+356558 Envy Apples LRW   1.34 FB
+(G) 0.801b-   (T) 0.011b
+(N) 0.79 1b ×   1.69/1b
+356475 Asparagus   2.65 FB
+356487 Baby Bella   1.39 FB
+383250 Deli Sliced PepJac   1.45 FB
+381695 Sprouted Breads   3.59 FB
+382249 German Breads   2.69 FB
+384977 French Baguette   1.75 FB
+366047 Green Tea 12pk   5.35 FE
+Mastercard   80.71
+***************0000 PIN
+11/02/26 11:30 Ref/Seq # 000000
+Trace # 000000
+Auth # XXXXXX
+AID XXXXXXXXXXXXXX
+TVR 0000000000
+IAD 00000000000000000000000000000000
+XXXX
+TSI XXXX   ARC 00   EntryMode 00
+++APPROVED++
+SUBTOTAL   78.72
+E-Taxable @7.250%   0.58
+B-Taxable @2.000%   1.41
+AMOUNT DUE   80.71
+TOTAL   $80.71
+31 ITEMS
+Credit Card   Φ8O71

@@ -45,6 +45,18 @@ export enum ReceiptMatchSource {
 export enum ReceiptLineFlag {
   /** quantity × unit price ≠ line total: usually a misread digit or a missed line. */
   LINE_TOTAL_MISMATCH = 'LINE_TOTAL_MISMATCH',
+  /** weight × unit price ≠ line total: a misread weight row, or one attached to the wrong item. */
+  WEIGHT_TOTAL_MISMATCH = 'WEIGHT_TOTAL_MISMATCH',
+}
+
+/** A receipt-level check the parser computes in code — the net for a misread or missed line. */
+export enum ReceiptFlag {
+  /** Line totals less discounts ≠ the printed subtotal. */
+  SUBTOTAL_MISMATCH = 'SUBTOTAL_MISMATCH',
+  /** Subtotal (or, with none printed, the lines) + tax ≠ the printed total. */
+  TOTAL_MISMATCH = 'TOTAL_MISMATCH',
+  /** The receipt prints an item count that matches neither the lines nor their quantities. */
+  ITEM_COUNT_MISMATCH = 'ITEM_COUNT_MISMATCH',
 }
 
 export interface Receipt {

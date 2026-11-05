@@ -156,7 +156,7 @@ Host: a CPU engine runs on **pve2**, beside the house Docker host. Only OXR-1.0 
 
 | Table | Key columns | Notes |
 |---|---|---|
-| `receipts` | id, merchant_id (FK, nullable), purchased_at, status, failed_stage, error, ocr_text, ocr_engine, subtotal, tax, total, image_hash, created_at | `status`: UPLOADED → OCR_DONE → PARSED → READY → CONFIRMED, or FAILED with `failed_stage`. `image_hash` catches the same photo uploaded twice. |
+| `receipts` | id, merchant_id (FK, nullable), purchased_at, status, failed_stage, error, ocr_text, ocr_engine, subtotal, tax, total, image_hash, created_at | `status`: UPLOADED → OCR_DONE → PARSED → READY → CONFIRMED, or FAILED with `failed_stage`. `image_hash` catches the same photo uploaded twice. Slice 4 adds `flags`, a JSON list of `ReceiptFlag`: the item-count check compares against a count the receipt prints and no column stores, so the receipt-level flags cannot be re-derived at read time. |
 | `receipt_images` | id, receipt_id (FK, cascade), position, path, content_type, bytes | A long receipt is several photos, in order — unique on (receipt_id, position). Files under `RECEIPTS_DIR`; `path` is relative to it. |
 | `receipt_lines` | id, receipt_id (FK, cascade), position, item_number (nullable), printed_text, description, quantity, unit_price, weight, weight_unit, line_total, discount, tax_flag, flags, pantry_item_id (FK, set null, nullable), size_amount, size_unit, match_source, decision, price_entry_id (FK, set null, nullable) | Unique on (receipt_id, position). `match_source`: ALIAS / SUGGESTED / MANUAL. `decision`: PENDING / INCLUDE / EXCLUDE / IGNORE_ALWAYS. `flags`: a JSON list of `ReceiptLineFlag`. `price_entry_id` is what makes confirm idempotent. Both links set null: a deleted item or entry un-matches the line rather than erasing what the receipt printed. |
 | `receipt_aliases` | id, merchant_id (FK), match_key, printed_text, pantry_item_id (FK, cascade, nullable), size_amount, size_unit, ignored, created_at, updated_at | Unique on (merchant_id, match_key) — `item:<number>` when printed, else `text:<folded text>` (decision 5; case, whitespace and the 0/O, 1/l/I look-alikes folded — `receiptAliasMatchKey`). `printed_text` is kept for display. Null item + `ignored` = always ignore at this store. |
@@ -164,7 +164,8 @@ Host: a CPU engine runs on **pve2**, beside the house Docker host. Only OXR-1.0 
 
 New enums (TS `enum`, SCREAMING_SNAKE key and value): `ReceiptStatus`, `ReceiptStage` (OCR /
 PARSE / MATCH — confirm is a request that answers its caller, not a background stage),
-`ReceiptLineDecision`, `ReceiptMatchSource`, `ReceiptLineFlag` (slice 2's line-level check), and
+`ReceiptLineDecision`, `ReceiptMatchSource`, `ReceiptLineFlag` and `ReceiptFlag` (slice 2's
+line- and receipt-level checks), and
 `PriceSource.RECEIPT` (whose arrival means `MANUAL`'s doc comment stops saying "off a receipt").
 
 Config additions (`common/settings.ts`, the only reader of `process.env`):
@@ -207,15 +208,21 @@ Each slice is one reviewable PR. `pnpm check` green + the required test tiers be
 2. **Receipt parser — `features/receiptParser/`.** OCR text in, structured receipt out, through the
    existing `JsonChatCompletion` port and the same pattern as `ingest/extractor.ts`: prompt + Zod
    schema, finish reason checked first, the model's shape never trusted. Needs the `<think>` fix
-   from slice 0's findings first. Output: the store — picked
-   from existing merchants when it matches one, so "COSTCO WHOLESALE #347" and "Costco" stay one
-   store — the purchase date, the lines (item number, printed text, best-guess description,
-   quantity, unit price, weight + unit, line total, discount, tax letter), subtotal, tax and total. Discount lines fold into the item
-   they apply to; non-item lines are dropped. Two flags, computed in code rather than by the model:
-   quantity × unit price ≠ line total, and lines + tax ≠ total — either usually means a misread or a
-   missed line.
-   Tests: unit on every slice-0 fixture with recorded model responses; both flags at their
-   boundaries; a malformed response rejected; truncation.
+   from slice 0's findings first. Output: the store — picked from the known stores the caller
+   passes in, so "COSTCO WHOLESALE #347" and "Costco" stay one store; a store it does not know
+   comes back by name, for slice 4 to create — the purchase date, the lines (item number, printed
+   text, best-guess description, quantity, unit price, weight + unit, line total, discount, tax
+   letter), subtotal, tax and total: what `updateReceiptParse` takes. Discount lines fold into the
+   item they apply to; non-item lines are dropped, and so is a line whose total cannot be read (the
+   subtotal check reports the gap). Checks computed in code rather than by the model, as flags.
+   Per line: quantity × unit price, or weight × unit price, ≠ line total — within one cent, since
+   the register rounded the product and a 3-for-$10 price prints as 3.33. Per receipt: lines −
+   discounts ≠ subtotal and subtotal + tax ≠ total — to the cent, since sums of printed amounts
+   hold no rounding and a one-cent slack would pass a lone misread last digit — and a printed item
+   count that matches neither the lines nor their quantities. Any of them usually means a misread
+   or a missed line.
+   Tests: unit on every slice-0 fixture with recorded model responses; every check at and just past
+   its boundary; a malformed response rejected; truncation.
    Deps: [0].
 
 3. **DB + entities: `receipt`, `receiptAlias`.** The tables above, `price_entries.receipt_id` and
@@ -231,8 +238,11 @@ Each slice is one reviewable PR. `pnpm check` green + the required test tiers be
    Yoga's multipart upload: one or more photos, image types only, a per-photo size cap. It stores the
    photos, creates the receipt as UPLOADED and answers immediately; processing runs in the
    background, one receipt at a time — OCR, then parse (and match, once slice 5 lands; until then
-   PARSED is the last stage). A failure records its stage and error, `retryReceipt(id)` restarts
-   there, and startup resumes unfinished receipts. Duplicates: an identical photo is refused at
+   PARSED is the last stage). The parse stage hands the parser the known stores (which needs a
+   merchant list method), creates the store it names when it is not one of them, and stores the
+   receipt-level flags in `receipts.flags`. A failure records its stage and error,
+   `retryReceipt(id)` restarts there, and startup resumes unfinished receipts. Duplicates: an
+   identical photo is refused at
    upload; the same store + date + total after parsing is flagged, not blocked. Queries
    `receipts(status)` and `receipt(id)`. Web: a Receipts view under Pantry — upload
    (`accept="image/*"` with `capture`, so a phone opens its camera), a list with each receipt's

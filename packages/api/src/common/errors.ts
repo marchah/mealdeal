@@ -116,8 +116,9 @@ export class EmailSourceError extends ServerError<EmailSourceErrorData> {
 /**
  * The model stopped at its output-token cap, leaving the JSON unterminated. Distinct from a
  * merely malformed response because it is DETERMINISTIC: extraction runs at temperature 0, so
- * re-sending the identical email truncates at the identical point. Retrying can only burn the
- * same inference again, which is why the caller acknowledges the message instead of retrying.
+ * re-sending the identical input truncates at the identical point. Retrying can only burn the
+ * same inference again, which is why the ingest pass acknowledges the email instead of retrying,
+ * and why a truncated receipt parse needs a larger output cap rather than a retry.
  */
 export class ExtractionTruncatedError extends ServerError {
   constructor() {

@@ -1,6 +1,7 @@
 import type { AppConfigSettings } from '../common/settings';
 import type { Db } from '../db/client';
 import type { EntitiesServices } from '../entities';
+import type { JsonChatCompletion } from '../ingest/extractor';
 import { appConfigServiceFactory } from './appConfig/service';
 import type { AppConfigService } from './appConfig/types';
 import { dashboardServiceFactory } from './dashboard/service';
@@ -12,6 +13,8 @@ import { nearMeServiceFactory } from './nearMe/service';
 import type { NearMeService } from './nearMe/types';
 import { priceInsightServiceFactory } from './priceInsight/service';
 import type { PriceInsightService } from './priceInsight/types';
+import { receiptParserServiceFactory } from './receiptParser/service';
+import type { ReceiptParserService } from './receiptParser/types';
 import { storeRepositoryFactory } from './store/repository';
 import { storeServiceFactory } from './store/service';
 import type { StoreService } from './store/types';
@@ -34,16 +37,19 @@ export interface FeaturesServices {
   dashboardService: DashboardService;
   nearMeService: NearMeService;
   priceInsightService: PriceInsightService;
+  receiptParserService: ReceiptParserService;
 }
 
 export function getFeaturesServices({
   db,
   entities,
   config,
+  jsonChatCompletion,
 }: {
   db: Db;
   entities: EntitiesServices;
   config: AppConfigSettings;
+  jsonChatCompletion: JsonChatCompletion;
 }): FeaturesServices {
   const ingestRunService = ingestRunServiceFactory({
     ingestRunRepository: ingestRunRepositoryFactory({ db }),
@@ -68,6 +74,7 @@ export function getFeaturesServices({
     couponTypeService: entities.couponTypeService,
     newsletterService: entities.newsletterService,
   });
+  const receiptParserService = receiptParserServiceFactory({ jsonChatCompletion });
   return {
     appConfigService,
     ingestRunService,
@@ -75,5 +82,6 @@ export function getFeaturesServices({
     dashboardService,
     nearMeService,
     priceInsightService,
+    receiptParserService,
   };
 }
