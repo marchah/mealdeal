@@ -60,6 +60,25 @@ loopback, link-local and carrier-grade-NAT addresses are rejected, DNS is resolv
 before connecting (so a public hostname pointing at `127.0.0.1` is caught), redirects are followed
 manually and re-checked at each hop, and both the request and the response body are capped.
 
+### Receipt import
+
+Under **Pantry → Receipts**, upload photos of a grocery receipt (on a phone, the button opens the
+camera; take one photo per part of a long receipt, top to bottom). The upload answers at once and
+the receipt is read in the background, one receipt at a time: OCR reads the photos into text, then
+the configured LLM turns the text into the store, the date, the lines and the totals. That takes a
+minute or two a receipt, and the list updates on its own while it runs. Matching the lines to
+pantry items and confirming them as prices come in later slices of
+[docs/PLAN.md](./docs/PLAN.md); until then a receipt stops at **Read**.
+
+- A stage that fails shows where it stopped and why. **Retry** restarts at that stage: a failed
+  parse re-reads the saved text, not the photos. A receipt the server was reading when it stopped
+  is picked up again when it starts.
+- The same photos uploaded twice are refused. A different photo of a receipt already read — the
+  same store, day and total — is read anyway and flagged as a possible duplicate.
+- Checks the parser runs (lines against the subtotal, subtotal and tax against the total, the
+  printed item count) show on the receipt when they fail; they usually mean a misread digit.
+- Delete removes a receipt and its photos; prices it produced, once confirm exists, stay.
+
 ### Receipt OCR (`OCR_BASE_URL`)
 
 Receipt import reads each photo with an OCR engine — PP-OCRv6, which runs on a CPU — served by a
