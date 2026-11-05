@@ -26,9 +26,10 @@ if (missing.length > 0) {
   throw new Error(`resetDb does not clear ${missing.map(getTableName).join(', ')}`);
 }
 
+const db = createDb();
+
 // The suite shares one db file and its files run in any order, so each test starts from an empty
 // db rather than clearing only the tables it seeds.
 export async function resetDb(): Promise<void> {
-  const db = createDb();
   for (const table of TABLES) await db.delete(table);
 }
