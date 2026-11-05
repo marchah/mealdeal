@@ -94,11 +94,15 @@ Numbered after v2's so "decision N" stays unique across the doc.
    **layout**: a receipt prints the name on the left and the price on the right, and an engine that
    emits columns separately loses the pairing. The OCR adapter's service therefore rebuilds printed
    lines from bounding boxes before anything reaches the LLM, and slice 0 tests exactly that.
-5. **Learned receipt names are per store, and carry the pack size.** `KS PPR TWL` means something
-   at Costco and nothing at Aldi, and one product prints differently at each chain. A learned name
-   maps (merchant, normalized printed text) to a pantry item **and** a pack size — receipts rarely
-   print sizes, and the pack bought at Costco is not the one bought at Harris Teeter. It can also
-   map to *ignore*, so bag fees and things you never track stop appearing.
+5. **Learned receipt names are per store, keyed on the item number when one is printed, and carry
+   the pack size.** `KS PPR TWL` means something at Costco and nothing at Aldi, and one product
+   prints differently at each chain. OCR text is not a stable key either: slice 0's first receipt
+   read the same product as `Org Black Beans` on one row and `0rg Black Beans` on the next, while
+   the store's item number printed beside it (`717662`) read identically both times. So a learned
+   name maps (merchant, **match key**) — the item number when the row has one, otherwise the
+   printed text with OCR look-alikes folded (`0`/`O`, `1`/`l`) — to a pantry item **and** a pack
+   size: receipts rarely print sizes, and the pack bought at Costco is not the one bought at Harris
+   Teeter. It can also map to *ignore*, so bag fees and things you never track stop appearing.
 6. **Nothing becomes a price until you confirm.** Matching only suggests: an LLM suggestion is never
    auto-confirmed, and even a learned-name match is shown for review. The same stance as the URL
    importer's draft — a wrong price silently in the history is worse than one more tap.
@@ -118,8 +122,11 @@ Costco, Aldi, Food Lion and Harris Teeter. What to expect — to be confirmed by
 
 - **Costco** — abbreviated names next to item numbers; instant savings on their own line with a
   trailing minus; long receipts that take several photos.
-- **Aldi** — short abbreviated names, mostly Aldi's own brands, so learned names do more of the work
-  than brand matching.
+- **Aldi** — confirmed on one receipt: a 6-digit item number before every name; short abbreviated
+  names (`Worcst/Steak Sauce`, `Maple Brbn Bcn Sld`), mostly Aldi's own brands; a repeated item as
+  repeated rows rather than `2 @`; weighed produce as gross / tare / net rows under the item
+  (`(N) 1.63 lb x 0.58/lb`); a tax letter per row (`FB`, `FE`) whose rates print at the bottom; and
+  the help URL names the store even when the photo cuts off the header.
 - **Food Lion** (MVP card) and **Harris Teeter** (VIC card) — loyalty savings printed as separate
   lines under the item.
 - **All four** — produce by weight (`2.31 lb @ 0.59 /lb`), multi-buys (`2 @ 3.99`), tax-flag letters
@@ -150,8 +157,8 @@ Host: a CPU engine runs on **pve2**, beside the house Docker host. Only OXR-1.0 
 |---|---|---|
 | `receipts` | id, merchant_id (FK, nullable), purchased_at, status, failed_stage, error, ocr_text, ocr_engine, subtotal, tax, total, image_hash, created_at | `status`: UPLOADED → OCR_DONE → PARSED → READY → CONFIRMED, or FAILED with `failed_stage`. `image_hash` catches the same photo uploaded twice. |
 | `receipt_images` | id, receipt_id (FK, cascade), position, path, content_type, bytes | A long receipt is several photos, in order. Files under `RECEIPTS_DIR`. |
-| `receipt_lines` | id, receipt_id (FK, cascade), position, printed_text, description, quantity, unit_price, weight, weight_unit, line_total, discount, flags, pantry_item_id (nullable), size_amount, size_unit, match_source, decision, price_entry_id (nullable) | `match_source`: ALIAS / SUGGESTED / MANUAL. `decision`: PENDING / INCLUDE / EXCLUDE / IGNORE_ALWAYS. `price_entry_id` is what makes confirm idempotent. |
-| `receipt_aliases` | id, merchant_id (FK), printed_text (normalized), pantry_item_id (FK, cascade, nullable), size_amount, size_unit, ignored, created_at, updated_at | Unique on (merchant_id, printed_text). Null item + `ignored` = always ignore at this store. |
+| `receipt_lines` | id, receipt_id (FK, cascade), position, item_number (nullable), printed_text, description, quantity, unit_price, weight, weight_unit, line_total, discount, tax_flag, flags, pantry_item_id (nullable), size_amount, size_unit, match_source, decision, price_entry_id (nullable) | `match_source`: ALIAS / SUGGESTED / MANUAL. `decision`: PENDING / INCLUDE / EXCLUDE / IGNORE_ALWAYS. `price_entry_id` is what makes confirm idempotent. |
+| `receipt_aliases` | id, merchant_id (FK), match_key, printed_text, pantry_item_id (FK, cascade, nullable), size_amount, size_unit, ignored, created_at, updated_at | Unique on (merchant_id, match_key) — the item number when printed, else the folded text (decision 5). `printed_text` is kept for display. Null item + `ignored` = always ignore at this store. |
 | `price_entries` | + receipt_id (FK, nullable, ON DELETE set null) | Deleting a receipt keeps the prices it produced: the history is the precious part, the same reasoning as `archived`. |
 
 New enums (TS `enum`, SCREAMING_SNAKE key and value): `ReceiptStatus`, `ReceiptStage`,
@@ -185,20 +192,23 @@ Each slice is one reviewable PR. `pnpm check` green + the required test tiers be
    in the MealDeal image. In MealDeal: a `ReceiptTextReader` port declared in
    `features/receiptImport/types.ts`; `third-party/<engine>/adapter.ts` owns transport (timeout,
    response-size cap); `service.ts` is the anti-corruption layer that rebuilds printed lines from
-   boxes — group by vertical overlap, order left to right, tolerate a slight tilt. Add
+   boxes — drop boxes below a confidence cutoff, fit the page tilt from the boxes, group by
+   vertical overlap, order left to right. Add
    `OCR_BASE_URL` to settings, `.env.example`, the README and the deploy compose; expose
    `receiptImportEnabled` on `Query.appConfig`; list any provider package in `eslint.config.js`.
    Tests: unit — two columns rejoined into rows, a tilted photo, an item name wrapping onto a second
-   line, an empty result, timeout, oversize response; `settings.spec.ts`; `appConfig` integration.
+   line, a low-confidence stray box beside a row, an empty result, timeout, oversize response;
+   `settings.spec.ts`; `appConfig` integration.
    No live OCR in CI.
    Deps: [0].
 
 2. **Receipt parser — `features/receiptParser/`.** OCR text in, structured receipt out, through the
    existing `JsonChatCompletion` port and the same pattern as `ingest/extractor.ts`: prompt + Zod
-   schema, finish reason checked first, the model's shape never trusted. Output: the store — picked
+   schema, finish reason checked first, the model's shape never trusted. Needs the `<think>` fix
+   from slice 0's findings first. Output: the store — picked
    from existing merchants when it matches one, so "COSTCO WHOLESALE #347" and "Costco" stay one
-   store — the purchase date, the lines (printed text, best-guess description, quantity, unit price,
-   weight + unit, line total, discount), subtotal, tax and total. Discount lines fold into the item
+   store — the purchase date, the lines (item number, printed text, best-guess description,
+   quantity, unit price, weight + unit, line total, discount, tax letter), subtotal, tax and total. Discount lines fold into the item
    they apply to; non-item lines are dropped. Two flags, computed in code rather than by the model:
    quantity × unit price ≠ line total, and lines + tax ≠ total — either usually means a misread or a
    missed line.
@@ -244,7 +254,8 @@ Each slice is one reviewable PR. `pnpm check` green + the required test tiers be
    size), size + unit, quantity, price. A line with neither a learned name nor a suggestion opens
    with the item blank — type it in, or leave it blank and it is not saved. Per line: **Exclude**
    (this receipt only) and **Always ignore at this store** (a learned ignore). Slice 2's flags show
-   on the lines and receipt they concern. `Mutation.confirmReceipt(id, lines)` creates any new
+   on the lines and receipt they concern. Repeated rows of one item at one price confirm as a
+   single entry with that quantity. `Mutation.confirmReceipt(id, lines)` creates any new
    items, adds price entries (source RECEIPT, the receipt's store, `observedAt` = purchase date,
    `onSale` when discounted), learns names (item + pack size, or ignore) and marks the receipt
    CONFIRMED — idempotent per line. Plus `deleteReceipt(id)`.
@@ -253,6 +264,35 @@ Each slice is one reviewable PR. `pnpm check` green + the required test tiers be
    refused; integration — confirm end to end, the entries visible through `PantryItem.priceEntries`
    and the insight; web specs, `jsx-a11y` clean.
    Deps: [3, 5].
+
+## Slice 0 — first pass (2026-11-05, one Aldi receipt)
+
+Preliminary: one receipt from one store, to be redone with 2–3 per store. A phone photo, 12 MP,
+crumpled, slightly tilted, with fading digits in the price column and the header cut off.
+
+| Stage | Result |
+|---|---|
+| PP-OCRv6 **medium** | 31 of 31 items, every price right — they sum to the printed subtotal, $78.72. 45 s on an M3 Max CPU (Paddle backend; OpenVINO / ONNX not tried). |
+| PP-OCRv6 **small** | Three prices misread (1.85 → 1.35, 0.89 → 0.39, 0.96 → 0.95), none of them low-confidence. 13 s. |
+| Row rebuild | Every name paired with its price; fitting the tilt from the boxes was enough. One stray box (`2`, confidence 0.32) on the background beside a row; every real box scored ≥ 0.84. |
+| Qwen3.6-35B-A3B parse | 31 lines with item numbers, weighed produce attached to its item, store (from the help URL), date, subtotal, tax and total all right. 111 s for 3.4k output tokens. |
+| Checks | Lines-vs-subtotal caught both failures: small's misread digits, and the LLM reading the stray `2` as quantity 2. With a 0.5 confidence cutoff, the run is clean. |
+| Indra OCR | Not run yet. |
+
+What it changed: the learned-name key is the item number when one is printed (decision 5); the
+row rebuild drops low-confidence boxes (slice 1); medium over small, since in a background job
+accuracy is worth more than 30 seconds, and the arithmetic checks are the only thing that catches
+a confidently misread digit. At ~2.5 minutes a receipt, background processing is a requirement.
+
+One existing defect it surfaced: this llama-server returns an empty `<think></think>` block before
+the JSON, even in `json_object` mode. `ingest/extractor.ts` and the URL importer's LLM fallback
+(`third-party/productPage/service.ts`) both `JSON.parse` the raw content, so against this server
+they fail with "LLM returned non-JSON output". The fix belongs in the openai adapter — the provider
+boundary — and is a prerequisite for slice 2.
+
+Still to do: 2–3 receipts each from Costco, Food Lion and Harris Teeter (and more from Aldi);
+Indra OCR; timing on pve2 with an OpenVINO or ONNX backend; and a check that the photo includes
+the receipt's header.
 
 ## Follow-ups (deliberately deferred)
 
