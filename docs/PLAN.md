@@ -81,6 +81,7 @@ entities/receiptAlias/       learned receipt names: (store, match key) → item 
 features/receiptParser/      OCR text → structured receipt (prompt + Zod schema, existing LLM port)
 features/receiptImport/      the pipeline: stages, retries, matching, confirm
 third-party/<ocr engine>/    adapter (transport) + service (rebuild printed lines from boxes)
+third-party/fileSystem/      receipt photos as files under RECEIPTS_DIR, behind the receipt slice's port
 ```
 
 ### Decisions a reviewer should check first

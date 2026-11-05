@@ -2,8 +2,10 @@ import { settings } from '../common/settings';
 import type { ZipCoordinateLookup } from '../entities/location/types';
 import type { AddressCoordinateLookup } from '../entities/merchant/types';
 import type { ProductLookup } from '../entities/pantryItem/types';
+import type { ReceiptPhotoStore } from '../entities/receipt/types';
 import type { JsonChatCompletion } from '../ingest/extractor';
 import type { HtmlToMarkdownConverter } from '../ingest/markdown';
+import { fileSystemAdapterFactory } from './fileSystem/adapter';
 import { mdreamAdapterFactory } from './mdream/adapter';
 import { nominatimAdapterFactory } from './nominatim/adapter';
 import { openaiAdapterFactory } from './openai/adapter';
@@ -19,6 +21,7 @@ export interface ThirdPartyServices {
   mdreamAdapter: HtmlToMarkdownConverter;
   openaiAdapter: JsonChatCompletion;
   productPageService: ProductLookup;
+  fileSystemAdapter: ReceiptPhotoStore;
 }
 
 export function getThirdPartyServices(): ThirdPartyServices {
@@ -36,5 +39,6 @@ export function getThirdPartyServices(): ThirdPartyServices {
       htmlToMarkdown: mdreamAdapter,
       jsonChatCompletion: openaiAdapter,
     }),
+    fileSystemAdapter: fileSystemAdapterFactory({ directory: settings.RECEIPTS_DIR }),
   };
 }

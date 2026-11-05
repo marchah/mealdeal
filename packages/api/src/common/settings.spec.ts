@@ -36,6 +36,13 @@ describe('parseSettings', () => {
     );
   });
 
+  it('keeps receipt photos under ./data/receipts unless told otherwise', () => {
+    expect(parseSettings({}).RECEIPTS_DIR).toBe('./data/receipts');
+    // Docker Compose substitutes an empty string for an unset variable; that means "unset".
+    expect(parseSettings({ RECEIPTS_DIR: '' }).RECEIPTS_DIR).toBe('./data/receipts');
+    expect(parseSettings({ RECEIPTS_DIR: '/data/receipts' }).RECEIPTS_DIR).toBe('/data/receipts');
+  });
+
   it('pauses coupon newsletter ingestion unless it is explicitly enabled', () => {
     expect(parseSettings({}).COUPON_INGEST_ENABLED).toBe(false);
     expect(parseSettings({ COUPON_INGEST_ENABLED: 'false' }).COUPON_INGEST_ENABLED).toBe(false);
