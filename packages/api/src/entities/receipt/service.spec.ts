@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { NotFoundError, ValidationError } from '../../common/errors';
+import { ConflictError, NotFoundError, ValidationError } from '../../common/errors';
 import type { Maybe } from '../../common/types';
 import { Unit } from '../../common/units';
 import { receiptServiceFactory } from './service';
 import {
+  ReceiptFlag,
   ReceiptLineDecision,
   ReceiptLineFlag,
   ReceiptMatchSource,
@@ -35,6 +36,7 @@ const makeReceipt = (over: Partial<Receipt> = {}): Receipt => ({
   tax: null,
   total: null,
   imageHash: 'hash',
+  flags: [],
   createdAt: new Date('2026-01-01T00:00:00Z'),
   ...over,
 });
@@ -94,6 +96,7 @@ const makeParse = (over: Partial<ReceiptParseInput> = {}): ReceiptParseInput => 
   tax: 0.02,
   total: 0.91,
   lines: [makeParsedLine()],
+  flags: [],
   ...over,
 });
 
@@ -107,6 +110,7 @@ function makeService(
     receipt?: Maybe<Receipt>;
     images?: ReceiptImage[];
     line?: Maybe<ReceiptLine>;
+    sameHash?: Maybe<Receipt>;
     insertReceipt?: (receipt: NewReceipt) => Promise<Receipt>;
     saveReceiptPhoto?: (bytes: Uint8Array) => Promise<string>;
     deleteReceiptPhoto?: (path: string) => Promise<void>;
@@ -116,7 +120,13 @@ function makeService(
   const foundLine = over.line === undefined ? makeLine() : over.line;
   const receiptRepository = {
     findReceiptById: vi.fn((_id: string) => Promise.resolve(found)),
+    findReceiptByImageHash: vi.fn((_imageHash: string) => Promise.resolve(over.sameHash ?? null)),
+    findReceiptImagesByReceiptIds: vi.fn((_ids: readonly string[]) =>
+      Promise.resolve([makeImage()]),
+    ),
+    findReceiptLinesByReceiptIds: vi.fn((_ids: readonly string[]) => Promise.resolve([makeLine()])),
     listReceipts: vi.fn(() => Promise.resolve(found ? [found] : [])),
+    listReceiptsByPurchase: vi.fn(() => Promise.resolve(found ? [found] : [])),
     listReceiptImages: vi.fn((_receiptId: string) => Promise.resolve(over.images ?? [])),
     listReceiptLines: vi.fn((_receiptId: string) => Promise.resolve([makeLine()])),
     insertReceipt: vi.fn(
@@ -217,6 +227,20 @@ describe('receiptService.addReceipt', () => {
     expect(receiptRepository.insertReceipt).not.toHaveBeenCalled();
   });
 
+  it('refuses photos already uploaded as a receipt, and stores nothing', async () => {
+    const reference = await hashOf([photo('page one'), photo('page two')]);
+    const { service, receiptRepository, receiptPhotoStore } = makeService({
+      sameHash: makeReceipt({ id: 'receipt-0', imageHash: reference }),
+    });
+
+    await expect(
+      service.addReceipt({ photos: [photo('page one'), photo('page two')] }),
+    ).rejects.toBeInstanceOf(ConflictError);
+    expect(receiptRepository.findReceiptByImageHash).toHaveBeenCalledWith(reference);
+    expect(receiptPhotoStore.saveReceiptPhoto).not.toHaveBeenCalled();
+    expect(receiptRepository.insertReceipt).not.toHaveBeenCalled();
+  });
+
   it('takes back the photos it stored when the receipt cannot be created', async () => {
     const failure = new Error('db unavailable');
     const { service, receiptPhotoStore } = makeService({
@@ -276,6 +300,27 @@ describe('receiptService reads', () => {
 
     await expect(service.listReceipts(input)).resolves.toHaveLength(1);
     expect(receiptRepository.listReceipts).toHaveBeenCalledWith(input);
+  });
+
+  it('lists one store’s receipts bought in a time range', async () => {
+    const { service, receiptRepository } = makeService();
+    const input = {
+      merchantId: 'merchant-1',
+      purchasedFrom: new Date(2026, 9, 30),
+      purchasedBefore: new Date(2026, 9, 31),
+    };
+
+    await expect(service.listReceiptsByPurchase(input)).resolves.toHaveLength(1);
+    expect(receiptRepository.listReceiptsByPurchase).toHaveBeenCalledWith(input);
+  });
+
+  it('finds the images and lines of several receipts in one call each', async () => {
+    const { service, receiptRepository } = makeService();
+
+    await expect(service.findReceiptImagesByReceiptIds(['receipt-1'])).resolves.toHaveLength(1);
+    await expect(service.findReceiptLinesByReceiptIds(['receipt-1'])).resolves.toHaveLength(1);
+    expect(receiptRepository.findReceiptImagesByReceiptIds).toHaveBeenCalledWith(['receipt-1']);
+    expect(receiptRepository.findReceiptLinesByReceiptIds).toHaveBeenCalledWith(['receipt-1']);
   });
 
   it('reads a photo from the path its image row stores', async () => {
@@ -346,7 +391,7 @@ describe('receiptService stage writes', () => {
     });
   });
 
-  it('saves the parse — header and lines in one write — together with PARSED', async () => {
+  it('saves the parse — header, flags and lines in one write — together with PARSED', async () => {
     const { service, receiptRepository } = makeService();
     const lines = [
       makeParsedLine(),
@@ -362,7 +407,10 @@ describe('receiptService stage writes', () => {
       }),
     ];
 
-    await service.updateReceiptParse('receipt-1', makeParse({ lines }));
+    await service.updateReceiptParse(
+      'receipt-1',
+      makeParse({ lines, flags: [ReceiptFlag.SUBTOTAL_MISMATCH, ReceiptFlag.POSSIBLE_DUPLICATE] }),
+    );
 
     expect(receiptRepository.replaceReceiptLines).toHaveBeenCalledWith(
       'receipt-1',
@@ -372,6 +420,7 @@ describe('receiptService stage writes', () => {
         subtotal: 0.89,
         tax: 0.02,
         total: 0.91,
+        flags: [ReceiptFlag.SUBTOTAL_MISMATCH, ReceiptFlag.POSSIBLE_DUPLICATE],
         status: ReceiptStatus.PARSED,
         failedStage: null,
         error: null,

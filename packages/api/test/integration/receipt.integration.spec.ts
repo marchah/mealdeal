@@ -61,6 +61,7 @@ const parse = (lines: ParsedReceiptLine[], merchantId: Maybe<string> = null) => 
   tax: 0.21,
   total: 10.71,
   lines,
+  flags: [],
 });
 
 async function seedMerchant(): Promise<string> {

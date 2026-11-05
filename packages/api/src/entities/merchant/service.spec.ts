@@ -26,6 +26,20 @@ describe('merchantService', () => {
     expect(result).toEqual([makeMerchant({ id: 'm1' })]);
   });
 
+  it('lists every merchant, in the order the repository gives them', async () => {
+    const merchants = [
+      makeMerchant({ id: 'm1', name: 'Aldi' }),
+      makeMerchant({ id: 'm2', name: 'Costco' }),
+    ];
+    // @ts-expect-error partial mock: only the functions used are provided
+    const repo: MerchantRepository = { listMerchants: () => Promise.resolve(merchants) };
+    const service = merchantServiceFactory({
+      merchantRepository: repo,
+      addressCoordinateLookup: { lookupAddress: () => Promise.resolve(null) },
+    });
+    await expect(service.listMerchants()).resolves.toEqual(merchants);
+  });
+
   it('getOrCreateMerchant returns existing when findMerchantByName succeeds', async () => {
     const existing = makeMerchant({ name: 'TestMart' });
     const createMerchant = vi.fn();
