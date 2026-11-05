@@ -1,255 +1,324 @@
-# MealDeal v2 — Pantry price tracking; coupon ingestion on pause
+# MealDeal v3 — Receipt import
 
 ## Why this plan
 
-The v1 premise was "a coupon newsletter arrives, we extract deals from it". That premise is
-**unproven** — no newsletter worth ingesting has been found. Rather than keep building on it, v2
-**pauses ingestion behind a flag** (the pipeline stays intact and tested, it just doesn't run) and
-puts the product weight behind a second, self-sufficient feature: **Pantry** — the items we buy
-regularly, their price history, and a straight answer to *"is $19.94 a good price for this?"*
+v2 shipped Pantry: tracked items, their price history normalized to a unit price, and a verdict on
+whether a price is worth acting on. What it does not solve is getting prices **in**. Every
+observation today is typed by hand or read off a product URL, and hand entry is the step that
+quietly stops after a few weeks — at which point the verdicts go stale and the feature dies with
+them.
 
-Pantry becomes the app's primary tab and default view; Coupons keeps everything v1 built, behind a
-banner saying nothing new is arriving. The two halves stay one app and share a spine (merchants, the coupon-type taxonomy, the DI graph),
-so re-enabling ingestion later is a config change, not a rebuild — and once it is back on, a coupon
-for a tracked pantry item is an obvious, cheap payoff (follow-up F2).
+A grocery receipt already holds every price paid on a trip, with the store and the date. v3 turns a
+photo of one into price entries: an **OCR engine** reads the photo into text, the **existing LLM**
+turns that text into structured lines, the app **matches** each line to a pantry item, and you
+**review and confirm** before anything is stored. This was follow-up F3 in v2 — "the
+highest-leverage data-entry win, and the largest".
 
-### Naming decision
+The hard part is not reading the receipt. It is knowing that `KS PPR TWL  19.99` is *your*
+"Kirkland paper towels", and which pack it was: receipts rarely print sizes, and without a size
+there is no unit price to compare. So the design centres on **learned receipt names** and a review
+screen that gets faster with every receipt from the same store.
 
-Top-level tabs are **Pantry** and **Coupons**, in that order — **Pantry is the primary tab and the
-default landing view**. That ordering is the plan's thesis made visible: the proven feature is the one
-you open the app for, and Coupons is the paused half you visit when you want to. "Pantry" is literally
-*the items you buy regularly*, it is one word, and it avoids two live collisions: `trackingPref`
-already owns the word *tracking* (and a `WATCHLIST` `PrefKind`), and *watchlist* would then mean two
-different things.
+Deliberately out of scope: the shelf-side question ("Gain is $11.99 for 92 oz at Target — is that
+cheaper than the Tide I usually buy?"). It needs comparison across brands and a
+check-without-saving flow, and is follow-up F8.
 
-The app's header copy moves with it: "Active grocery deals from your inbox" describes a pipeline that
-is switched off, so it becomes something Pantry-first ("Know a good price when you see one").
+## Earlier plans
 
-Slices: `entities/pantryItem/` (the product) + `entities/priceEntry/` (one observed price) +
-`features/priceInsight/` (the verdict engine).
+### v2 status — delivered
 
-## v2 status — delivered
+Pantry price tracking, and coupon newsletter ingestion **paused** behind `COUPON_INGEST_ENABLED`
+(default `false`) with the app saying so. Slices 1–10 are merged: the pause flag and `appConfig`,
+the Pantry-first tab shell, `common/units.ts`, the `pantry_items` / `price_entries` tables, the
+`pantryItem` and `priceEntry` entities, the `priceInsight` verdict engine, the Pantry web views,
+the provider clients moved behind ports in `third-party/`, and the URL importer.
 
-Slices 1–10 are all merged: ingestion paused behind a flag with the app saying so, the Pantry-first
-tab shell, the unit conversion module, the two tables, the `pantryItem` and `priceEntry` entities,
-the price-insight verdict engine, the Pantry web views, the provider clients moved behind ports,
-and the URL importer. The follow-ups below (F1–F7) remain.
+### v1 status — delivered
 
-## v1 status — delivered
+Features 1–12 are merged: the `couponType` taxonomy, merchant geocoding, the `store` and
+`newsletter` slices, near-me, ingest-time classification, HTML→Markdown preprocessing and the
+folder-backed email source. Switched off at the entrypoint by the v2 pause and kept green.
 
-Features 1–12 of the previous plan are **all merged**: the `couponType` taxonomy, merchant
-location + geocoding via `third-party/nominatim/`, the `store` + `newsletter` slices, the near-me
-queries, the web near-me view, ingest-time coupon-type classification, HTML→Markdown
-preprocessing (mdream), and the folder-backed offline email source + archive. Nothing there is
-removed by this plan; it is switched off at the entrypoint and kept green.
+### v2 decisions still in force
+
+The code cites these as "docs/PLAN.md decision N", so the numbers are stable. (v2 listed 2 and 3 in
+the opposite order to the code and commit history that cite them; this is the order they are
+cited in.)
+
+1. **Categories reuse `coupon_types`.** A pantry item's category FKs the existing seeded taxonomy
+   rather than a parallel table, exposed as `PantryItem.category: CouponType!` — an odd type name
+   accepted over a risky app-wide rename (F5). A coupon and a pantry item speak one vocabulary,
+   which is what makes F2 nearly free.
+2. **`unitPrice` is denormalized on write, in canonical base units.** Every `price_entries` row
+   stores `unit_price` already normalized (per ounce / fluid ounce / count / square foot), so
+   differently-sized packs compare as plain numbers and "is this a good deal" is an aggregate over
+   one indexed column. Display unit is resolved at read time from the item's `unit_price_unit`.
+3. **`common/units.ts` holds enums *and* conversion math.** `Unit` is consumed by two slices, the
+   Drizzle schema, the Pothos enum and the insight feature, and a conversion table is not a type —
+   the same standing as `common/errors.ts`. US customary units only, so every factor is an exact
+   integer.
 
 ## Architecture fit
 
-Every new slice is the **copy-the-`deal`-entity** pattern from `AGENTS.md` — same file roles, same
-factory DI, same `resolver → service → repository → db` rule.
+```
+photo(s) ──upload──▶ receipt                                       UPLOADED
+                       │  background, one receipt at a time
+                       ▼
+   OCR service (own container, LAN) ──▶ printed lines             OCR_DONE   (text + engine saved)
+                       ▼
+   existing LLM (JsonChatCompletion) ──▶ structured lines         PARSED
+                       ▼
+   learned names, then LLM suggestion ──▶ matched lines           READY
+                       ▼
+   review screen ──confirm──▶ price_entries (RECEIPT) + learned names     CONFIRMED
+```
+
+Every slice is the copy-the-`deal`-entity pattern from `AGENTS.md`:
 
 ```
-entities/pantryItem/    (new — the product you buy regularly)
-entities/priceEntry/    (new — one observed price, at a merchant, on a date)
-features/priceInsight/  (new — price history statistics + the GREAT/GOOD/TYPICAL/HIGH verdict)
-features/appConfig/     (new — exposes "coupon ingestion is off" to the SPA)
-common/units.ts         (new — Unit enums + conversion; see the deviation note below)
-third-party/mdream|openai|productPage/   (provider clients, moved/added)
+entities/receipt/            receipts, their photos and their lines
+entities/receiptAlias/       learned receipt names: (store, printed text) → item + pack size, or ignore
+features/receiptParser/      OCR text → structured receipt (prompt + Zod schema, existing LLM port)
+features/receiptImport/      the pipeline: stages, retries, matching, confirm
+third-party/<ocr engine>/    adapter (transport) + service (rebuild printed lines from boxes)
 ```
 
-### Three decisions a reviewer should check first
+### Decisions a reviewer should check first
 
-1. **Categories reuse `coupon_types`.** A pantry item's category FKs the *existing* seeded taxonomy
-   (food, household, beverages, snacks, personal-care, pharmacy, pet-supplies, other) rather than
-   introducing a parallel table. It is exposed on the GraphQL type as `PantryItem.category: CouponType!`
-   — a slightly odd type name for a pantry field, accepted deliberately over a risky app-wide rename
-   (`Deal.category` is already taken by the free-text LLM value, so `CouponType`→`Category` would
-   collide). Renaming the entity is optional debt, tracked as follow-up F5. The payoff is that a
-   coupon and a pantry item speak one vocabulary, which is what makes F2 nearly free.
+Numbered after v2's so "decision N" stays unique across the doc.
 
-2. **`common/units.ts` holds enums *and* conversion math.** `AGENTS.md` says a fixed value set lives
-   in the slice's `types.ts`, but `Unit` is consumed by two slices, the Drizzle schema, the Pothos
-   enum and the insight feature, and the conversion table is not a type. It has the same standing as
-   `common/errors.ts`: a pure, side-effect-free reference module every layer may import. Called out
-   here so it reads as a decision, not a slip.
+4. **Two stages: an OCR engine, then the LLM** — rather than one vision-language model reading the
+   photo straight to JSON. The OCR text is stored, so a parse that goes wrong, or a better prompt
+   later, re-runs on text without redoing the OCR; each stage is swapped and tested on its own; and
+   the LLM stays text-only (the deployed llama-server has no vision projector loaded). The cost is
+   **layout**: a receipt prints the name on the left and the price on the right, and an engine that
+   emits columns separately loses the pairing. The OCR adapter's service therefore rebuilds printed
+   lines from bounding boxes before anything reaches the LLM, and slice 0 tests exactly that.
+5. **Learned receipt names are per store, keyed on the item number when one is printed, and carry
+   the pack size.** `KS PPR TWL` means something at Costco and nothing at Aldi, and one product
+   prints differently at each chain. OCR text is not a stable key either: slice 0's first receipt
+   read the same product as `Org Black Beans` on one row and `0rg Black Beans` on the next, while
+   the store's item number printed beside it (`717662`) read identically both times. So a learned
+   name maps (merchant, **match key**) — the item number when the row has one, otherwise the
+   printed text with OCR look-alikes folded (`0`/`O`, `1`/`l`) — to a pantry item **and** a pack
+   size: receipts rarely print sizes, and the pack bought at Costco is not the one bought at Harris
+   Teeter. It can also map to *ignore*, so bag fees and things you never track stop appearing.
+6. **Nothing becomes a price until you confirm.** Matching only suggests: an LLM suggestion is never
+   auto-confirmed, and even a learned-name match is shown for review. The same stance as the URL
+   importer's draft — a wrong price silently in the history is worse than one more tap.
+7. **The pipeline is staged and resumable.** Each stage writes its output and the receipt's status
+   before the next starts; a failure records which stage failed, and a retry restarts there.
+   Receipts are processed one at a time in-process, like the ingest pass, and a restart resumes
+   receipts left mid-pipeline. Confirm is idempotent per line — each line records the price entry it
+   created — so a confirm that fails half-way re-runs without duplicates, and no transaction across
+   slices is needed.
+8. **Photos are kept, and never enter the repo.** They live on the data volume beside the database,
+   so a better OCR engine can re-read old receipts (F12). Receipts print membership numbers and card
+   digits and this repo is public: test fixtures are **redacted OCR text**, never photos.
 
-3. **`unitPrice` is denormalized on write, in canonical base units.** Every `price_entries` row stores
-   `unit_price` already normalized (per ounce / per fluid ounce / per count / per square foot). This is
-   the whole reason the feature works: a 150 fl-oz jug and a 2-pack of 46 fl-oz bottles become
-   directly comparable numbers, and "is this a good deal" collapses to a `min`/`median` over one
-   indexed column instead of a per-row conversion in JS. Display unit ($/oz vs $/gal) is a
-   presentation concern resolved at read time from the item's `unit_price_unit`.
+## Stores in scope
+
+Costco, Aldi, Food Lion and Harris Teeter. What to expect — to be confirmed by slice 0, not assumed:
+
+- **Costco** — abbreviated names next to item numbers; instant savings on their own line with a
+  trailing minus; long receipts that take several photos.
+- **Aldi** — confirmed on one receipt: a 6-digit item number before every name; short abbreviated
+  names (`Worcst/Steak Sauce`, `Maple Brbn Bcn Sld`), mostly Aldi's own brands; a repeated item as
+  repeated rows rather than `2 @`; weighed produce as gross / tare / net rows under the item
+  (`(N) 1.63 lb x 0.58/lb`); a tax letter per row (`FB`, `FE`) whose rates print at the bottom; and
+  the help URL names the store even when the photo cuts off the header.
+- **Food Lion** (MVP card) and **Harris Teeter** (VIC card) — loyalty savings printed as separate
+  lines under the item.
+- **All four** — produce by weight (`2.31 lb @ 0.59 /lb`), multi-buys (`2 @ 3.99`), tax-flag letters
+  after prices, and non-item lines: subtotal, tax, deposits, bag fees, payment, change.
+
+Three of the four print discounts as their own lines, so attaching a discount to the item it belongs
+to — and marking that entry `onSale` — is core, not polish.
+
+## OCR engine candidates
+
+From the CognitiveStack notes (`local-ai-models/pp-ocrv6.md`, `knowledge-and-retrieval/indra-ocr.md`,
+`local-ai-models/oxr-1.md`). Slice 0 picks one.
+
+| Engine | Runs on | Why it is a candidate | Watch for |
+|---|---|---|---|
+| **PP-OCRv6** (medium / small) | CPU — pve2 is enough | Apache-2.0; detection + recognition with line boxes; ONNX / OpenVINO runtimes | Emits text boxes, not rows — rebuilding rows is ours |
+| **Indra OCR** | CPU — pve2 is enough | ~1M params, very fast; lines with boxes **and reading order**; Markdown / JSON output | Small model, "moderate accuracy"; weights are OpenRAIL-M |
+| **OXR-1.0** | GPU — pve | 1.3B document-parsing VLM; Markdown / JSON with coordinates; strong benchmark claims | Documented for Transformers / vLLM; pve's V620s are AMD, so ROCm is untested. Only if both CPU engines fall short |
+
+Not candidates: **Unlimited-OCR** (NVIDIA-only per its note, and pve's GPUs are AMD) and
+**Tesseract** (far behind both CPU candidates on the same benchmark).
+
+Host: a CPU engine runs on **pve2**, beside the house Docker host. Only OXR-1.0 would need **pve**.
 
 ## Data model
 
 | Table | Key columns | Notes |
 |---|---|---|
-| `pantry_items` | id, name, brand, coupon_type_id (FK), image_url, size_amount, size_unit, unit_price_unit, target_price, notes, archived, created_at | The product. `archived` is a soft delete so history survives. |
-| `price_entries` | id, pantry_item_id (FK, cascade), merchant_id (FK, nullable), price, currency, size_amount, size_unit, quantity, unit_price, on_sale, source, url, note, observed_at, created_at | One observation. `unit_price` canonical + indexed on `(pantry_item_id, observed_at)`. |
-| `merchants` | *(unchanged)* | Reused as the "where I saw it" dimension — Costco, Target, Amazon. Teaches you which store is cheapest per item. |
-| `coupon_types` | *(unchanged)* | Reused as the pantry category taxonomy. `seedCouponTypes()` in `server.ts` is now load-bearing for Pantry too. |
+| `receipts` | id, merchant_id (FK, nullable), purchased_at, status, failed_stage, error, ocr_text, ocr_engine, subtotal, tax, total, image_hash, created_at | `status`: UPLOADED → OCR_DONE → PARSED → READY → CONFIRMED, or FAILED with `failed_stage`. `image_hash` catches the same photo uploaded twice. |
+| `receipt_images` | id, receipt_id (FK, cascade), position, path, content_type, bytes | A long receipt is several photos, in order. Files under `RECEIPTS_DIR`. |
+| `receipt_lines` | id, receipt_id (FK, cascade), position, item_number (nullable), printed_text, description, quantity, unit_price, weight, weight_unit, line_total, discount, tax_flag, flags, pantry_item_id (nullable), size_amount, size_unit, match_source, decision, price_entry_id (nullable) | `match_source`: ALIAS / SUGGESTED / MANUAL. `decision`: PENDING / INCLUDE / EXCLUDE / IGNORE_ALWAYS. `price_entry_id` is what makes confirm idempotent. |
+| `receipt_aliases` | id, merchant_id (FK), match_key, printed_text, pantry_item_id (FK, cascade, nullable), size_amount, size_unit, ignored, created_at, updated_at | Unique on (merchant_id, match_key) — the item number when printed, else the folded text (decision 5). `printed_text` is kept for display. Null item + `ignored` = always ignore at this store. |
+| `price_entries` | + receipt_id (FK, nullable, ON DELETE set null) | Deleting a receipt keeps the prices it produced: the history is the precious part, the same reasoning as `archived`. |
 
-New enums (TS `enum`, SCREAMING_SNAKE key **and** value, per the conventions):
-
-- `UnitDimension` — `COUNT | WEIGHT | VOLUME | AREA`
-- `Unit` — `COUNT`, `OUNCE`, `POUND`, `FLUID_OUNCE`, `PINT`, `QUART`, `GALLON`, `SQUARE_FOOT`
-  (paper towels, foil). **US customary only**: this is a US household, and a US-only set makes every
-  conversion factor an exact integer (16, 32, 128), so there is no floating-point error anywhere in
-  the comparison path. Adding a metric unit later is one enum member and one factor.
-- `PriceSource` — `MANUAL | IMPORT | COUPON`
-- `PriceVerdict` — `GREAT | GOOD | TYPICAL | HIGH | UNKNOWN`
+New enums (TS `enum`, SCREAMING_SNAKE key and value): `ReceiptStatus`, `ReceiptStage`,
+`ReceiptLineDecision`, `ReceiptMatchSource`, and `PriceSource.RECEIPT` (whose arrival means
+`MANUAL`'s doc comment stops saying "off a receipt").
 
 Config additions (`common/settings.ts`, the only reader of `process.env`):
 
-- `COUPON_INGEST_ENABLED` — boolean, **default `false`**. The switch this plan is named for.
+- `OCR_BASE_URL` — optional. Unset means receipt import is off, and `Query.appConfig` says so — the
+  same honest-state pattern as the ingestion pause.
+- `RECEIPTS_DIR` — default `./data/receipts`; `/data/receipts` in Docker, on the same volume as the
+  database (the deploy compose's "the ONLY precious state" comment changes with it).
+- The parser reuses `OPENAI_*`. A separate receipt-model setting only if slice 0 shows another model
+  parses better.
 
-## Ordered feature list
+## Ordered slices
 
 Each slice is one reviewable PR. `pnpm check` green + the required test tiers before it lands.
 
-1. **Pause coupon ingestion and make the app say so.** Add `COUPON_INGEST_ENABLED` (default `false`)
-   to `settings.ts`, `.env.example` and the README. `scheduleIngest()` logs and no-ops;
-   `POST /internal/ingest` answers `503 {"status":"disabled"}`; `worker.ts` idles with a clear line.
-   Add `features/appConfig/` — `appConfigServiceFactory({ config })` (config injected, mirroring
-   `emailSourceFactory({ config: settings })`; a service must stay unit-testable) exposing
-   `Query.appConfig: AppConfig!` with `couponIngestEnabled: Boolean!` and `lastIngestAt: DateTime`.
-   The Coupons tab renders a banner: *"Coupon newsletter ingestion is paused — no new coupons are
-   being imported."* Already-ingested deals still list normally.
-   Tests: unit (both flag states), integration (`appConfig` query), `settings.spec.ts` addition.
+0. **Spike: pick the OCR engine.** Not app code — a throwaway script outside the repo. Photograph
+   2–3 receipts per store, including a long Costco receipt, one with produce by weight and one with
+   card savings. Run each through PP-OCRv6 and Indra (OXR-1.0 on pve only if both struggle), rebuild
+   the rows, send the text to Qwen with a draft parse prompt, and score: lines found, prices right,
+   discounts attached, store and date right. Outputs: the engine and its host, the photo resolution
+   it needs, and per receipt the **redacted** OCR text plus the expected parse — committed as the
+   fixtures slices 1–2 test against.
    Deps: [].
 
-2. **Web: the tab shell, Pantry first.** Replace `App.tsx`'s two-state toggle with top-level
-   **Pantry | Coupons** — Pantry is the first tab and the view an empty hash route resolves to, so
-   opening the app lands on price tracking. Coupons keeps its existing Browse-deals / Near-me sub-nav
-   — `DealsList` and `NearMeView` move under it unchanged — and carries slice 1's paused banner.
-   Pantry renders a placeholder until slice 8. Update the header copy (see the naming decision).
-   Deep-linking via a ~30-line `useHashRoute` hook in `web/src/lib/` rather than a `react-router`
-   dependency (revisit if the surface grows; the no-new-dependency rule applies). Accessibility: real
-   tab semantics (`aria-selected`, arrow-key navigation), `jsx-a11y` clean.
-   Tests: `App.spec.tsx` — including that the default route is Pantry.
-   Deps: [1].
+1. **OCR service and adapter.** The chosen engine runs as its own container on the LAN — its native
+   server if it has one, otherwise a minimal HTTP wrapper — deployed as its own stack, not shipped
+   in the MealDeal image. In MealDeal: a `ReceiptTextReader` port declared in
+   `features/receiptImport/types.ts`; `third-party/<engine>/adapter.ts` owns transport (timeout,
+   response-size cap); `service.ts` is the anti-corruption layer that rebuilds printed lines from
+   boxes — drop boxes below a confidence cutoff, fit the page tilt from the boxes, group by
+   vertical overlap, order left to right. Add
+   `OCR_BASE_URL` to settings, `.env.example`, the README and the deploy compose; expose
+   `receiptImportEnabled` on `Query.appConfig`; list any provider package in `eslint.config.js`.
+   Tests: unit — two columns rejoined into rows, a tilted photo, an item name wrapping onto a second
+   line, a low-confidence stray box beside a row, an empty result, timeout, oversize response;
+   `settings.spec.ts`; `appConfig` integration.
+   No live OCR in CI.
+   Deps: [0].
 
-3. **`common/units.ts`.** The `Unit` / `UnitDimension` enums, the conversion table, and pure helpers:
-   `dimensionOf(unit)`, `toBaseAmount(amount, unit)`, `unitPriceIn(unitPrice, unit)`,
-   `formatUnitPrice(unitPrice, unit)`. No I/O, no db, no deps.
-   Tests: conversion round-trips, every unit in the table, cross-dimension rejection, zero/negative
-   amounts, and exact (not approximate) equality on gallon↔fluid-ounce.
+2. **Receipt parser — `features/receiptParser/`.** OCR text in, structured receipt out, through the
+   existing `JsonChatCompletion` port and the same pattern as `ingest/extractor.ts`: prompt + Zod
+   schema, finish reason checked first, the model's shape never trusted. Needs the `<think>` fix
+   from slice 0's findings first. Output: the store — picked
+   from existing merchants when it matches one, so "COSTCO WHOLESALE #347" and "Costco" stay one
+   store — the purchase date, the lines (item number, printed text, best-guess description,
+   quantity, unit price, weight + unit, line total, discount, tax letter), subtotal, tax and total. Discount lines fold into the item
+   they apply to; non-item lines are dropped. Two flags, computed in code rather than by the model:
+   quantity × unit price ≠ line total, and lines + tax ≠ total — either usually means a misread or a
+   missed line.
+   Tests: unit on every slice-0 fixture with recorded model responses; both flags at their
+   boundaries; a malformed response rejected; truncation.
+   Deps: [0].
+
+3. **DB + entities: `receipt`, `receiptAlias`.** The tables above, `price_entries.receipt_id` and
+   `PriceSource.RECEIPT`; migration generated, never hand-written. Both entities copy the `deal`
+   slice. Photos sit behind a small storage port with a filesystem implementation rooted at
+   `RECEIPTS_DIR`.
+   Tests: integration — lines and images cascade with their receipt; deleting a receipt leaves its
+   price entries with `receipt_id` null; one learned name per (store, printed text); a learned name
+   goes with its deleted item. Unit for both services.
    Deps: [].
 
-4. **DB migration: `pantry_items` + `price_entries`.** Edit `db/schema.ts`, `pnpm db:generate`,
-   commit the generated migration (never hand-written). Additive only; nothing existing changes.
-   Columns use `.$type<Unit>()` / `.$type<PriceSource>()` so the enum stays one source of truth.
-   Deps: [3].
+4. **Upload + pipeline — `features/receiptImport/`.** `Mutation.uploadReceipt(images)` through
+   Yoga's multipart upload: one or more photos, image types only, a per-photo size cap. It stores the
+   photos, creates the receipt as UPLOADED and answers immediately; processing runs in the
+   background, one receipt at a time — OCR, then parse (and match, once slice 5 lands; until then
+   PARSED is the last stage). A failure records its stage and error, `retryReceipt(id)` restarts
+   there, and startup resumes unfinished receipts. Duplicates: an identical photo is refused at
+   upload; the same store + date + total after parsing is flagged, not blocked. Queries
+   `receipts(status)` and `receipt(id)`. Web: a Receipts view under Pantry — upload
+   (`accept="image/*"` with `capture`, so a phone opens its camera), a list with each receipt's
+   status, polling while any is processing.
+   Tests: unit — each stage's failure and retry from that stage, one-at-a-time processing, resume on
+   startup, both duplicate guards; integration — upload and the receipt queries; web specs,
+   `jsx-a11y` clean.
+   Deps: [1, 2, 3].
 
-5. **`entities/pantryItem/`.** Copy the `deal` slice. `types.ts` (domain type + `PantryItemRepository`
-   / `PantryItemService` ports, methods entity-qualified: `getPantryItemById`, `listPantryItems`,
-   `countPantryItems`, `addPantryItem`, `updatePantryItem`, `archivePantryItem`, `deletePantryItem`),
-   `repository.ts`, `service.ts`, `graphql/{type,query,mutation}.ts`. Register in `entities/index.ts`.
-   `category` resolves through a DataLoader (`couponTypeById`) added to `context.ts`.
-   Validation at the arg boundary (Zod via the Pothos plugin): name 1–200 chars, `imageUrl`
-   http(s)-only + max 2 000 chars (same shape as `addNewsletter`'s `signupUrl`), `sizeAmount > 0`,
-   `targetPrice > 0`. The service also enforces **case- and null-folded uniqueness** on
-   name + brand, throwing `ConflictError`: slice 4 found that drizzle-kit cannot emit that index
-   (it splits the expression on the comma inside `coalesce()` and produces SQL that fails at
-   migration time), and a service check gives a better message than a constraint violation anyway.
-   Tests: unit (`service.spec.ts`, hand-mocked ports) + integration against the real test DB.
+5. **Matching.** The last pipeline stage, PARSED → READY. A learned name for (store, printed text)
+   gives the item and pack size, or ignore. Otherwise one text-only LLM call with the unmatched lines
+   and the pantry catalog (name, brand, usual size) suggests an item or none; an id not in the
+   catalog is dropped. Pack size: the learned name's, then the item's usual size, then left for you.
+   A line sold by weight takes its weight as the size.
+   Tests: unit — learned-name hit, learned ignore, a name learned at another store not applied, an
+   invented id dropped, the size order, a weighted line; integration.
    Deps: [3, 4].
 
-6. **`entities/priceEntry/`.** Same shape. The service computes canonical `unitPrice` on write via
-   `common/units.ts` — `price / (toBaseAmount(sizeAmount, sizeUnit) * quantity)` — and throws
-   `ValidationError` when the entry's unit dimension does not match the item's (you cannot log
-   *$/gallon* against an item measured in pounds). Exposed as `PantryItem.priceEntries(limit, since)`
-   plus `addPriceEntry` / `deletePriceEntry` mutations. A `priceEntriesByPantryItemId` DataLoader
-   keeps the list view off N+1.
-   Tests: unit (unit-price math incl. multi-packs, dimension mismatch, `price <= 0`, `quantity <= 0`,
-   future `observedAt`) + integration.
-   Deps: [3, 4, 5].
+6. **Review + confirm.** The receipt photo beside its lines, and every field free text you can
+   correct: item (autocomplete over the pantry; a name not in it becomes a new item, with brand and
+   size), size + unit, quantity, price. A line with neither a learned name nor a suggestion opens
+   with the item blank — type it in, or leave it blank and it is not saved. Per line: **Exclude**
+   (this receipt only) and **Always ignore at this store** (a learned ignore). Slice 2's flags show
+   on the lines and receipt they concern. Repeated rows of one item at one price confirm as a
+   single entry with that quantity. `Mutation.confirmReceipt(id, lines)` creates any new
+   items, adds price entries (source RECEIPT, the receipt's store, `observedAt` = purchase date,
+   `onSale` when discounted), learns names (item + pack size, or ignore) and marks the receipt
+   CONFIRMED — idempotent per line. Plus `deleteReceipt(id)`.
+   Tests: unit — new item, name learned with its size, Exclude vs Always ignore, a blank line
+   skipped, a re-run after a partial failure creates no duplicates, confirming a confirmed receipt
+   refused; integration — confirm end to end, the entries visible through `PantryItem.priceEntries`
+   and the insight; web specs, `jsx-a11y` clean.
+   Deps: [3, 5].
 
-7. **`features/priceInsight/` — the verdict engine.** No table of its own; composes the two entity
-   services. `getPriceInsight({ pantryItemId, windowDays })` and a batched `listPriceInsights` for the
-   grid. Returns: `latest`, `lowestUnitPrice`, `highestUnitPrice`, `medianUnitPrice`,
-   `observationCount`, `windowDays`, `percentile`, `savingsVsMedianPct`, `meetsTargetPrice`,
-   `cheapestMerchant`, and `verdict`.
+## Slice 0 — first pass (2026-11-05, one Aldi receipt)
 
-   Deterministic, explainable rules — no magic, applied in this order:
-   - `targetPrice` set and the latest unit price is at or below it → `GREAT`. **Checked first**,
-     ahead of the sample-size guard: a target is the user's own statement of what counts as good,
-     so making it wait for three observations would hide a genuine buy signal on a new item;
-   - fewer than 3 observations in the window → `UNKNOWN` ("not enough history yet");
-   - otherwise the latest unit price's percentile within the window: ≤15% → `GREAT`, ≤35% → `GOOD`,
-     ≤75% → `TYPICAL`, else `HIGH`.
+Preliminary: one receipt from one store, to be redone with 2–3 per store. A phone photo, 12 MP,
+crumpled, slightly tilted, with fading digits in the price column and the header cut off.
 
-   The percentile is a percentile **rank** counting ties as half, `(below + equal/2) / n`. A plain
-   "fraction strictly below" scores a history of identical prices as 0 — the cheapest ever seen —
-   and would call an utterly ordinary price `GREAT`. `targetPrice` is a **unit price in the item's
-   own `unitPriceUnit`** ("buy at or below $0.12 a fluid ounce"), not a pack price, so it stays
-   meaningful when the pack size changes.
+| Stage | Result |
+|---|---|
+| PP-OCRv6 **medium** | 31 of 31 items, every price right — they sum to the printed subtotal, $78.72. 45 s on an M3 Max CPU (Paddle backend; OpenVINO / ONNX not tried). |
+| PP-OCRv6 **small** | Three prices misread (1.85 → 1.35, 0.89 → 0.39, 0.96 → 0.95), none of them low-confidence. 13 s. |
+| Row rebuild | Every name paired with its price; fitting the tilt from the boxes was enough. One stray box (`2`, confidence 0.32) on the background beside a row; every real box scored ≥ 0.84. |
+| Qwen3.6-35B-A3B parse | 31 lines with item numbers, weighed produce attached to its item, store (from the help URL), date, subtotal, tax and total all right. 111 s for 3.4k output tokens. |
+| Checks | Lines-vs-subtotal caught both failures: small's misread digits, and the LLM reading the stray `2` as quantity 2. With a 0.5 confidence cutoff, the run is clean. |
+| Indra OCR | Not run yet. |
 
-   **Median, not mean** (one warehouse-club bulk buy must not move the baseline) over a rolling
-   window (default 365 days, so a three-year-old price stops anchoring the answer). Also extend
-   `features/dashboard` with `pantryItems` and `itemsWorthBuyingNow` counts — it is already the
-   cross-entity read model, so this is reuse rather than a new aggregate.
-   Tests: unit is the priority here — empty history, one observation, two observations, all-equal
-   prices, a single outlier, exactly at the target price, an entry on the window boundary, an entry
-   older than the window.
-   Deps: [5, 6].
+What it changed: the learned-name key is the item number when one is printed (decision 5); the
+row rebuild drops low-confidence boxes (slice 1); medium over small, since in a background job
+accuracy is worth more than 30 seconds, and the arithmetic checks are the only thing that catches
+a confidently misread digit. At ~2.5 minutes a receipt, background processing is a requirement.
 
-8. **Web: the Pantry views.** A card grid — image (with `referrerPolicy="no-referrer"`, real `alt`
-   text and a graceful placeholder when the URL 404s), name + size, latest price, **unit price in the
-   item's display unit**, and a colour-and-text verdict badge (never colour alone — `jsx-a11y` and
-   colour-blind users both care). An inline-SVG sparkline of price history, no chart dependency.
-   Filters by category and verdict, sort by "best deal right now". Item detail: full history table,
-   per-merchant best price, "Log a price" form. Add / edit item forms.
-   Tests: component specs for the list, the badge thresholds and the empty state.
-   Deps: [2, 5, 6, 7].
+One existing defect it surfaced: this llama-server returns an empty `<think></think>` block before
+the JSON, even in `json_object` mode. `ingest/extractor.ts` and the URL importer's LLM fallback
+(`third-party/productPage/service.ts`) both `JSON.parse` the raw content, so against this server
+they fail with "LLM returned non-JSON output". The fix belongs in the openai adapter — the provider
+boundary — and is a prerequisite for slice 2.
 
-9. **Enabling refactor — provider clients into `third-party/`.** `AGENTS.md` §3 says a provider SDK
-   must never appear outside `third-party/`; today `ingest/markdown.ts` imports `mdream` and
-   `ingest/extractor.ts` imports `openai` directly. Neither trips ESLint (the `ingest` category has no
-   such policy) so this is rule-spirit debt, not a build failure — but slice 10 needs both from a
-   second caller, so it gets paid now rather than duplicated. Move mdream to
-   `third-party/mdream/adapter.ts` (`mdreamAdapterFactory`, implementing the existing
-   `HtmlToMarkdownConverter` port) and the OpenAI client to `third-party/openai/adapter.ts`
-   (`openaiAdapterFactory`) behind a narrow `JsonChatCompletion` port. `ingest/extractor.ts` keeps its
-   prompt and its Zod schema and takes the port. Pure refactor: **every existing test stays green,
-   unchanged**, and the SDL does not move.
-   Deps: [].
-
-10. **URL import (paste an Amazon link).** Port `ProductLookup { lookupProduct: (url) => Promise<Maybe<ProductDraft>> }`
-    declared in `entities/pantryItem/types.ts` (the consuming slice owns the port), implemented in
-    `third-party/productPage/`: `adapter.ts` owns transport only (fetch, timeout, redirect + response-size
-    caps), `service.ts` is the anti-corruption layer — try `schema.org/Product` JSON-LD and OpenGraph
-    tags first, and only when name/price/size are still missing convert the HTML to Markdown (slice 9's
-    port) and ask the local LLM, validating the result with Zod exactly as the deal extractor does.
-
-    `Mutation.draftPantryItemFromUrl(url)` returns a **draft, never a saved row** — the web prefills the
-    add-item form and you confirm. That is the whole robustness story: Amazon blocks plain server-side
-    fetches often enough that any design assuming success is wrong, so a block degrades to
-    "we couldn't read that page, here's the empty form" instead of an error state.
-
-    Security: single-user self-hosted, so no enterprise hardening — but the server fetches a
-    user-supplied URL, so http(s)-only, reject private/loopback address ranges, hard timeout and a
-    response-size cap. Cheap, and the alternative is a self-hosted box making arbitrary internal requests.
-    Tests: unit (JSON-LD hit, OG fallback, LLM fallback, all three fail, non-http scheme, oversize
-    response) with a mocked adapter port; no live network in CI.
-    Deps: [5, 9].
+Still to do: 2–3 receipts each from Costco, Food Lion and Harris Teeter (and more from Aldi);
+Indra OCR; timing on pve2 with an OpenVINO or ONNX backend; and a check that the photo includes
+the receipt's header.
 
 ## Follow-ups (deliberately deferred)
 
-- **F1 — Scheduled price refresh.** Repurpose the now-idle ingest cron into a pass that re-fetches each
-  tracked item's URL and appends a `PriceEntry` with `source = IMPORT`. Deferred on purpose: it makes the
-  feature's reliability depend on scraping surviving bot detection, which is not a thing to bet the core
-  on before the core is proven. Deps: [10].
-- **F2 — Coupon ↔ pantry matching.** Once ingestion is re-enabled, surface "there's an active coupon for
-  an item you track" by matching on the shared category taxonomy + item name. This is the payoff for
-  decision 1 and should be cheap. Deps: [5, ingestion re-enabled].
-- **F3 — Receipt import.** Photo/PDF of a receipt → a vision model → several `PriceEntry` rows at once.
-  The highest-leverage data-entry win, and the largest. Deps: [6].
-- **F4 — Price-drop notifications.** When a new entry crosses `targetPrice` or lands `GREAT`. Deps: [7].
+- **F1 — Scheduled price refresh.** Re-fetch each tracked item's URL on the idle ingest cron and
+  append a `PriceEntry` with `source = IMPORT`. Deferred: it bets reliability on scraping surviving
+  bot detection. Deps: [v2 10].
+- **F2 — Coupon ↔ pantry matching.** Once ingestion is re-enabled, surface "there's an active coupon
+  for an item you track" via the shared taxonomy + item name. Deps: [ingestion re-enabled].
+- **F3 — Receipt import.** Promoted to this plan.
+- **F4 — Price-drop notifications.** When a new entry crosses `targetPrice` or lands `GREAT`.
+  Deps: [v2 7].
 - **F5 — Rename `CouponType` → `Category`.** Optional debt from decision 1; needs a `Deal.category`
-  disambiguation first, and touches the SDL, the web and a migration. Deps: [].
+  disambiguation first. Deps: [].
 - **F6 — CSV export/import** of pantry items + price history. Self-hosted data should be portable.
 - **F7 — Playwright e2e**, once that infra lands (still owed from v1's Definition of Done).
+- **F8 — Shelf check.** Comparison groups across brands ("Laundry detergent": Tide, Gain, Kirkland,
+  locked to one unit dimension) and checking a price without saving it, judged against your usual
+  price for the group. Needs `buildPriceInsight` to judge any candidate unit price, not only the
+  latest entry. Open question then: groups (recommended) vs. brandless items with the brand on each
+  price entry. Deps: [v2 7].
+- **F9 — Shelf-tag or flyer photo → shelf check**, reusing slices 1–2. Deps: [F8, 2].
+- **F10 — Emailed receipts** through the paused IMAP pipeline, entering at the parse stage — they
+  are already text, so no OCR. Deps: [4].
+- **F11 — Access from outside the LAN, with authentication.** `/graphql` has none, which is fine on
+  the LAN and is not once it is reachable from the internet and accepts uploads. Deps: [].
+- **F12 — Re-read stored receipts** with a newer OCR engine or prompt. Deps: [4].
 
 ## Definition of Done (per slice — from AGENTS.md)
 
@@ -257,4 +326,5 @@ Each slice is one reviewable PR. `pnpm check` green + the required test tiers be
 resolver · all inputs Zod-validated at the boundary · `packages/contract/schema.graphql` and
 `packages/web/src/graphql-env.d.ts` regenerated **and committed** · migrations generated, never
 hand-written · no `process.env` outside `common/settings.ts` · no `console.*` · no layer crossings ·
-web changes `jsx-a11y` clean · README and `.env.example` updated wherever config or behaviour moved.
+web changes `jsx-a11y` clean · README and `.env.example` updated wherever config or behaviour moved ·
+no receipt photo, membership number or card digits in a committed fixture.

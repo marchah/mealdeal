@@ -22,6 +22,9 @@ data/
 ingest-archive/
 ingest-input/
 
+# Receipt photos print membership numbers and card digits (commit only redacted OCR text).
+receipts/
+
 # env / secrets (public repo — never commit)
 .env
 .env.*
