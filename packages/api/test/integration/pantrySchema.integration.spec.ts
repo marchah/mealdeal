@@ -5,6 +5,7 @@ import { Unit } from '../../src/common/units';
 import { createDb } from '../../src/db/client';
 import { couponTypes, pantryItems, priceEntries } from '../../src/db/schema';
 import { PriceSource } from '../../src/entities/priceEntry/types';
+import { resetDb } from './resetDb';
 
 // INTEGRATION test for the pantry migration. It pins BEHAVIOUR, not the column list: that the
 // committed migration applies at all (these queries would throw "no such table" otherwise), and
@@ -39,12 +40,7 @@ async function seedPrice(pantryItemId: string): Promise<string> {
   return id;
 }
 
-beforeEach(async () => {
-  const db = createDb();
-  await db.delete(priceEntries);
-  await db.delete(pantryItems);
-  await db.delete(couponTypes);
-});
+beforeEach(resetDb);
 
 test('the migration created both pantry tables', async () => {
   const db = createDb();

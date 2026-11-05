@@ -7,6 +7,7 @@ import { couponTypes } from '../../src/db/schema';
 import { DEFAULT_COUPON_TYPES } from '../../src/entities/couponType/service';
 import { getServices } from '../../src/services';
 import { schema } from '../../src/schema';
+import { resetDb } from './resetDb';
 
 // INTEGRATION test for the CouponType module. Proves the three things the unit spec can't: the
 // committed migration actually creates `coupon_types` (queries would throw "no such table" otherwise),
@@ -32,10 +33,7 @@ async function runQuery(query: string): Promise<GetCouponTypesResponse> {
 
 const sortedDefaultKeys = [...DEFAULT_COUPON_TYPES].map((c) => c.key).sort();
 
-// Per-test isolation: the integration db is shared across the suite, so clear the table first.
-beforeEach(async () => {
-  await createDb().delete(couponTypes);
-});
+beforeEach(resetDb);
 
 test('migration created coupon_types: getCouponTypes returns [] before seeding', async () => {
   // If the migration were missing (Codex blocker), the query would error with "no such table".

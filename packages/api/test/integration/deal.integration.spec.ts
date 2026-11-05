@@ -5,12 +5,13 @@ import { beforeEach, expect, test } from 'vitest';
 import type { Maybe } from '../../src/common/types';
 import { createContext } from '../../src/context';
 import { createDb } from '../../src/db/client';
-import { couponTypes, deals, merchants, newsletters } from '../../src/db/schema';
+import { couponTypes, deals, merchants } from '../../src/db/schema';
 import { schema } from '../../src/schema';
+import { resetDb } from './resetDb';
 
 // INTEGRATION reference test. Exercises the `deals` query end-to-end through the real Yoga app
 // (HTTP parse -> context -> resolver -> service -> repository -> libsql), including the `merchant`
-// relation resolved via DataLoader. Template for future integration specs: reset in beforeEach for
+// relation resolved via DataLoader. Template for future integration specs: resetDb in beforeEach for
 // isolation, seed via the db with the reusable helper, then assert through a GraphQL request. We drive
 // Yoga's `fetch` (not graphql-js directly) so there is a single graphql instance.
 
@@ -75,16 +76,7 @@ async function seedDeal(opts: {
   });
 }
 
-// Per-test isolation: the integration DB is shared across the whole suite, so clear the tables before
-// each test. Without this, specs leak rows into one another and assertions become order-dependent as
-// the suite grows. (deals first — it FKs merchants.)
-beforeEach(async () => {
-  const db = createDb();
-  await db.delete(deals);
-  await db.delete(newsletters);
-  await db.delete(merchants);
-  await db.delete(couponTypes);
-});
+beforeEach(resetDb);
 
 test('deals query returns the seeded active deal with its merchant', async () => {
   await seedDeal({ title: '50% off olive oil', merchant: 'Trader Vals' });

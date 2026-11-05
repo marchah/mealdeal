@@ -35,6 +35,9 @@ services:
     environment:
       DATABASE_URL: file:/data/mealdeal.db
       RECEIPTS_DIR: /data/receipts
+      # Receipts print local wall-clock time with no zone, read in the process's zone — UTC in a
+      # container unless TZ says otherwise.
+      TZ: ${TZ:-America/New_York}
 
       # Any OpenAI-compatible endpoint (…/v1); the defaults are the app's own. Name the host by a
       # fully qualified name or an IP: on a compose network Docker's embedded resolver can refuse

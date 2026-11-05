@@ -4,8 +4,9 @@ import { beforeEach, expect, test } from 'vitest';
 import type { Maybe } from '../../src/common/types';
 import { createContext } from '../../src/context';
 import { createDb } from '../../src/db/client';
-import { couponTypes, merchants, pantryItems, priceEntries } from '../../src/db/schema';
+import { pantryItems } from '../../src/db/schema';
 import { schema } from '../../src/schema';
+import { resetDb } from './resetDb';
 
 // INTEGRATION test for the priceInsight feature. Proves the verdict survives the whole round trip
 // — real rows in libsql, the per-request DataLoader, the nested PantryItem.insight field — rather
@@ -120,13 +121,7 @@ async function insightFor(id: string, windowDays?: number): Promise<Insight> {
   return insight;
 }
 
-beforeEach(async () => {
-  const db = createDb();
-  await db.delete(priceEntries);
-  await db.delete(pantryItems);
-  await db.delete(merchants);
-  await db.delete(couponTypes);
-});
+beforeEach(resetDb);
 
 test('withholds a verdict until there is enough history', async () => {
   const id = await seedItem();

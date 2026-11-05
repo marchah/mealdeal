@@ -3,8 +3,9 @@ import { createYoga } from 'graphql-yoga';
 import { beforeEach, expect, test } from 'vitest';
 import { createContext } from '../../src/context';
 import { createDb } from '../../src/db/client';
-import { deals, merchants, newsletters } from '../../src/db/schema';
+import { merchants, newsletters } from '../../src/db/schema';
 import { schema } from '../../src/schema';
+import { resetDb } from './resetDb';
 
 const yoga = createYoga({ schema, context: createContext });
 
@@ -23,14 +24,7 @@ async function seedMerchant(): Promise<string> {
   return id;
 }
 
-beforeEach(async () => {
-  const db = createDb();
-  // Other integration specs seed deals, which also reference merchants. Clear every dependent
-  // table before merchants so this file remains isolated regardless of suite ordering.
-  await db.delete(deals);
-  await db.delete(newsletters);
-  await db.delete(merchants);
-});
+beforeEach(resetDb);
 
 test('migration creates newsletters and newsletter query resolves a stored newsletter', async () => {
   const merchantId = await seedMerchant();
