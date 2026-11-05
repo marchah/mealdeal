@@ -7,6 +7,8 @@ import type { Maybe } from '../../common/types';
 export interface AppConfig {
   couponIngestEnabled: boolean;
   lastIngestAt: Maybe<Date>;
+  /** An OCR service is configured, so receipt photos can be read. */
+  receiptImportEnabled: boolean;
 }
 
 export interface AppConfigService {

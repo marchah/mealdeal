@@ -6,5 +6,6 @@ AppConfigRef.implement({
   fields: (t) => ({
     couponIngestEnabled: t.exposeBoolean('couponIngestEnabled'),
     lastIngestAt: t.expose('lastIngestAt', { type: 'DateTime', nullable: true }),
+    receiptImportEnabled: t.exposeBoolean('receiptImportEnabled'),
   }),
 });

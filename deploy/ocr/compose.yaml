@@ -1,0 +1,51 @@
+# MealDeal OCR — PP-OCRv6 medium over HTTP, read by receipt import (OCR_BASE_URL). Its own stack,
+# beside MealDeal rather than inside its image: the engine is CPU-heavy, Python, and ~2 GB.
+#
+# Deployed as a Portainer GIT STACK from this repo; the image is built on the host from this
+# folder, so there is no registry image to pull:
+#   Portainer -> Stacks -> Add stack -> Repository
+#     Repository URL:  https://github.com/marchah/mealdeal
+#     Reference:       refs/heads/main
+#     Compose path:    deploy/ocr/compose.yaml
+# or, from a checkout on the host: docker compose -f deploy/ocr/compose.yaml up -d --build
+#
+# Then set MealDeal's OCR_BASE_URL to http://<this host>:8866. LAN only: there is no auth.
+
+services:
+  ocr:
+    build: .
+    image: mealdeal-ocr:pp-ocrv6-medium
+    platform: linux/amd64
+    container_name: mealdeal-ocr
+    restart: unless-stopped
+    # Built here, so there is nothing for Watchtower to pull.
+    labels:
+      com.centurylinklabs.watchtower.enable: 'false'
+    ports:
+      - '${OCR_PORT:-8866}:8866'
+    volumes:
+      # Model weights, downloaded on the first start and reused after. Losing it costs one download.
+      - ocr-models:/models
+    environment:
+      # Threads per photo; empty uses every core the container can see. Lower it to leave the
+      # host's other services room while a receipt is read.
+      OCR_CPU_THREADS: ${OCR_CPU_THREADS:-}
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8866/health', timeout=5)"
+      interval: 30s
+      timeout: 10s
+      # The first start downloads the models before the server listens.
+      start_period: 10m
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+
+volumes:
+  ocr-models:

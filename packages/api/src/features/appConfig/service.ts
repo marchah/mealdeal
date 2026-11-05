@@ -17,6 +17,7 @@ export function appConfigServiceFactory({
     return {
       couponIngestEnabled: config.COUPON_INGEST_ENABLED,
       lastIngestAt: await lastIngestCompletedAt(),
+      receiptImportEnabled: config.OCR_BASE_URL !== null,
     };
   }
 

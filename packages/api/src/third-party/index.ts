@@ -1,14 +1,18 @@
 import { settings } from '../common/settings';
+import type { Maybe } from '../common/types';
 import type { ZipCoordinateLookup } from '../entities/location/types';
 import type { AddressCoordinateLookup } from '../entities/merchant/types';
 import type { ProductLookup } from '../entities/pantryItem/types';
 import type { ReceiptPhotoStore } from '../entities/receipt/types';
+import type { ReceiptTextReader } from '../features/receiptImport/types';
 import type { JsonChatCompletion } from '../ingest/extractor';
 import type { HtmlToMarkdownConverter } from '../ingest/markdown';
 import { fileSystemAdapterFactory } from './fileSystem/adapter';
 import { mdreamAdapterFactory } from './mdream/adapter';
 import { nominatimAdapterFactory } from './nominatim/adapter';
 import { openaiAdapterFactory } from './openai/adapter';
+import { paddleocrAdapterFactory } from './paddleocr/adapter';
+import { paddleocrServiceFactory } from './paddleocr/service';
 import { productPageAdapterFactory } from './productPage/adapter';
 import { productPageServiceFactory } from './productPage/service';
 import { zippopotamAdapterFactory } from './zippopotam/adapter';
@@ -22,11 +26,14 @@ export interface ThirdPartyServices {
   openaiAdapter: JsonChatCompletion;
   productPageService: ProductLookup;
   fileSystemAdapter: ReceiptPhotoStore;
+  /** Null when OCR_BASE_URL is unset: receipt import is off. */
+  paddleocrService: Maybe<ReceiptTextReader>;
 }
 
 export function getThirdPartyServices(): ThirdPartyServices {
   const mdreamAdapter = mdreamAdapterFactory();
   const openaiAdapter = openaiAdapterFactory({ config: settings });
+  const { OCR_BASE_URL, OCR_TIMEOUT_SECONDS } = settings;
   return {
     zippopotamAdapter: zippopotamAdapterFactory(),
     nominatimAdapter: nominatimAdapterFactory(),
@@ -40,5 +47,14 @@ export function getThirdPartyServices(): ThirdPartyServices {
       jsonChatCompletion: openaiAdapter,
     }),
     fileSystemAdapter: fileSystemAdapterFactory({ directory: settings.RECEIPTS_DIR }),
+    // Rows rebuilt from the engine's boxes, like productPageService over its fetch.
+    paddleocrService:
+      OCR_BASE_URL === null
+        ? null
+        : paddleocrServiceFactory({
+            paddleocrClient: paddleocrAdapterFactory({
+              config: { OCR_BASE_URL, OCR_TIMEOUT_SECONDS },
+            }),
+          }),
   };
 }

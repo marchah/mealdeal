@@ -43,6 +43,37 @@ describe('parseSettings', () => {
     expect(parseSettings({ RECEIPTS_DIR: '/data/receipts' }).RECEIPTS_DIR).toBe('/data/receipts');
   });
 
+  it('leaves receipt import off until an OCR service is configured', () => {
+    expect(parseSettings({}).OCR_BASE_URL).toBeNull();
+    // Docker Compose substitutes an empty string for an unset variable; that means "unset".
+    expect(parseSettings({ OCR_BASE_URL: '' }).OCR_BASE_URL).toBeNull();
+    expect(parseSettings({ OCR_BASE_URL: 'http://192.0.2.10:8866' }).OCR_BASE_URL).toBe(
+      'http://192.0.2.10:8866',
+    );
+    expect(parseSettings({ OCR_BASE_URL: 'https://ocr.example.test/' }).OCR_BASE_URL).toBe(
+      'https://ocr.example.test/',
+    );
+  });
+
+  it('rejects an OCR_BASE_URL that is not an HTTP(S) URL', () => {
+    expect(() => parseSettings({ OCR_BASE_URL: 'ftp://ocr.example.test' })).toThrow(
+      'OCR_BASE_URL must use HTTP or HTTPS',
+    );
+    expect(() => parseSettings({ OCR_BASE_URL: 'ocr.example.test:8866' })).toThrow();
+  });
+
+  it('gives each photo five minutes of OCR unless told otherwise', () => {
+    expect(parseSettings({}).OCR_TIMEOUT_SECONDS).toBe(300);
+    expect(parseSettings({ OCR_TIMEOUT_SECONDS: '' }).OCR_TIMEOUT_SECONDS).toBe(300);
+    expect(parseSettings({ OCR_TIMEOUT_SECONDS: '600' }).OCR_TIMEOUT_SECONDS).toBe(600);
+  });
+
+  it('rejects an OCR timeout that is not a positive number of seconds', () => {
+    expect(() => parseSettings({ OCR_TIMEOUT_SECONDS: '0' })).toThrow();
+    expect(() => parseSettings({ OCR_TIMEOUT_SECONDS: '-30' })).toThrow();
+    expect(() => parseSettings({ OCR_TIMEOUT_SECONDS: 'five minutes' })).toThrow();
+  });
+
   it('pauses coupon newsletter ingestion unless it is explicitly enabled', () => {
     expect(parseSettings({}).COUPON_INGEST_ENABLED).toBe(false);
     expect(parseSettings({ COUPON_INGEST_ENABLED: 'false' }).COUPON_INGEST_ENABLED).toBe(false);

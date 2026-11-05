@@ -127,3 +127,12 @@ export class ExtractionTruncatedError extends ServerError {
     this.name = 'ExtractionTruncatedError';
   }
 }
+
+/** The OCR service failed, timed out, or answered with something unusable. */
+export class OcrServiceError extends ServerError {
+  constructor(message: string) {
+    super(message);
+    this.status = 502;
+    this.name = 'OcrServiceError';
+  }
+}

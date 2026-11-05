@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { createYoga } from 'graphql-yoga';
-import { beforeEach, expect, test } from 'vitest';
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import type { Maybe } from '../../src/common/types';
 import { createContext } from '../../src/context';
 import { createDb } from '../../src/db/client';
@@ -18,14 +18,22 @@ const yoga = createYoga({ schema, context: createContext });
 
 interface AppConfigResponse {
   errors?: unknown;
-  data?: { appConfig: { couponIngestEnabled: boolean; lastIngestAt: Maybe<string> } };
+  data?: {
+    appConfig: {
+      couponIngestEnabled: boolean;
+      lastIngestAt: Maybe<string>;
+      receiptImportEnabled: boolean;
+    };
+  };
 }
 
-async function runQuery(): Promise<AppConfigResponse> {
-  const response = await yoga.fetch('http://localhost/graphql', {
+async function runQuery(app = yoga): Promise<AppConfigResponse> {
+  const response = await app.fetch('http://localhost/graphql', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ query: '{ appConfig { couponIngestEnabled lastIngestAt } }' }),
+    body: JSON.stringify({
+      query: '{ appConfig { couponIngestEnabled lastIngestAt receiptImportEnabled } }',
+    }),
   });
   return (await response.json()) as AppConfigResponse;
 }
@@ -46,6 +54,10 @@ async function seedIngestRun(finishedAt: Maybe<Date>): Promise<void> {
 }
 
 beforeEach(resetDb);
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.resetModules();
+});
 
 test('reports coupon ingestion as paused by default, with no import yet', async () => {
   const body = await runQuery();
@@ -74,4 +86,27 @@ test('ignores a run that started but never finished', async () => {
 
   expect(body.errors).toBeUndefined();
   expect(body.data?.appConfig.lastIngestAt).toBeNull();
+});
+
+test('reports receipt import as off while no OCR service is configured', async () => {
+  const body = await runQuery();
+
+  expect(body.errors).toBeUndefined();
+  // The suite runs without OCR_BASE_URL set, which is the shipped default.
+  expect(body.data?.appConfig.receiptImportEnabled).toBe(false);
+});
+
+test('reports receipt import as on once OCR_BASE_URL is set', async () => {
+  // Settings are parsed once, when the module graph loads: rebuild it under the new environment,
+  // so the real settings parse and composition root are what turn the flag on.
+  vi.stubEnv('OCR_BASE_URL', 'http://ocr.example.test:8866');
+  vi.resetModules();
+  const { schema: ocrSchema } = await import('../../src/schema');
+  const { createContext: ocrContext } = await import('../../src/context');
+
+  const body = await runQuery(createYoga({ schema: ocrSchema, context: ocrContext }));
+
+  expect(body.errors).toBeUndefined();
+  expect(body.data?.appConfig.receiptImportEnabled).toBe(true);
+  expect(body.data?.appConfig.couponIngestEnabled).toBe(false);
 });

@@ -20,6 +20,25 @@ const EnvSchema = z
       (value) => (value === '' ? undefined : value),
       z.string().default('./data/receipts'),
     ),
+    // The OCR service receipt import reads photos with (deploy/ocr/). Unset turns receipt import
+    // off, and Query.appConfig says so.
+    OCR_BASE_URL: z.preprocess(
+      (value) => (value === '' ? undefined : value),
+      z
+        .string()
+        .url()
+        .refine(
+          (value) => ['http:', 'https:'].includes(new URL(value).protocol),
+          'OCR_BASE_URL must use HTTP or HTTPS',
+        )
+        .optional(),
+    ),
+    // Per photo. OCR is CPU-bound on whatever host runs it: 45 s for a 12 MP photo on the spike's
+    // laptop, and an older home server can take several times that.
+    OCR_TIMEOUT_SECONDS: z.preprocess(
+      (value) => (value === '' ? undefined : value),
+      z.coerce.number().positive().default(300),
+    ),
 
     // Coupon newsletter ingestion is PAUSED by default (docs/PLAN.md v2): no newsletter worth
     // ingesting has been found, so the pipeline stays built and tested but does not run. Strict
@@ -110,6 +129,13 @@ export interface ImapSettings {
 /** The deployment facts the SPA needs in order to render honest state (see features/appConfig). */
 export interface AppConfigSettings {
   COUPON_INGEST_ENABLED: boolean;
+  OCR_BASE_URL: Maybe<string>;
+}
+
+/** The OCR service, once it is configured. */
+export interface OcrSettings {
+  OCR_BASE_URL: string;
+  OCR_TIMEOUT_SECONDS: number;
 }
 
 /** OpenAI-compatible LLM settings. */
@@ -149,6 +175,8 @@ export function parseSettings(env: NodeJS.ProcessEnv) {
     DATABASE_URL: ENV.DATABASE_URL,
     MIGRATIONS_DIR: ENV.MIGRATIONS_DIR,
     RECEIPTS_DIR: ENV.RECEIPTS_DIR,
+    OCR_BASE_URL: ENV.OCR_BASE_URL ?? null,
+    OCR_TIMEOUT_SECONDS: ENV.OCR_TIMEOUT_SECONDS,
 
     COUPON_INGEST_ENABLED: ENV.COUPON_INGEST_ENABLED === 'true',
     INGEST_INLINE: ENV.INGEST_INLINE !== '0',
