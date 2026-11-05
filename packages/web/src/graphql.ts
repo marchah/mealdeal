@@ -7,6 +7,7 @@ export const graphql = initGraphQLTada<{
   introspection: introspection;
   scalars: {
     DateTime: string;
+    File: File;
     ID: string;
   };
 }>();

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isPantryPath, pantryItemIdFromPath } from './routes';
+import { isPantryPath, isPantryReceiptsPath, pantryItemIdFromPath } from './routes';
 
 describe('pantry routing', () => {
   it('claims the tab for the list and for any item beneath it', () => {
@@ -15,6 +15,13 @@ describe('pantry routing', () => {
     expect(pantryItemIdFromPath('/pantry')).toBeNull();
     expect(pantryItemIdFromPath('/pantry/')).toBeNull();
     expect(pantryItemIdFromPath('/coupons/abc')).toBeNull();
+  });
+
+  it('gives the receipts view its own route, never mistaken for an item', () => {
+    expect(isPantryReceiptsPath('/pantry/receipts')).toBe(true);
+    expect(isPantryPath('/pantry/receipts')).toBe(true);
+    expect(pantryItemIdFromPath('/pantry/receipts')).toBeNull();
+    expect(isPantryReceiptsPath('/pantry/receipts-1')).toBe(false);
   });
 
   it('decodes an id that had to be escaped in the hash', () => {
