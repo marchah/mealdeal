@@ -9,6 +9,7 @@ services:
     environment:
       DATABASE_URL: file:/data/mealdeal.db
       RECEIPTS_DIR: /data/receipts
+      TZ: ${TZ:-America/New_York}
       IMAP_HOST: ${IMAP_HOST:-}
       IMAP_PORT: ${IMAP_PORT:-993}
       IMAP_SECURE: ${IMAP_SECURE:-true}
