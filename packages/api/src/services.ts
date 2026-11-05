@@ -25,6 +25,7 @@ export function getServices(): Services {
     openaiAdapter,
     productPageService,
     fileSystemAdapter,
+    paddleocrService,
   } = getThirdPartyServices();
   const entities = getEntitiesServices({
     db,
@@ -38,6 +39,7 @@ export function getServices(): Services {
     entities,
     config: settings,
     jsonChatCompletion: openaiAdapter,
+    receiptTextReader: paddleocrService,
   });
   cached = { ...entities, ...features };
   return cached;

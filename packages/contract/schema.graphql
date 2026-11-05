@@ -40,6 +40,9 @@ type Deal {
   url: String
 }
 
+"""A file sent in a multipart request. Input only."""
+scalar File
+
 type LocationLookupError {
   message: String!
   status: Int!
@@ -72,10 +75,13 @@ type Mutation {
   archivePantryItem(archived: Boolean = true, id: ID!): MutationArchivePantryItemResult!
   deletePantryItem(id: ID!): MutationDeletePantryItemResult!
   deletePriceEntry(id: ID!): MutationDeletePriceEntryResult!
+  deleteReceipt(id: ID!): MutationDeleteReceiptResult!
   draftPantryItemFromUrl(url: String!): MutationDraftPantryItemFromUrlResult!
   removeNewsletter(id: ID!): MutationRemoveNewsletterResult!
   removePref(id: ID!): Boolean!
+  retryReceipt(id: ID!): MutationRetryReceiptResult!
   updatePantryItem(id: ID!, input: PantryItemInput!): MutationUpdatePantryItemResult!
+  uploadReceipt(images: [File!]!): MutationUploadReceiptResult!
 }
 
 union MutationAddNewsletterResult = MutationAddNewsletterSuccess | NotFoundError | ServerError | ValidationError
@@ -114,6 +120,12 @@ type MutationDeletePriceEntrySuccess {
   data: PriceEntry!
 }
 
+union MutationDeleteReceiptResult = MutationDeleteReceiptSuccess | NotFoundError | ServerError
+
+type MutationDeleteReceiptSuccess {
+  data: Receipt!
+}
+
 union MutationDraftPantryItemFromUrlResult = MutationDraftPantryItemFromUrlSuccess | ServerError | ValidationError
 
 type MutationDraftPantryItemFromUrlSuccess {
@@ -126,10 +138,22 @@ type MutationRemoveNewsletterSuccess {
   data: Newsletter!
 }
 
+union MutationRetryReceiptResult = ConflictError | MutationRetryReceiptSuccess | NotFoundError | ReceiptImportDisabledError | ServerError
+
+type MutationRetryReceiptSuccess {
+  data: Receipt!
+}
+
 union MutationUpdatePantryItemResult = ConflictError | MutationUpdatePantryItemSuccess | NotFoundError | ServerError | ValidationError
 
 type MutationUpdatePantryItemSuccess {
   data: PantryItem!
+}
+
+union MutationUploadReceiptResult = ConflictError | MutationUploadReceiptSuccess | ReceiptImportDisabledError | ServerError | ValidationError
+
+type MutationUploadReceiptSuccess {
+  data: Receipt!
 }
 
 type NearbyDealGroup {
@@ -281,6 +305,8 @@ type Query {
   pantryItem(id: ID!): QueryPantryItemResult!
   pantryItems(couponTypeId: ID, includeArchived: Boolean = false): [PantryItem!]!
   prefs: [TrackingPref!]!
+  receipt(id: ID!): QueryReceiptResult!
+  receipts(statuses: [ReceiptStatus!]): [Receipt!]!
   recommendedNewsletters(radiusMiles: Float = 25): QueryRecommendedNewslettersResult!
   stats: Stats!
   storesNearLocation(lat: Float!, lng: Float!, radiusMiles: Float!): QueryStoresNearLocationResult!
@@ -311,6 +337,12 @@ type QueryPantryItemSuccess {
   data: PantryItem!
 }
 
+union QueryReceiptResult = NotFoundError | QueryReceiptSuccess | ServerError
+
+type QueryReceiptSuccess {
+  data: Receipt!
+}
+
 union QueryRecommendedNewslettersResult = LocationLookupError | LocationNotConfiguredError | LocationNotFoundError | QueryRecommendedNewslettersSuccess | ServerError | ValidationError
 
 type QueryRecommendedNewslettersSuccess {
@@ -327,6 +359,70 @@ union QueryStoresNearMeResult = LocationLookupError | LocationNotConfiguredError
 
 type QueryStoresNearMeSuccess {
   data: [Store!]!
+}
+
+type Receipt {
+  createdAt: DateTime!
+  error: String
+  failedStage: ReceiptStage
+  flags: [ReceiptFlag!]!
+  id: ID!
+  lines: [ReceiptLine!]!
+  merchant: Merchant
+  photoCount: Int!
+  purchasedAt: DateTime
+  status: ReceiptStatus!
+  subtotal: Float
+  tax: Float
+  total: Float
+}
+
+enum ReceiptFlag {
+  ITEM_COUNT_MISMATCH
+  POSSIBLE_DUPLICATE
+  SUBTOTAL_MISMATCH
+  TOTAL_MISMATCH
+}
+
+type ReceiptImportDisabledError {
+  message: String!
+  status: Int!
+}
+
+type ReceiptLine {
+  description: String
+  discount: Float
+  flags: [ReceiptLineFlag!]!
+  id: ID!
+  itemNumber: String
+  lineTotal: Float!
+  position: Int!
+  printedText: String!
+  quantity: Float!
+  taxFlag: String
+  unitPrice: Float
+  weight: Float
+  weightUnit: Unit
+}
+
+enum ReceiptLineFlag {
+  LINE_TOTAL_MISMATCH
+  WEIGHT_TOTAL_MISMATCH
+}
+
+enum ReceiptStage {
+  MATCH
+  OCR
+  PARSE
+}
+
+enum ReceiptStatus {
+  CONFIRMED
+  FAILED
+  OCR_DONE
+  PARSED
+  READY
+  UPLOADED
 }
 
 type ServerError {

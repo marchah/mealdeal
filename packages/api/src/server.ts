@@ -49,6 +49,8 @@ async function main(): Promise<void> {
 
   // Seed the default coupon-type taxonomy (idempotent + repairs a partial seed).
   await getServices().couponTypeService.seedCouponTypes();
+  // Receipts a restart caught mid-pipeline (docs/PLAN.md decision 7); they run in the background.
+  await getServices().receiptImportService.resumeReceiptImports();
 
   const server = createServer((req, res) => {
     const url = req.url ?? '/';

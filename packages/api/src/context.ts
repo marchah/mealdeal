@@ -4,6 +4,7 @@ import type { CouponType } from './entities/couponType/types';
 import type { Merchant } from './entities/merchant/types';
 import type { PantryItem } from './entities/pantryItem/types';
 import type { PriceEntry } from './entities/priceEntry/types';
+import type { ReceiptImage, ReceiptLine } from './entities/receipt/types';
 import { getServices, type Services } from './services';
 
 // Per-request batching. Loaders are rebuilt for each request so their cache never leaks
@@ -15,6 +16,10 @@ export interface Loaders {
   priceEntriesByPantryItemId: DataLoader<string, PriceEntry[]>;
   /** A price entry reads its own item to know which unit to report itself in. */
   pantryItemById: DataLoader<string, Maybe<PantryItem>>;
+  /** A receipt's photos, in page order. */
+  receiptImagesByReceiptId: DataLoader<string, ReceiptImage[]>;
+  /** A receipt's lines, in printed order. */
+  receiptLinesByReceiptId: DataLoader<string, ReceiptLine[]>;
 }
 
 // The GraphQL context threaded into every resolver. Resolvers reach data ONLY through
@@ -50,6 +55,18 @@ export function createContext(): YogaContext {
         // The batch arrives already newest-first, so pushing preserves that per group.
         for (const entry of found) byItemId.get(entry.pantryItemId)?.push(entry);
         return ids.map((id) => byItemId.get(id) ?? []);
+      }),
+      receiptImagesByReceiptId: new DataLoader<string, ReceiptImage[]>(async (ids) => {
+        const found = await services.receiptService.findReceiptImagesByReceiptIds(ids);
+        const byReceiptId = new Map<string, ReceiptImage[]>(ids.map((id) => [id, []]));
+        for (const image of found) byReceiptId.get(image.receiptId)?.push(image);
+        return ids.map((id) => byReceiptId.get(id) ?? []);
+      }),
+      receiptLinesByReceiptId: new DataLoader<string, ReceiptLine[]>(async (ids) => {
+        const found = await services.receiptService.findReceiptLinesByReceiptIds(ids);
+        const byReceiptId = new Map<string, ReceiptLine[]>(ids.map((id) => [id, []]));
+        for (const line of found) byReceiptId.get(line.receiptId)?.push(line);
+        return ids.map((id) => byReceiptId.get(id) ?? []);
       }),
     },
   };
