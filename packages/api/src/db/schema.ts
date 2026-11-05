@@ -2,6 +2,13 @@ import { sql } from 'drizzle-orm';
 import { index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import type { Unit } from '../common/units';
 import type { PriceSource } from '../entities/priceEntry/types';
+import type {
+  ReceiptLineDecision,
+  ReceiptLineFlag,
+  ReceiptMatchSource,
+  ReceiptStage,
+  ReceiptStatus,
+} from '../entities/receipt/types';
 import type { PrefKind, PrefScope } from '../entities/trackingPref/types';
 
 // The persistence schema. This file + client.ts are the ONLY dialect-aware files:
@@ -145,11 +152,108 @@ export const priceEntries = sqliteTable(
     source: text('source').$type<PriceSource>().notNull(),
     url: text('url'),
     note: text('note'),
+    // set null, not cascade: deleting a receipt keeps the prices it produced — the history is the
+    // precious part, the same reasoning as `archived`. drizzle-kit drops ON DELETE when it ADDs a
+    // referencing column to an existing table, so a column like this one is generated in two
+    // steps: the plain column, then the reference, which rebuilds the table with the clause.
+    receiptId: text('receipt_id').references(() => receipts.id, { onDelete: 'set null' }),
     // When the price was SEEN, which is not when the row was written — a receipt gets logged late.
     observedAt: timestamp('observed_at').notNull().default(now),
     createdAt: timestamp('created_at').notNull().default(now),
   },
   (t) => [index('price_entries_item_observed').on(t.pantryItemId, t.observedAt)],
+);
+
+export const receipts = sqliteTable('receipts', {
+  id: text('id').primaryKey(),
+  // Null until the parse names the store.
+  merchantId: text('merchant_id').references(() => merchants.id),
+  purchasedAt: timestamp('purchased_at'),
+  status: text('status').$type<ReceiptStatus>().notNull(),
+  // Set only while status is FAILED: the stage a retry restarts at, and why it stopped.
+  failedStage: text('failed_stage').$type<ReceiptStage>(),
+  error: text('error'),
+  // Kept so a better prompt can re-parse without re-reading the photo (docs/PLAN.md decision 4).
+  ocrText: text('ocr_text'),
+  ocrEngine: text('ocr_engine'),
+  subtotal: real('subtotal'),
+  tax: real('tax'),
+  total: real('total'),
+  imageHash: text('image_hash'),
+  createdAt: timestamp('created_at').notNull().default(now),
+});
+
+export const receiptImages = sqliteTable(
+  'receipt_images',
+  {
+    id: text('id').primaryKey(),
+    receiptId: text('receipt_id')
+      .notNull()
+      .references(() => receipts.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull(),
+    // Relative to RECEIPTS_DIR, so the data volume can move without rewriting rows.
+    path: text('path').notNull(),
+    contentType: text('content_type').notNull(),
+    bytes: integer('bytes').notNull(),
+  },
+  (t) => [uniqueIndex('receipt_images_receipt_position').on(t.receiptId, t.position)],
+);
+
+export const receiptLines = sqliteTable(
+  'receipt_lines',
+  {
+    id: text('id').primaryKey(),
+    receiptId: text('receipt_id')
+      .notNull()
+      .references(() => receipts.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull(),
+    itemNumber: text('item_number'),
+    printedText: text('printed_text').notNull(),
+    description: text('description'),
+    quantity: real('quantity').notNull().default(1),
+    unitPrice: real('unit_price'),
+    weight: real('weight'),
+    weightUnit: text('weight_unit').$type<Unit>(),
+    lineTotal: real('line_total').notNull(),
+    discount: real('discount'),
+    taxFlag: text('tax_flag'),
+    flags: text('flags', { mode: 'json' }).$type<ReceiptLineFlag[]>().notNull().default([]),
+    // set null on both links: losing an item or an entry un-matches the line rather than erasing
+    // what the receipt printed.
+    pantryItemId: text('pantry_item_id').references(() => pantryItems.id, {
+      onDelete: 'set null',
+    }),
+    sizeAmount: real('size_amount'),
+    sizeUnit: text('size_unit').$type<Unit>(),
+    matchSource: text('match_source').$type<ReceiptMatchSource>(),
+    decision: text('decision').$type<ReceiptLineDecision>().notNull(),
+    priceEntryId: text('price_entry_id').references(() => priceEntries.id, {
+      onDelete: 'set null',
+    }),
+  },
+  (t) => [uniqueIndex('receipt_lines_receipt_position').on(t.receiptId, t.position)],
+);
+
+export const receiptAliases = sqliteTable(
+  'receipt_aliases',
+  {
+    id: text('id').primaryKey(),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id),
+    matchKey: text('match_key').notNull(),
+    printedText: text('printed_text').notNull(),
+    // cascade, not set null: an alias left pointing at nothing would be neither a match nor an
+    // ignore. Null here means `ignored`.
+    pantryItemId: text('pantry_item_id').references(() => pantryItems.id, { onDelete: 'cascade' }),
+    sizeAmount: real('size_amount'),
+    sizeUnit: text('size_unit').$type<Unit>(),
+    ignored: integer('ignored', { mode: 'boolean' }).notNull().default(false),
+    createdAt: timestamp('created_at').notNull().default(now),
+    updatedAt: timestamp('updated_at').notNull().default(now),
+  },
+  // One learned name per (store, match key) — docs/PLAN.md decision 5.
+  (t) => [uniqueIndex('receipt_aliases_merchant_match_key').on(t.merchantId, t.matchKey)],
 );
 
 export const ingestRuns = sqliteTable('ingest_runs', {
