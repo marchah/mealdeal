@@ -1,0 +1,7 @@
+# The OCR image's direct dependencies; requirements.txt pins everything they pull in.
+# paddlepaddle stays on 3.2.2: 3.3.0 and 3.3.1 fail every inference on x86 CPUs with oneDNN on
+# ("ConvertPirAttribute2RuntimeAttribute not support", PaddlePaddle/Paddle#77340), and without
+# oneDNN a 12 MP photo needs twice the memory. 3.2.2 reads slice 0's receipt as the spike did.
+paddlepaddle==3.2.2
+paddleocr==3.7.0
+paddlex==3.7.2
