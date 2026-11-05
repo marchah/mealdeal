@@ -39,6 +39,11 @@ services:
       # container unless TZ says otherwise.
       TZ: ${TZ:-America/New_York}
 
+      # Receipt import reads photos through the OCR stack in deploy/ocr/ (its own Portainer stack):
+      # http://<its host>:8866. Empty leaves receipt import off. The timeout is per photo.
+      OCR_BASE_URL: ${OCR_BASE_URL:-}
+      OCR_TIMEOUT_SECONDS: ${OCR_TIMEOUT_SECONDS:-300}
+
       # Any OpenAI-compatible endpoint (…/v1); the defaults are the app's own. Name the host by a
       # fully qualified name or an IP: on a compose network Docker's embedded resolver can refuse
       # single-label names.

@@ -3,13 +3,18 @@ import type { Maybe } from '../../common/types';
 import type { IngestRunService } from '../ingestRun/types';
 import { appConfigServiceFactory } from './service';
 
-function makeService(over: { couponIngestEnabled?: boolean; lastIngestAt?: Maybe<Date> } = {}) {
+function makeService(
+  over: { couponIngestEnabled?: boolean; lastIngestAt?: Maybe<Date>; ocrBaseUrl?: string } = {},
+) {
   // @ts-expect-error partial mock: only lastIngestCompletedAt is used
   const ingestRunService: IngestRunService = {
     lastIngestCompletedAt: () => Promise.resolve(over.lastIngestAt ?? null),
   };
   return appConfigServiceFactory({
-    config: { COUPON_INGEST_ENABLED: over.couponIngestEnabled ?? false },
+    config: {
+      COUPON_INGEST_ENABLED: over.couponIngestEnabled ?? false,
+      OCR_BASE_URL: over.ocrBaseUrl ?? null,
+    },
     ingestRunService,
   });
 }
@@ -20,6 +25,7 @@ describe('appConfigService', () => {
     await expect(makeService({ lastIngestAt }).getAppConfig()).resolves.toEqual({
       couponIngestEnabled: false,
       lastIngestAt,
+      receiptImportEnabled: false,
     });
   });
 
@@ -40,6 +46,13 @@ describe('appConfigService', () => {
     const lastIngestAt = new Date('2026-07-01T00:00:00Z');
     await expect(
       makeService({ couponIngestEnabled: false, lastIngestAt }).getAppConfig(),
-    ).resolves.toEqual({ couponIngestEnabled: false, lastIngestAt });
+    ).resolves.toEqual({ couponIngestEnabled: false, lastIngestAt, receiptImportEnabled: false });
+  });
+
+  it('reports receipt import as enabled once an OCR service is configured', async () => {
+    const config = await makeService({ ocrBaseUrl: 'http://ocr.example.test:8866' }).getAppConfig();
+    expect(config.receiptImportEnabled).toBe(true);
+    // The two halves are independent: coupons stay paused.
+    expect(config.couponIngestEnabled).toBe(false);
   });
 });

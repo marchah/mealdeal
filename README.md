@@ -60,6 +60,17 @@ loopback, link-local and carrier-grade-NAT addresses are rejected, DNS is resolv
 before connecting (so a public hostname pointing at `127.0.0.1` is caught), redirects are followed
 manually and re-checked at each hop, and both the request and the response body are capped.
 
+### Receipt OCR (`OCR_BASE_URL`)
+
+Receipt import reads each photo with an OCR engine — PP-OCRv6, which runs on a CPU — served by a
+container of its own: [`deploy/ocr/`](deploy/ocr/README.md) builds and runs it, on any x86_64 host
+with about 6 GB of memory to spare while it reads. Point `OCR_BASE_URL` at it
+(`http://<host>:8866`). Unset, receipt import is off and `Query.appConfig.receiptImportEnabled`
+says so.
+
+A 12 MP photo takes from about 15 seconds to a minute, depending on the CPU. `OCR_TIMEOUT_SECONDS`
+(default 300) is how long MealDeal waits for one photo.
+
 ### Receipt photos (`RECEIPTS_DIR`)
 
 Receipt import ([docs/PLAN.md](./docs/PLAN.md), in progress) keeps every photo you upload, so a

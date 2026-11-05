@@ -1,6 +1,7 @@
 type AppConfig {
   couponIngestEnabled: Boolean!
   lastIngestAt: DateTime
+  receiptImportEnabled: Boolean!
 }
 
 type ConflictError {
